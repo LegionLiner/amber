@@ -25,7 +25,6 @@ const emit = defineEmits<{ 'update:modelValue': [value: number | null] }>()
 
 const el = ref<HTMLElement | null>(null)
 const preview = ref<number | null>(null)
-const pop = ref(0)
 const shown = computed(() => preview.value ?? props.modelValue ?? 0)
 
 let startX = 0
@@ -65,8 +64,13 @@ function move(e: PointerEvent) {
     }
     // Порог побольше: палец на тапе чуть сдвигается, а тап по текущей оценке должен её снимать
     if (Math.abs(dx) < 10) return
+    try {
+      el.value!.setPointerCapture(e.pointerId)
+    } catch {
+      // Касания уже нет (система его забрала): никакой протяжки
+      return reset()
+    }
     mode = 'drag'
-    el.value!.setPointerCapture(e.pointerId)
   }
   const v = valueAt(e.clientX)
   if (v !== preview.value) {
@@ -79,8 +83,25 @@ function commit(v: number) {
   if (v !== props.modelValue) emit('update:modelValue', v)
   if (v === 10) {
     haptic.success()
-    pop.value++
+    celebrate()
   }
+}
+
+/**
+ * Пять звёзд: короткий «прыжок» по очереди. Через Web Animations, а не пересозданием элементов
+ * по ключу: у v-for по числу список «стабильный», смену ключа Vue в нём не поддерживает,
+ * и после первого прыжка видимые звёзды переставали обновляться.
+ */
+function celebrate() {
+  if (document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  el.value
+    ?.querySelectorAll<HTMLElement>('.star')
+    .forEach((star, i) =>
+      star.animate(
+        [{ transform: 'scale(1)' }, { transform: 'scale(1.28) rotate(-8deg)', offset: 0.4 }, { transform: 'scale(1)' }],
+        { duration: 420, delay: i * 45, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+      ),
+    )
 }
 
 function finish(x: number) {
@@ -171,7 +192,7 @@ function key(e: KeyboardEvent) {
     @contextmenu.prevent
     @keydown="key"
   >
-    <span v-for="i in 5" :key="`${i}-${pop}`" class="star" :class="{ popping: pop && shown === 10 }" :style="{ '--i': i }">
+    <span v-for="i in 5" :key="i" class="star">
       <IconStarEmpty class="star-empty" />
       <span class="fill" :style="{ width: fill(i) }"><IconStar /></span>
     </span>
@@ -218,21 +239,5 @@ function key(e: KeyboardEvent) {
 }
 .live .fill {
   transition: none;
-}
-/* Пять звёзд: короткий «прыжок» по очереди, без фильтров (drop-shadow в WebView давал артефакты на весь экран) */
-.star.popping {
-  animation: star-pop 420ms var(--ease-out) both;
-  animation-delay: calc(var(--i) * 45ms);
-}
-@keyframes star-pop {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.28) rotate(-8deg);
-  }
-  100% {
-    transform: scale(1);
-  }
 }
 </style>

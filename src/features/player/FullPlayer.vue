@@ -445,7 +445,8 @@ function togglePlay() {
         </div>
 
         <div class="rate">
-          <RatingStars :model-value="track?.rating ?? null" :size="26" @update:model-value="rate" />
+          <!-- key: у нового трека звёзды начинают с чистого листа, без следов жеста на прошлом -->
+          <RatingStars :key="item.qid" :model-value="track?.rating ?? null" :size="26" @update:model-value="rate" />
           <span class="plays num">{{ track?.plays ? `${track.plays} прослуш.` : 'первый раз' }}</span>
         </div>
 

@@ -37,7 +37,7 @@ function up() {
       aria-modal="true"
       :style="dy ? { transform: `translateY(${dy}px)`, transition: 'none' } : undefined"
     >
-      <div class="grab" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @lostpointercapture="up">
+      <div class="grab" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @lostpointercapture.self="up">
         <i />
       </div>
       <component :is="ui.sheet.component" v-bind="ui.sheet.props" @close="ui.closeSheet()" />

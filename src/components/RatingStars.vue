@@ -187,7 +187,7 @@ function key(e: KeyboardEvent) {
     @pointermove="move"
     @pointerup="up"
     @pointercancel="cancel"
-    @lostpointercapture="lost"
+    @lostpointercapture.self="lost"
     @dragstart.prevent
     @contextmenu.prevent
     @keydown="key"

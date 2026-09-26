@@ -102,7 +102,7 @@ onBeforeUnmount(() => el.value?.removeEventListener('touchmove', blockTouchMove)
     @pointermove="move"
     @pointerup="up"
     @pointercancel="cancel"
-    @lostpointercapture="cancel"
+    @lostpointercapture.self="cancel"
   >
     <i v-if="zone" class="zone" :style="{ left: pct(zone[0]), width: `calc(${pct(zone[1])} - ${pct(zone[0])})` }" />
     <div class="bars">

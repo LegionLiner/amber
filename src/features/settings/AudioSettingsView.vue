@@ -300,7 +300,7 @@ async function stopPreview() {
             @pointermove="bandMove($event, i)"
             @pointerup="bandUp($event, i)"
             @pointercancel="bandEnd"
-            @lostpointercapture="bandEnd"
+            @lostpointercapture.self="bandEnd"
           >
             <i class="zero" />
             <b

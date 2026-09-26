@@ -259,7 +259,7 @@ function toggle() {
       @pointermove="move"
       @pointerup="up"
       @pointercancel="cancel"
-      @lostpointercapture="up"
+      @lostpointercapture.self="up"
       @click="open"
     >
       <div class="strip" :style="stripStyle">
@@ -287,7 +287,7 @@ function toggle() {
       @pointermove="smove"
       @pointerup="sup"
       @pointercancel="scancel"
-      @lostpointercapture="sup"
+      @lostpointercapture.self="sup"
       @click.stop="tapBar"
     >
       <div class="line"><i :style="{ transform: `scaleX(${scrub ?? frac})` }" /></div>

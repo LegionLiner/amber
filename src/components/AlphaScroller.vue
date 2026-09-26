@@ -114,7 +114,7 @@ function blockTouchMove(e: TouchEvent) {
     @pointermove="move"
     @pointerup="up"
     @pointercancel="up"
-    @lostpointercapture="up"
+    @lostpointercapture.self="up"
   >
     <span v-for="l in letters" :key="l.letter" :class="{ on: active === l.letter }">{{ l.letter }}</span>
     <Transition name="bubble">

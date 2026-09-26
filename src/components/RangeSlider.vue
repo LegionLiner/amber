@@ -111,7 +111,7 @@ function key(e: KeyboardEvent) {
     @pointermove="move"
     @pointerup="up"
     @pointercancel="cancel"
-    @lostpointercapture="cancel"
+    @lostpointercapture.self="cancel"
     @keydown="key"
   >
     <i class="track"><b class="fill" /></i>

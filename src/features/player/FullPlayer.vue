@@ -393,7 +393,7 @@ function togglePlay() {
           @pointermove="move"
           @pointerup="up"
           @pointercancel="up"
-          @lostpointercapture="up"
+          @lostpointercapture.self="up"
         >
           <button type="button" class="icon-btn" aria-label="Свернуть" @pointerdown.stop @click="close"><IconDown /></button>
           <div class="src">
@@ -409,7 +409,7 @@ function togglePlay() {
           @pointermove="move"
           @pointerup="up"
           @pointercancel="up"
-          @lostpointercapture="up"
+          @lostpointercapture.self="up"
         >
           <div class="art">
             <div ref="deck" class="deck" :style="deckStyle">

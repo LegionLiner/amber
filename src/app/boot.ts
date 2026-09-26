@@ -4,7 +4,7 @@ import { MusicCore } from '@/native/music-core'
 import { isNative, setCoversDir } from '@/native/paths'
 import { migrate } from '@/data/db'
 import { useSettings } from '@/stores/settings'
-import { useLibrary } from '@/stores/library'
+import { SCANNER_VERSION, useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
 import { applyAppearance } from './theme'
@@ -66,9 +66,10 @@ export async function boot(): Promise<void> {
     await router.replace('/welcome')
     return
   }
-  // Сканирование инкрементальное: читаются только новые и изменённые файлы
+  // Сканирование инкрементальное: читаются только новые и изменённые файлы.
+  // После обновления сканера — один полный проход, чтобы перечитать теги по-новому
   void library
-    .scan(false)
+    .scan((settings.s.scan.version ?? 0) < SCANNER_VERSION)
     .catch((e) => console.warn('scan failed', e))
     .finally(() => {
       void weeklyHousekeeping().catch((e) => console.warn('housekeeping failed', e))

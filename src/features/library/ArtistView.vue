@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconRadio from '~icons/solar/radio-linear'
 import CollectionPage from '@/components/CollectionPage.vue'
 import { useLibrary } from '@/stores/library'
@@ -10,7 +10,7 @@ import { sortTracks } from '@/domain/sort'
 import { formatListen, countLabel } from '@/domain/format'
 import { metaFor } from './rowMeta'
 
-const route = useRoute()
+const route = useViewRoute()
 const library = useLibrary()
 const radio = useRadio()
 const ui = useUi()

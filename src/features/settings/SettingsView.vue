@@ -2,6 +2,8 @@
 import { computed, onActivated, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ScreenHeader from '@/components/ScreenHeader.vue'
+import RangeSlider from '@/components/RangeSlider.vue'
+import DamagedFilesCard from '@/components/DamagedFilesCard.vue'
 import { useSettings, type ThemeMode } from '@/stores/settings'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
@@ -71,7 +73,6 @@ async function setRule(rule: CountingRule) {
   ui.toast('История пересчитана по новому правилу')
 }
 
-const pct = (v: number, min: number, max: number) => `${((v - min) / (max - min)) * 100}%`
 const secs = (ms: number) =>
   ms >= 60_000 ? `${Math.floor(ms / 60_000)} мин${ms % 60_000 ? ` ${(ms % 60_000) / 1000} с` : ''}` : `${ms / 1000} с`
 
@@ -200,6 +201,7 @@ async function backupNow() {
 <template>
   <div class="scroll screen form">
     <ScreenHeader title="Настройки" back />
+    <DamagedFilesCard />
 
     <section class="group">
       <h2 class="gtitle">Внешний вид</h2>
@@ -263,46 +265,19 @@ async function backupNow() {
           <header>
             <span>Доля трека</span><output>{{ Math.round(custom.minFraction * 100) }}%</output>
           </header>
-          <input
-            id="rule-frac"
-            v-model.number="custom.minFraction"
-            type="range"
-            class="range"
-            min="0"
-            max="1"
-            step="0.05"
-            :style="{ '--p': pct(custom.minFraction, 0, 1) }"
-          />
+          <RangeSlider v-model="custom.minFraction" :min="0" :max="1" :step="0.05" />
         </div>
         <div class="slider-row">
           <header>
             <span>…или столько времени</span><output>{{ secs(custom.minListenMs) }}</output>
           </header>
-          <input
-            id="rule-listen"
-            v-model.number="custom.minListenMs"
-            type="range"
-            class="range"
-            min="10000"
-            max="600000"
-            step="10000"
-            :style="{ '--p': pct(custom.minListenMs, 10000, 600000) }"
-          />
+          <RangeSlider v-model="custom.minListenMs" :min="10000" :max="600000" :step="10000" />
         </div>
         <div class="slider-row">
           <header>
             <span>Треки короче не считаются</span><output>{{ secs(custom.minTrackMs) }}</output>
           </header>
-          <input
-            id="rule-min"
-            v-model.number="custom.minTrackMs"
-            type="range"
-            class="range"
-            min="0"
-            max="120000"
-            step="5000"
-            :style="{ '--p': pct(custom.minTrackMs, 0, 120000) }"
-          />
+          <RangeSlider v-model="custom.minTrackMs" :min="0" :max="120000" :step="5000" />
         </div>
         <p class="note">
           Засчитается, когда прослушано {{ Math.round(custom.minFraction * 100) }}% трека или {{ secs(custom.minListenMs) }} — что
@@ -345,32 +320,14 @@ async function backupNow() {
             s.radio.adventure < 0.3 ? 'только похожее' : s.radio.adventure < 0.7 ? 'иногда в сторону' : 'неожиданно'
           }}</output>
         </header>
-        <input
-          id="radio-adv"
-          v-model.number="s.radio.adventure"
-          type="range"
-          class="range"
-          min="0"
-          max="1"
-          step="0.05"
-          :style="{ '--p': pct(s.radio.adventure, 0, 1) }"
-        />
+        <RangeSlider v-model="s.radio.adventure" :min="0" :max="1" :step="0.05" />
       </div>
       <div class="slider-row">
         <header>
           <span>Свежесть</span
           ><output>{{ s.radio.freshness < 0.3 ? 'любимое' : s.radio.freshness < 0.7 ? 'поровну' : 'забытое' }}</output>
         </header>
-        <input
-          id="radio-fresh"
-          v-model.number="s.radio.freshness"
-          type="range"
-          class="range"
-          min="0"
-          max="1"
-          step="0.05"
-          :style="{ '--p': pct(s.radio.freshness, 0, 1) }"
-        />
+        <RangeSlider v-model="s.radio.freshness" :min="0" :max="1" :step="0.05" />
       </div>
     </section>
 
@@ -513,13 +470,13 @@ async function backupNow() {
     <section v-if="isNative" class="group">
       <h2 class="gtitle">Работа в фоне</h2>
       <p class="note">
-        Некоторые оболочки останавливают фоновые приложения. Если музыка обрывается при выключенном экране, разреши «Янтарю»
-        работать без ограничений.
+        Некоторые оболочки останавливают фоновые приложения. Если музыка обрывается при выключенном экране, разреши Amber работать
+        без ограничений.
       </p>
       <button type="button" class="btn block" @click="MusicCore.openBatterySettings()">Настройки батареи</button>
     </section>
 
-    <p class="about muted">Янтарь 0.2.0 · офлайн, без аккаунтов</p>
+    <p class="about muted">Amber 0.2.0 · офлайн, без аккаунтов</p>
     <div class="bottom-space" />
   </div>
 </template>

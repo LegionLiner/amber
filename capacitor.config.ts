@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'app.yantar.player',
-  appName: 'Янтарь',
+  appName: 'Amber',
   webDir: 'dist',
   backgroundColor: '#0E0D0C',
   // Без журнала каждого вызова плагина: в debug-сборке он сериализует ответы (вся медиатека) в консоль

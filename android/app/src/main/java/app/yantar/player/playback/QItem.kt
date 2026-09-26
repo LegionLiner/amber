@@ -13,7 +13,14 @@ import org.json.JSONObject
  */
 class QItem(val json: JSONObject) {
     val qid: String = json.optString("qid")
-    val key: String = json.optString("key")
+    /** Может смениться, если файл получил новый отпечаток (см. KeyAliases) */
+    var key: String = json.optString("key")
+        private set
+
+    fun rekey(newKey: String) {
+        key = newKey
+        json.put("key", newKey)
+    }
     val uri: String = json.optString("uri")
     val title: String = json.optString("title")
     val artist: String = json.optString("artist")

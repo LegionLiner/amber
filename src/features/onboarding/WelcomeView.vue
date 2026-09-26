@@ -40,7 +40,7 @@ async function grant() {
     const audioOk = info.sdkInt >= 33 ? res.audio === 'granted' : res.storage === 'granted'
     if (!audioOk && isNative) {
       error.value =
-        'Без доступа к музыке приложению нечего играть. Разреши доступ в настройках Android: Приложения → Янтарь → Разрешения.'
+        'Без доступа к музыке приложению нечего играть. Разреши доступ в настройках Android: Приложения → Amber → Разрешения.'
       return
     }
     step.value = 'scan'
@@ -79,7 +79,7 @@ function finish() {
   <div class="welcome scroll">
     <div class="glow" aria-hidden="true"><i /><i /></div>
     <div class="content">
-      <h1 class="display brand">Янтарь</h1>
+      <h1 class="display brand">Amber</h1>
       <p class="tag">Личный офлайн-плеер, который помнит каждое прослушивание</p>
 
       <template v-if="step === 'intro'">

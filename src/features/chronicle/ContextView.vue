@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconPlay from '~icons/solar/play-bold'
 import IconPen from '~icons/solar/pen-linear'
 import ScreenHeader from '@/components/ScreenHeader.vue'
@@ -15,7 +16,7 @@ import { displayArtist, type Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
 
 /** Контекст: его саундтрек (что чаще всего звучит в этой ситуации) и статистика */
-const route = useRoute()
+const route = useViewRoute()
 const router = useRouter()
 const library = useLibrary()
 const player = usePlayer()

@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { haptic } from '@/native/haptics'
+import { touchStoppedScroll } from './tapGuard'
 
 export interface RowGestureOptions {
   onTap: () => void
@@ -43,6 +44,11 @@ export function useRowGesture(opts: RowGestureOptions) {
     lock = null
     longFired = false
     armed = false
+    // Касание остановило прокрутку по инерции: это не нажатие и не долгое нажатие
+    if (touchStoppedScroll()) {
+      active = false
+      return
+    }
     if (opts.onLongPress) {
       timer = setTimeout(() => {
         longFired = true

@@ -63,7 +63,7 @@
         <receiver
             android:name=".playback.PlayerWidget"
             android:exported="false"
-            android:label="Янтарь">
+            android:label="Amber">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

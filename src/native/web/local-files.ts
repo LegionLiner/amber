@@ -1,4 +1,5 @@
 import { mp3Frame, parseV1, parseV2, sha1Hex, tagSize, trackKey, type Id3Tags } from './id3'
+import { mp4KeyFromFile, readMoov, readMoovFromFile, sniff, type AudioKind } from './mp4'
 
 /**
  * Папка с настоящими mp3 в браузере (веб-версия и Docker).
@@ -24,6 +25,10 @@ export interface LocalTrack {
   sampleRate: number | null
   tags: Id3Tags
   art: { hash: string; blob: Blob } | null
+  /** Что внутри на самом деле: у многих «.mp3» — MP4/AAC */
+  kind: AudioKind
+  /** Отпечаток по старому расчёту, если он отличается (для переноса истории) */
+  legacyKey?: string
 }
 
 const AUDIO = /\.(mp3|flac|m4a|aac|ogg|opus|wav)$/i
@@ -127,11 +132,22 @@ function probeDuration(file: File): Promise<number> {
 
 export async function readLocal(e: LocalEntry): Promise<LocalTrack | null> {
   const f = e.file
-  const isMp3 = /\.mp3$/i.test(f.name)
-  const head = new Uint8Array(await f.slice(0, 10).arrayBuffer())
+  // Формат по байтам, а не по расширению: у многих «.mp3» внутри MP4/AAC
+  const head = new Uint8Array(await f.slice(0, 16).arrayBuffer())
   const tsz = tagSize(head)
+  const after = tsz > 0 ? new Uint8Array(await f.slice(tsz, tsz + 16).arrayBuffer()) : undefined
+  const kind = sniff(head, after)
+  const isMp3 = kind === 'mpeg'
   let tags: Id3Tags = {}
-  if (tsz > 0) tags = parseV2(new Uint8Array(await f.slice(0, Math.min(tsz, 8 * 1024 * 1024)).arrayBuffer())) ?? {}
+  let mp4Duration: number | null = null
+  if (kind === 'mp4') {
+    const moov = await readMoovFromFile(f)
+    if (moov) {
+      const m = readMoov(moov)
+      tags = { ...m.tags, picture: m.tags.picture ? { ...m.tags.picture, front: true } : undefined }
+      mp4Duration = m.durationMs
+    }
+  } else if (tsz > 0) tags = parseV2(new Uint8Array(await f.slice(0, Math.min(tsz, 8 * 1024 * 1024)).arrayBuffer())) ?? {}
   let v1Len = 0
   if (isMp3 && f.size > 128) {
     const v1 = parseV1(new Uint8Array(await f.slice(f.size - 128).arrayBuffer()))
@@ -144,9 +160,11 @@ export async function readLocal(e: LocalEntry): Promise<LocalTrack | null> {
   }
   const start = tsz > 0 && tsz < f.size ? tsz : 0
   const sample = new Uint8Array(await f.slice(start, start + 65536).arrayBuffer())
-  const key = trackKey(f.size, start, sample)
+  const legacy = trackKey(f.size, start, sample)
+  // MP4: отпечаток по аудиоданным (mdat), чтобы правка тегов его не меняла
+  const key = kind === 'mp4' ? ((await mp4KeyFromFile(f)) ?? legacy) : legacy
   const d = isMp3 ? mp3Duration(sample, f.size - start - v1Len) : null
-  const durationMs = d?.ms || (await probeDuration(f))
+  const durationMs = mp4Duration || d?.ms || (await probeDuration(f))
   let art: LocalTrack['art'] = null
   if (tags.picture) {
     art = {
@@ -162,11 +180,13 @@ export async function readLocal(e: LocalEntry): Promise<LocalTrack | null> {
     fileName: slash >= 0 ? e.relPath.slice(slash + 1) : e.relPath,
     size: f.size,
     mtime: Math.round(f.lastModified / 1000),
-    mime: isMp3 ? 'audio/mpeg' : f.type || 'audio/*',
+    mime: kind === 'mp4' ? 'audio/mp4' : isMp3 ? 'audio/mpeg' : f.type || 'audio/*',
     durationMs,
     bitrate: d?.bitrate ?? null,
     sampleRate: d?.sampleRate ?? null,
     tags,
     art,
+    kind,
+    legacyKey: legacy !== key ? legacy : undefined,
   }
 }

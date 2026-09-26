@@ -39,6 +39,8 @@ export interface AppSettings {
     minDurationMs: number
     excludeFolders: string[]
     lastScanAt: number | null
+    /** Версия сканера, которой прочитана библиотека: при росте — один полный пересчёт тегов */
+    version: number
   }
   /** Если у трека нет тега альбома, считать альбомом папку */
   albumFromFolder: boolean
@@ -94,6 +96,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
       'Telegram/Telegram Voice/',
     ],
     lastScanAt: null,
+    version: 0,
   },
   albumFromFolder: true,
   sorts: {},

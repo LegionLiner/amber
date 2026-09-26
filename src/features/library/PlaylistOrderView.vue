@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import { useRoute } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconDrag from '~icons/solar/hamburger-menu-linear'
 import IconRemove from '~icons/solar/minus-circle-linear'
 import ScreenHeader from '@/components/ScreenHeader.vue'
@@ -13,7 +13,7 @@ import { useDragList } from '@/composables/useDragList'
 import { displayArtist } from '@/domain/track'
 
 /** Порядок плейлиста: тянешь за ручку, отпускаешь — порядок сохранён */
-const route = useRoute()
+const route = useViewRoute()
 const library = useLibrary()
 const playlists = usePlaylists()
 const ui = useUi()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import IconDown from '~icons/solar/alt-arrow-down-linear'
 import IconMore from '~icons/solar/menu-dots-bold'
 import IconPlay from '~icons/solar/play-bold'
@@ -34,6 +34,8 @@ import { useUi } from '@/stores/ui'
 import { ambientColors } from '@/domain/palette'
 import { sourceLabel } from '@/domain/sources'
 import { haptic } from '@/native/haptics'
+import { motionReduced } from '@/app/motion'
+import type { QueueItem } from '@/native/types'
 
 const player = usePlayer()
 const library = useLibrary()
@@ -84,48 +86,82 @@ function close() {
   ui.fullPlayer = false
 }
 
+/* ---- показ: тапом по мини-плееру или протяжкой его вверх (тогда плеер едет за пальцем) ---- */
+const shown = computed(() => (ui.fullPlayer || ui.playerDrag != null) && !!item.value)
+/** Плеер вытягивается от верхнего края мини-плеера */
+const dragFrom = ref(0)
+watch(
+  () => ui.playerDrag != null,
+  (d) => {
+    if (d) dragFrom.value = document.querySelector('.mini')?.getBoundingClientRect().top ?? window.innerHeight
+  },
+)
+
 /* ---- жест вниз для закрытия и свайпы по обложке ---- */
 const dy = ref(0)
-const artDx = ref(0)
 let sx = 0
 let sy = 0
 let lock: 'x' | 'y' | null = null
 let active = false
 let zone: 'top' | 'art' = 'top'
 let lastTap = 0
+let lastX = 0
+let lastY = 0
+let lastT = 0
+let vx = 0
+let vy = 0
 const burst = ref(0)
+
+const sheetStyle = computed(() => {
+  if (ui.playerDrag != null) return { transform: `translateY(${(1 - ui.playerDrag) * dragFrom.value}px)`, transition: 'none' }
+  if (dy.value) return { transform: `translateY(${dy.value}px)`, transition: 'none' }
+  return undefined
+})
 
 function down(e: PointerEvent, z: 'top' | 'art') {
   active = true
   lock = null
   zone = z
-  sx = e.clientX
-  sy = e.clientY
+  sx = lastX = e.clientX
+  sy = lastY = e.clientY
+  lastT = e.timeStamp
+  vx = vy = 0
+  if (z === 'art' && deck.value) artW = deck.value.offsetWidth
 }
 function move(e: PointerEvent) {
   if (!active) return
   const mx = e.clientX - sx
   const my = e.clientY - sy
   if (!lock && Math.hypot(mx, my) > 8) {
-    lock = zone === 'art' && Math.abs(mx) > Math.abs(my) ? 'x' : 'y'
+    // Пока обложка доезжает после прошлого свайпа, новый свайп её не дёргает
+    lock = zone === 'art' && Math.abs(mx) > Math.abs(my) && !frozen.value ? 'x' : 'y'
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
+  const dt = Math.max(1, e.timeStamp - lastT)
+  vx = (e.clientX - lastX) / dt
+  vy = (e.clientY - lastY) / dt
+  lastX = e.clientX
+  lastY = e.clientY
+  lastT = e.timeStamp
   if (lock === 'y') dy.value = Math.max(0, my)
-  if (lock === 'x') artDx.value = mx
+  if (lock === 'x') {
+    // В конце очереди соседа нет: обложка идёт туго и возвращается
+    const has = mx < 0 ? slots.value[2] : slots.value[0]
+    artAnim.value = null
+    artDx.value = has ? mx : mx * 0.25
+  }
 }
-async function up() {
+function up() {
   if (!active) return
   active = false
   if (lock === 'y') {
-    if (dy.value > 110) close()
+    if (dy.value > 110 || (vy > 0.6 && dy.value > 30)) close()
     dy.value = 0
   } else if (lock === 'x') {
     const d = artDx.value
-    artDx.value = 0
-    if (Math.abs(d) > 70) {
-      haptic.tick()
-      await (d < 0 ? player.next() : player.prev())
-    }
+    const flick = Math.abs(vx) > 0.45 && Math.sign(vx) === Math.sign(d)
+    if (Math.abs(d) > artW * 0.28 || flick) commit(d < 0 ? 1 : -1)
+    else animateTo(0, 260)
   } else if (zone === 'art') {
     const now = Date.now()
     if (now - lastTap < 320) {
@@ -134,6 +170,125 @@ async function up() {
     } else lastTap = now
   }
 }
+
+/* ---- карусель обложек: слева предыдущий трек, справа следующий ---- */
+const GAP = 28
+type Slots = [QueueItem | null, QueueItem | null, QueueItem | null]
+const liveSlots = computed<Slots>(() => {
+  const at = (j: number) => (j >= 0 && j !== player.index ? (player.queue[j] ?? null) : null)
+  return [at(player.neighborIndex(-1)), item.value, at(player.neighborIndex(1))]
+})
+/** На время доезда после свайпа обложки не пересчитываются, иначе посреди анимации подменились бы */
+const frozen = shallowRef<Slots | null>(null)
+const slots = computed(() => frozen.value ?? liveSlots.value)
+const slotKeys = computed(() =>
+  slots.value.map((s, i) => (s ? (i === 0 && s.qid === slots.value[2]?.qid ? `${s.qid}#p` : s.qid) : `empty${i}`)),
+)
+const deck = ref<HTMLElement | null>(null)
+const artDx = ref(0)
+const artAnim = ref<string | null>(null)
+let artW = 0
+let animEnd = 0
+let expect: string | null = null
+let freezeTimer = 0
+const slide = computed(() => (artW ? Math.min(1, Math.abs(artDx.value) / (artW + GAP)) : 0))
+
+const deckStyle = computed(() => ({ transform: `translateX(${artDx.value}px)`, transition: artAnim.value ?? 'none' }))
+function slotStyle(i: number) {
+  const p = slide.value
+  const toward = (i === 2 && artDx.value < 0) || (i === 0 && artDx.value > 0)
+  const s = i === 1 ? 1 - 0.12 * p : toward ? 0.88 + 0.12 * p : 0.88
+  const o = i === 1 ? 1 - 0.45 * p : toward ? 0.55 + 0.45 * p : 0.55
+  return {
+    transform: `translateX(calc(${i - 1} * (100% + ${GAP}px))) scale(${s})`,
+    opacity: o,
+    transition: artAnim.value ?? 'none',
+  }
+}
+function artOf(q: QueueItem) {
+  return library.byKey.get(q.key)?.art ?? null
+}
+
+function animateTo(x: number, ms: number, ease = 'cubic-bezier(0.2, 0.8, 0.2, 1)') {
+  artAnim.value = `transform ${ms}ms ${ease}, opacity ${ms}ms ${ease}`
+  artDx.value = x
+  animEnd = performance.now() + ms
+}
+
+/** Свайп дотянули: соседняя обложка доезжает до центра, трек меняется */
+function commit(dir: 1 | -1) {
+  const target = slots.value[dir > 0 ? 2 : 0]
+  if (!target) return animateTo(0, 260)
+  haptic.tick()
+  frozen.value = slots.value
+  expect = target.qid
+  animateTo(-dir * (artW + GAP), 240)
+  clearTimeout(freezeTimer)
+  freezeTimer = window.setTimeout(release, 1500)
+  void player.step(dir)
+}
+function release() {
+  clearTimeout(freezeTimer)
+  const wait = animEnd - performance.now()
+  if (wait > 0) {
+    freezeTimer = window.setTimeout(release, wait + 16)
+    return
+  }
+  expect = null
+  artAnim.value = null
+  frozen.value = null
+  artDx.value = 0
+}
+onBeforeUnmount(() => clearTimeout(freezeTimer))
+
+/**
+ * Трек сменился не свайпом (кнопки, конец трека, кроссфейд): обложки всё равно едут в нужную сторону.
+ * На кроссфейде медленно, в темпе перехода — вместе с цветом фона.
+ */
+watch(
+  () => item.value?.qid,
+  (q, old) => {
+    if (!q || !old || !shown.value) return
+    if (frozen.value) {
+      if (q === expect) release()
+      return
+    }
+    if (!deck.value || motionReduced()) return
+    const n = player.queue.length
+    const i = player.index
+    const was = player.queue.findIndex((x) => x.qid === old)
+    const dir = was < 0 ? 0 : (was + 1) % n === i ? 1 : (i + 1) % n === was ? -1 : 0
+    if (!dir) {
+      deck.value.querySelector('.slot.center')?.animate(
+        [
+          { opacity: 0, transform: 'scale(0.9)' },
+          { opacity: 1, transform: 'scale(1)' },
+        ],
+        { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+      )
+      return
+    }
+    artW = deck.value.offsetWidth
+    const long = player.transitionMs > 0
+    artAnim.value = null
+    artDx.value = dir * (artW + GAP)
+    void nextTick(() => {
+      // Зафиксировать исходное положение, иначе браузер склеит оба изменения и анимации не будет
+      void deck.value?.offsetWidth
+      if (long) animateTo(0, Math.min(1400, Math.max(700, player.transitionMs * 0.35)), 'cubic-bezier(0.45, 0, 0.2, 1)')
+      else animateTo(0, 340)
+    })
+  },
+)
+
+/* ---- кнопки ---- */
+const heartPop = ref(false)
+const shufflePop = ref(0)
+const repeatPop = ref(false)
+watch(
+  () => item.value?.qid,
+  () => (heartPop.value = false),
+)
 
 async function favorite(fromDoubleTap = false) {
   const t = track.value
@@ -144,8 +299,18 @@ async function favorite(fromDoubleTap = false) {
     return
   }
   const on = await library.toggleFavorite(t.key)
+  heartPop.value = on
   if (on) burst.value++
   haptic.success()
+}
+
+function toggleShuffle() {
+  shufflePop.value++
+  void player.toggleShuffle()
+}
+function cycleRepeat() {
+  repeatPop.value = true
+  void player.cycleRepeat()
 }
 
 function rate(v: number | null) {
@@ -159,13 +324,14 @@ function more() {
 /**
  * «Полёт» обложки: при открытии из мини-плеера обложка вылетает из маленькой в большую (FLIP),
  * а фон плеера проявляется. Без мини-плеера (или с выключенными анимациями) — обычный выезд снизу.
+ * Если плеер вытягивают пальцем, положением управляет sheetStyle.
  */
 function onEnter(el: Element, done: () => void) {
+  if (ui.playerDrag != null) return done()
   const root = el as HTMLElement
   const art = root.querySelector<HTMLElement>('.art')
   const from = document.querySelector<HTMLElement>('.mini .cv')?.getBoundingClientRect()
-  const reduced = document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (!art || !from || !from.width || reduced) {
+  if (!art || !from || !from.width || motionReduced()) {
     root.classList.add('slide-in')
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('slide-in')))
     setTimeout(done, 340)
@@ -208,9 +374,10 @@ function togglePlay() {
 <template>
   <Transition name="full" :css="false" @enter="onEnter" @leave="onLeave">
     <div
-      v-if="ui.fullPlayer && item"
+      v-if="shown && item"
       class="full"
-      :style="dy ? { transform: `translateY(${dy}px)`, transition: 'none' } : undefined"
+      :class="{ paused: !player.playing }"
+      :style="sheetStyle"
       role="dialog"
       aria-label="Плеер"
     >
@@ -220,7 +387,14 @@ function togglePlay() {
       </div>
 
       <div class="content">
-        <header class="top" @pointerdown="down($event, 'top')" @pointermove="move" @pointerup="up" @pointercancel="up">
+        <header
+          class="top"
+          @pointerdown="down($event, 'top')"
+          @pointermove="move"
+          @pointerup="up"
+          @pointercancel="up"
+          @lostpointercapture="up"
+        >
           <button type="button" class="icon-btn" aria-label="Свернуть" @pointerdown.stop @click="close"><IconDown /></button>
           <div class="src">
             <small>Играет из</small>
@@ -229,23 +403,35 @@ function togglePlay() {
           <button type="button" class="icon-btn" aria-label="Действия" @pointerdown.stop @click="more"><IconMore /></button>
         </header>
 
-        <div class="art-wrap" @pointerdown="down($event, 'art')" @pointermove="move" @pointerup="up" @pointercancel="up">
-          <div
-            class="art"
-            :style="artDx ? { transform: `translateX(${artDx}px) rotate(${artDx / 40}deg)`, transition: 'none' } : undefined"
-          >
-            <CoverArt :art="track?.art" :seed="item.title" :label="item.title" size="l" radius="var(--r-l)" />
+        <div
+          class="art-wrap"
+          @pointerdown="down($event, 'art')"
+          @pointermove="move"
+          @pointerup="up"
+          @pointercancel="up"
+          @lostpointercapture="up"
+        >
+          <div class="art">
+            <div ref="deck" class="deck" :style="deckStyle">
+              <template v-for="(s, i) in slots" :key="slotKeys[i]">
+                <div v-if="s" class="slot" :class="{ center: i === 1 }" :style="slotStyle(i)">
+                  <CoverArt :art="artOf(s)" :seed="s.title" :label="s.title" size="l" radius="var(--r-l)" />
+                </div>
+              </template>
+            </div>
           </div>
           <IconHeartOn v-if="burst" :key="burst" class="burst" aria-hidden="true" />
         </div>
 
         <div class="info">
-          <div class="names">
-            <h2 class="display ellipsis">{{ item.title }}</h2>
-            <p class="ellipsis">
-              {{ item.artist }}<template v-if="item.album"> · {{ item.album }}</template>
-            </p>
-          </div>
+          <Transition name="names" mode="out-in">
+            <div :key="item.qid" class="names">
+              <h2 class="display ellipsis">{{ item.title }}</h2>
+              <p class="ellipsis">
+                {{ item.artist }}<template v-if="item.album"> · {{ item.album }}</template>
+              </p>
+            </div>
+          </Transition>
           <button
             type="button"
             class="icon-btn heart"
@@ -253,8 +439,8 @@ function togglePlay() {
             aria-label="Избранное"
             @click="favorite()"
           >
-            <IconHeartOn v-if="track?.favoriteAt" />
-            <IconHeart v-else />
+            <IconHeartOn v-if="track?.favoriteAt" key="on" :class="{ pop: heartPop }" />
+            <IconHeart v-else key="off" />
           </button>
         </div>
 
@@ -278,25 +464,27 @@ function togglePlay() {
             class="icon-btn small"
             :class="{ on: player.shuffleMode !== 'off' }"
             aria-label="Перемешивание"
-            @click="player.toggleShuffle()"
+            @click="toggleShuffle"
           >
-            <IconShuffle />
+            <IconShuffle :key="shufflePop" :class="{ pop: shufflePop > 0 }" />
           </button>
-          <button type="button" class="icon-btn big-nav" aria-label="Предыдущий" @click="player.prev()"><IconPrev /></button>
+          <button type="button" class="icon-btn big-nav prev" aria-label="Предыдущий" @click="player.prev()"><IconPrev /></button>
           <button type="button" class="play" :aria-label="player.playing ? 'Пауза' : 'Играть'" @click="togglePlay">
-            <IconPause v-if="player.playing" />
-            <IconPlay v-else />
+            <Transition name="icon-swap">
+              <IconPause v-if="player.playing" key="pause" />
+              <IconPlay v-else key="play" />
+            </Transition>
           </button>
-          <button type="button" class="icon-btn big-nav" aria-label="Следующий" @click="player.next()"><IconNext /></button>
+          <button type="button" class="icon-btn big-nav next" aria-label="Следующий" @click="player.next()"><IconNext /></button>
           <button
             type="button"
             class="icon-btn small"
             :class="{ on: player.repeat !== 'off' }"
             aria-label="Повтор"
-            @click="player.cycleRepeat()"
+            @click="cycleRepeat"
           >
-            <IconRepeatOne v-if="player.repeat === 'one'" />
-            <IconRepeat v-else />
+            <IconRepeatOne v-if="player.repeat === 'one'" key="one" :class="{ 'spin-pop': repeatPop }" />
+            <IconRepeat v-else :key="player.repeat" :class="{ 'spin-pop': repeatPop }" />
           </button>
         </div>
 
@@ -305,9 +493,11 @@ function togglePlay() {
             <component :is="outIcon" /><span class="ellipsis">{{ outputLabel(player.output) }}</span>
           </button>
           <span class="tools">
-            <button v-if="player.speed !== 1" type="button" class="speed num" @click="ui.openSheet(SpeedSheet)">
-              {{ player.speed.toFixed(2).replace(/0$/, '') }}×
-            </button>
+            <Transition name="names">
+              <button v-if="player.speed !== 1" type="button" class="speed num" @click="ui.openSheet(SpeedSheet)">
+                {{ player.speed.toFixed(2).replace(/0$/, '') }}×
+              </button>
+            </Transition>
             <button type="button" class="icon-btn" aria-label="Текст песни" @click="ui.openSheet(LyricsSheet)">
               <IconText />
             </button>
@@ -341,14 +531,14 @@ function togglePlay() {
   transition: none;
   transform: translateY(100%);
 }
-.full-enter-from,
-.full-leave-to {
-  transform: translateY(100%);
-}
 .ambient {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  /* Цвета фона перетекают при смене трека (--c1/--c2 объявлены через @property в motion.css) */
+  transition:
+    --c1 1200ms var(--ease),
+    --c2 1200ms var(--ease);
 }
 .ambient i {
   position: absolute;
@@ -444,11 +634,27 @@ function togglePlay() {
   padding: 14px 0 10px;
   touch-action: none;
 }
+/* Место под обложку: квадрат, по нему считаются размеры слотов карусели */
 .art {
+  position: relative;
   width: min(100%, 46vh);
-  box-shadow: var(--shadow-cover);
+  aspect-ratio: 1;
+  transition: transform 520ms var(--ease-out);
+}
+/* На паузе обложка чуть отступает — видно, что музыка стоит */
+.paused .art {
+  transform: scale(0.93);
+}
+.deck {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.slot {
+  position: absolute;
+  inset: 0;
   border-radius: var(--r-l);
-  transition: transform 260ms var(--ease-out);
+  box-shadow: var(--shadow-cover);
 }
 .burst {
   position: absolute;
@@ -493,6 +699,20 @@ function togglePlay() {
   font-size: 14.5px;
   color: var(--ink-2);
 }
+.names-enter-active,
+.names-leave-active {
+  transition:
+    opacity 180ms var(--ease),
+    transform 220ms var(--ease-out);
+}
+.names-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.names-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
 .heart.on {
   color: var(--heart);
 }
@@ -519,6 +739,9 @@ function togglePlay() {
 .icon-btn:not(.on).small {
   color: var(--ink-2);
 }
+.icon-btn.small {
+  transition: color var(--t-mid) var(--ease);
+}
 .big-nav {
   width: 56px;
   height: 56px;
@@ -527,7 +750,15 @@ function togglePlay() {
   width: 32px;
   height: 32px;
 }
+/* Кнопки перехода «толкают» иконку в свою сторону */
+.big-nav.prev:active svg {
+  transform: translateX(-4px) scale(0.9);
+}
+.big-nav.next:active svg {
+  transform: translateX(4px) scale(0.9);
+}
 .play {
+  position: relative;
   width: 72px;
   height: 72px;
   border-radius: 50%;
@@ -535,10 +766,16 @@ function togglePlay() {
   place-items: center;
   background: var(--ink);
   color: var(--bg);
-  transition: transform var(--t-fast) var(--ease);
+  transition:
+    transform var(--t-fast) var(--ease),
+    border-radius 320ms var(--ease-out);
 }
 .play:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
+}
+/* На паузе кнопка чуть «квадратнее», как в системном плеере */
+.paused .play {
+  border-radius: 26px;
 }
 .play svg {
   width: 32px;

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Янтарь</string>
-    <string name="title_activity_main">Янтарь</string>
+    <string name="app_name">Amber</string>
+    <string name="title_activity_main">Amber</string>
     <string name="package_name">app.yantar.player</string>
     <string name="custom_url_scheme">app.yantar.player</string>
     <string name="widget_description">Что играет и управление</string>

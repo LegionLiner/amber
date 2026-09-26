@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconTags from '~icons/solar/pen-new-square-linear'
 import CollectionPage from '@/components/CollectionPage.vue'
 import TagEditorSheet from '@/components/TagEditorSheet.vue'
@@ -8,7 +8,7 @@ import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { formatListen, countLabel } from '@/domain/format'
 
-const route = useRoute()
+const route = useViewRoute()
 const library = useLibrary()
 const ui = useUi()
 const id = computed(() => decodeURIComponent(String(route.params.id ?? '')))

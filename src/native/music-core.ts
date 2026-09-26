@@ -2,6 +2,7 @@ import { registerPlugin } from '@capacitor/core'
 import type { PluginListenerHandle } from '@capacitor/core'
 import type {
   AnalysisProgress,
+  AudioKind,
   AudioSettings,
   ControlAction,
   DeviceInfo,
@@ -54,8 +55,16 @@ export interface MusicCorePlugin {
   /** Анализ громкости, тишины и волны: now — сразу, night — на зарядке или при открытом приложении */
   analyze(options: { keys: string[]; priority: 'now' | 'night' }): Promise<void>
   lyrics(options: { uri: string; path?: string }): Promise<LyricsResult>
-  /** Записать теги в сами файлы (Android спросит разрешение на изменение) */
+  /** Записать теги в сами файлы (Android спросит разрешение на изменение). mp3 — ID3, m4a/AAC — теги MP4 */
   writeTags(options: { items: WriteTagsItem[] }): Promise<WriteTagsResult>
+  /** Какой формат на самом деле у файлов (по байтам, не по расширению) */
+  probeFormats(options: { uris: string[] }): Promise<{ kinds: AudioKind[] }>
+  /** Починить файлы «ID3 + MP4», испорченные старой записью тегов */
+  repairFiles(options: { items: { key: string; uri: string; path: string }[] }): Promise<WriteTagsResult>
+  /** Вернуть файлы к состоянию до последней записи тегов */
+  restoreTags(options: { items: { key: string; uri: string; path: string }[] }): Promise<WriteTagsResult>
+  /** Для каких треков есть копия до записи тегов */
+  tagBackups(): Promise<{ keys: string[] }>
 
   // воспроизведение: TS решает, что играть, движок решает, как
   configure(options: EngineConfig): Promise<void>

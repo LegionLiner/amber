@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import CollectionPage from '@/components/CollectionPage.vue'
 import { useLibrary } from '@/stores/library'
 import { sortTracks } from '@/domain/sort'
 import { metaFor } from './rowMeta'
 
-const route = useRoute()
+const route = useViewRoute()
 const library = useLibrary()
 const id = computed(() => decodeURIComponent(String(route.params.id ?? '')))
 const genre = computed(() => library.genres.find((g) => g.id === id.value))

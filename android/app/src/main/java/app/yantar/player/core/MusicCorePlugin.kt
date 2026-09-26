@@ -18,8 +18,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import app.yantar.player.db.Database
 import app.yantar.player.library.Covers
 import app.yantar.player.library.Id3Reader
+import app.yantar.player.library.AudioFormat
+import app.yantar.player.library.AudioKind
 import app.yantar.player.library.Id3Writer
 import app.yantar.player.library.Scanner
+import app.yantar.player.library.KeyAliases
+import app.yantar.player.library.TagFiles
 import app.yantar.player.playback.Loudness
 import app.yantar.player.playback.PlayerHub
 import app.yantar.player.playback.Preview
@@ -59,7 +63,8 @@ class MusicCorePlugin : Plugin() {
     private var preview: Preview? = null
 
     private var writeLauncher: ActivityResultLauncher<IntentSenderRequest>? = null
-    private var pendingWrite: Pair<PluginCall, JSONArray>? = null
+    /** Что сделать, когда Android разрешит изменить файлы (или откажет) */
+    private var pendingWrite: Pair<PluginCall, (Boolean) -> Unit>? = null
 
     private val hubListener = object : PlayerHub.Listener {
         override fun onState(state: JSONObject) = notifyListeners("state", JSObject.fromJSONObject(state))
@@ -210,6 +215,7 @@ class MusicCorePlugin : Plugin() {
                     notifyListeners("scanProgress", JSObject().put("phase", phase).put("done", done).put("total", total))
                 }
                 Loudness.load()
+                PlayerHub.remapKeys(KeyAliases.map())
                 call.resolve(
                     JSObject()
                         .put("total", r.total)
@@ -217,7 +223,11 @@ class MusicCorePlugin : Plugin() {
                         .put("updated", r.updated)
                         .put("unchanged", r.unchanged)
                         .put("missing", r.missing)
-                        .put("tookMs", r.tookMs),
+                        .put("tookMs", r.tookMs)
+                        .put(
+                            "damaged",
+                            JSArray(r.damaged.map { d -> JSObject().put("key", d.key).put("uri", d.uri).put("path", d.path).put("name", d.name) }),
+                        ),
                 )
             } catch (e: SecurityException) {
                 call.reject("Нет доступа к музыке", "PERMISSION")
@@ -283,69 +293,141 @@ class MusicCorePlugin : Plugin() {
     @PluginMethod
     fun writeTags(call: PluginCall) {
         val items = call.getArray("items") ?: JSArray()
+        withWriteAccess(call, items) { granted ->
+            if (!granted) return@withWriteAccess call.reject("Изменение файлов не разрешено", "CANCELLED")
+            onWork(call) { call.resolve(runOnFiles(items) { uri, key, it -> TagFiles.apply(context, uri, key, editOf(it)) }) }
+        }
+    }
+
+    /** Починить файлы, испорченные старой записью тегов (ID3 перед MP4) */
+    @PluginMethod
+    fun repairFiles(call: PluginCall) {
+        val items = call.getArray("items") ?: JSArray()
+        withWriteAccess(call, items) { granted ->
+            if (!granted) return@withWriteAccess call.reject("Изменение файлов не разрешено", "CANCELLED")
+            onWork(call) { call.resolve(runOnFiles(items) { uri, key, _ -> TagFiles.repair(context, uri, key) }) }
+        }
+    }
+
+    /** Вернуть файлы к состоянию до последней записи тегов (копии хранятся в приложении) */
+    @PluginMethod
+    fun restoreTags(call: PluginCall) {
+        val items = call.getArray("items") ?: JSArray()
+        withWriteAccess(call, items) { granted ->
+            if (!granted) return@withWriteAccess call.reject("Изменение файлов не разрешено", "CANCELLED")
+            onWork(call) { call.resolve(runOnFiles(items) { uri, key, _ -> TagFiles.restore(context, uri, key) }) }
+        }
+    }
+
+    /** Формат файлов по байтам: чтобы не просить разрешение на запись там, где писать нечем */
+    @PluginMethod
+    fun probeFormats(call: PluginCall) {
+        val uris = call.getArray("uris") ?: JSArray()
+        onWork(call) {
+            val kinds = JSArray()
+            for (i in 0 until uris.length()) {
+                val kind = try {
+                    context.contentResolver.openInputStream(Uri.parse(uris.optString(i)))?.use { s ->
+                        val head = ByteArray(16).also { s.read(it) }
+                        val tag = Id3Reader.tagSize(head)
+                        val after = if (tag > 0) {
+                            s.skip((tag - 16).toLong().coerceAtLeast(0))
+                            ByteArray(16).also { s.read(it) }
+                        } else null
+                        AudioFormat.sniff(head, after)
+                    } ?: AudioKind.UNKNOWN
+                } catch (_: Exception) {
+                    AudioKind.UNKNOWN
+                }
+                kinds.put(
+                    when (kind) {
+                        AudioKind.MPEG -> "mpeg"
+                        AudioKind.MP4 -> "mp4"
+                        AudioKind.FLAC -> "flac"
+                        AudioKind.OGG -> "ogg"
+                        AudioKind.WAV -> "wav"
+                        AudioKind.ID3_MP4 -> "id3+mp4"
+                        AudioKind.UNKNOWN -> "unknown"
+                    },
+                )
+            }
+            call.resolve(JSObject().put("kinds", kinds))
+        }
+    }
+
+    @PluginMethod
+    fun tagBackups(call: PluginCall) {
+        call.resolve(JSObject().put("keys", JSArray(TagFiles.backups(context))))
+    }
+
+    private fun editOf(it: JSONObject): Id3Writer.Edit {
+        fun str(n: String) = if (it.has(n) && !it.isNull(n)) it.optString(n) else null
+        fun int(n: String) = if (it.has(n) && !it.isNull(n)) it.optInt(n) else null
+        return Id3Writer.Edit(str("title"), str("artist"), str("album"), str("genre"), int("year"), int("trackNo"))
+    }
+
+    /** Системный запрос «Разрешить изменить файлы?» для всех uri сразу */
+    private fun withWriteAccess(call: PluginCall, items: JSONArray, then: (Boolean) -> Unit) {
         if (items.length() == 0) {
             call.resolve(JSObject().put("written", 0).put("failed", JSArray()))
             return
         }
         val uris = (0 until items.length()).map { Uri.parse(items.getJSONObject(it).optString("uri")) }
         try {
-            val pi = MediaStore.createWriteRequest(context.contentResolver, uris)
-            pendingWrite = call to items
-            val launcher = writeLauncher
-            if (launcher == null) {
-                pendingWrite = null
-                call.reject("Запрос на запись недоступен")
-                return
-            }
-            launcher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+            val launcher = writeLauncher ?: return call.reject("Запрос на запись недоступен")
+            pendingWrite = call to then
+            launcher.launch(IntentSenderRequest.Builder(MediaStore.createWriteRequest(context.contentResolver, uris).intentSender).build())
         } catch (e: Exception) {
+            pendingWrite = null
             call.reject(e.message ?: e.toString())
         }
     }
 
     private fun onWritePermission(res: ActivityResult) {
-        val (call, items) = pendingWrite ?: return
+        val (_, then) = pendingWrite ?: return
         pendingWrite = null
-        if (res.resultCode != Activity.RESULT_OK) {
-            call.reject("Изменение файлов не разрешено", "CANCELLED")
-            return
-        }
-        onWork(call) {
-            var written = 0
-            val failed = JSArray()
-            val paths = ArrayList<String>()
-            for (i in 0 until items.length()) {
-                val it = items.getJSONObject(i)
-                val key = it.optString("key")
-                try {
-                    val uri = Uri.parse(it.optString("uri"))
-                    val path = it.optString("path")
-                    if (!path.endsWith(".mp3", ignoreCase = true)) {
-                        failed.put(JSONObject().put("key", key).put("reason", "Запись поддерживается только для mp3"))
-                        continue
-                    }
-                    fun str(n: String) = if (it.has(n) && !it.isNull(n)) it.optString(n) else null
-                    fun int(n: String) = if (it.has(n) && !it.isNull(n)) it.optInt(n) else null
-                    val edit = Id3Writer.Edit(str("title"), str("artist"), str("album"), str("genre"), int("year"), int("trackNo"))
-                    val cr = context.contentResolver
-                    val bytes = cr.openInputStream(uri)?.use { s -> s.readBytes() } ?: error("Не удалось прочитать")
-                    val out = Id3Writer.rewrite(bytes, edit)
-                    cr.openOutputStream(uri, "wt")?.use { s -> s.write(out) } ?: error("Не удалось записать")
-                    Database.execute(
-                        """UPDATE tracks SET title = COALESCE(?, title), artist = COALESCE(?, artist), album = COALESCE(?, album),
-                           genre = COALESCE(?, genre), year = COALESCE(?, year), track_no = COALESCE(?, track_no),
-                           size = ?, updated_at = ? WHERE key = ?""",
-                        listOf(edit.title, edit.artist, edit.album, edit.genre, edit.year, edit.trackNo, out.size, System.currentTimeMillis(), key),
-                    )
-                    if (path.isNotEmpty()) paths.add(path)
-                    written++
-                } catch (e: Exception) {
-                    failed.put(JSONObject().put("key", key).put("reason", e.message ?: "ошибка"))
+        then(res.resultCode == Activity.RESULT_OK)
+    }
+
+    /** Действие над каждым файлом: обновить строку в базе, отдать MediaStore на пересканирование */
+    private fun runOnFiles(items: JSONArray, action: (Uri, String, JSONObject) -> TagFiles.Result): JSObject {
+        var written = 0
+        val failed = JSArray()
+        val paths = ArrayList<String>()
+        for (i in 0 until items.length()) {
+            val it = items.getJSONObject(i)
+            val key = it.optString("key")
+            try {
+                val uri = Uri.parse(it.optString("uri"))
+                val r = action(uri, key, it)
+                if (!r.ok) {
+                    failed.put(JSONObject().put("key", key).put("reason", r.reason ?: "ошибка"))
+                    continue
                 }
+                val e = editOf(it)
+                Database.execute(
+                    """UPDATE tracks SET title = COALESCE(?, title), artist = COALESCE(?, artist), album = COALESCE(?, album),
+                       genre = COALESCE(?, genre), year = COALESCE(?, year), track_no = COALESCE(?, track_no),
+                       size = ?, updated_at = ? WHERE key = ?""",
+                    listOf(e.title, e.artist, e.album, e.genre, e.year, e.trackNo, r.size, System.currentTimeMillis(), key),
+                )
+                it.optString("path").takeIf { p -> p.isNotEmpty() }?.let(paths::add)
+                // Отпечаток сменился (MP4 теперь по аудиоданным): история, оценки и плейлисты переезжают следом
+                r.newKey?.let { nk -> if (nk != key) KeyAliases.add(key, nk) }
+                written++
+            } catch (e: Exception) {
+                failed.put(JSONObject().put("key", key).put("reason", e.message ?: "ошибка"))
             }
-            if (paths.isNotEmpty()) MediaScannerConnection.scanFile(context, paths.toTypedArray(), null, null)
-            call.resolve(JSObject().put("written", written).put("failed", failed))
         }
+        KeyAliases.fixup()
+        PlayerHub.remapKeys(KeyAliases.map())
+        if (paths.isNotEmpty()) {
+            // Ждём, пока Android перечитает файлы: иначе следующее сканирование библиотеки увидит старые данные
+            val done = java.util.concurrent.CountDownLatch(paths.size)
+            MediaScannerConnection.scanFile(context, paths.toTypedArray(), null) { _, _ -> done.countDown() }
+            done.await(8, java.util.concurrent.TimeUnit.SECONDS)
+        }
+        return JSObject().put("written", written).put("failed", failed)
     }
 
     /* ---------------- воспроизведение ---------------- */
@@ -519,7 +601,7 @@ class MusicCorePlugin : Plugin() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(call.getString("mime") ?: "application/json")
-            .putExtra(Intent.EXTRA_TITLE, call.getString("name") ?: "yantar-backup.json")
+            .putExtra(Intent.EXTRA_TITLE, call.getString("name") ?: "amber-backup.json")
         startActivityForResult(call, intent, "onExportPicked")
     }
 
@@ -597,12 +679,12 @@ class MusicCorePlugin : Plugin() {
         val tree = Uri.parse(call.getString("folderUri") ?: error("Папка не задана"))
         val keep = call.getInt("keep", 14) ?: 14
         val stamp = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US).format(Date())
-        val json = Backups.write(context, tree, "yantar-backup-$stamp.json", "application/json", (call.getString("json") ?: "").toByteArray())
-        Backups.prune(context, tree, "yantar-backup-", keep)
+        val json = Backups.write(context, tree, "amber-backup-$stamp.json", "application/json", (call.getString("json") ?: "").toByteArray())
+        Backups.prune(context, tree, "amber-backup-", keep)
         val db = Backups.snapshotDb(context)
-        Backups.write(context, tree, "yantar-db-$stamp.sqlite", "application/octet-stream", db.readBytes())
+        Backups.write(context, tree, "amber-db-$stamp.sqlite", "application/octet-stream", db.readBytes())
         db.delete()
-        Backups.prune(context, tree, "yantar-db-", minOf(keep, 7))
+        Backups.prune(context, tree, "amber-db-", minOf(keep, 7))
         call.resolve(JSObject().put("uri", json.toString()))
     }
 }

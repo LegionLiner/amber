@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useLibrary } from '@/stores/library'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
-import { clearOverrides, saveTags, type TagEdit } from '@/data/repos/tags'
+import { clearOverrides, restoreTagFiles, saveTags, tagBackupKeys, type TagEdit } from '@/data/repos/tags'
 import type { Track } from '@/domain/track'
 
 /**
@@ -42,6 +42,25 @@ const initial = JSON.stringify(form)
 const toFiles = ref(settings.s.writeTagsToFiles)
 const busy = ref(false)
 const hasOverrides = computed(() => tracks.value.some((t) => Object.keys(t.overrides).length))
+/** Файлы, которые можно вернуть к состоянию до последней записи тегов */
+const backups = ref(new Set<string>())
+onMounted(async () => (backups.value = await tagBackupKeys()))
+const restorable = computed(() => tracks.value.filter((t) => backups.value.has(t.key)))
+
+async function restoreFiles() {
+  busy.value = true
+  try {
+    const n = await restoreTagFiles(restorable.value)
+    await library.scan(false)
+    ui.toast(n ? 'Файл возвращён как был до правки' : 'Не получилось вернуть файл')
+    emit('close')
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (!/cancel|отмен|разреш/i.test(msg)) ui.toast(`Не получилось: ${msg}`)
+  } finally {
+    busy.value = false
+  }
+}
 
 async function save() {
   if (JSON.stringify(form) === initial) return emit('close')
@@ -105,11 +124,15 @@ async function reset() {
       /></label>
     </div>
     <label class="row">
-      <span><b>Записать в файлы</b><small>Только mp3. Android спросит разрешение на изменение файлов</small></span>
+      <span
+        ><b>Записать в файлы</b
+        ><small>mp3 и m4a (AAC), формат определяется по содержимому. Android спросит разрешение</small></span
+      >
       <input id="tag-to-files" v-model="toFiles" type="checkbox" class="switch" />
     </label>
     <div class="btns">
       <button v-if="hasOverrides" type="button" class="btn" :disabled="busy" @click="reset">Как в файле</button>
+      <button v-if="restorable.length" type="button" class="btn" :disabled="busy" @click="restoreFiles">Вернуть файл</button>
       <button type="button" class="btn primary" :disabled="busy" @click="save">{{ busy ? 'Сохраняю…' : 'Сохранить' }}</button>
     </div>
   </div>

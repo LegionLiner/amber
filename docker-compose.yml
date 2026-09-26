@@ -3,7 +3,7 @@
 services:
   web:
     build: .
-    image: yantar-web
+    image: amber-web
     ports:
       - "8095:80"
     restart: unless-stopped

@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import ScreenHeader from '@/components/ScreenHeader.vue'
+import RangeSlider from '@/components/RangeSlider.vue'
 import { useSettings, EQ_PRESETS } from '@/stores/settings'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { MusicCore } from '@/native/music-core'
+import { haptic } from '@/native/haptics'
 import { outputLabel } from '@/domain/outputs'
+import { touchStoppedScroll } from '@/composables/tapGuard'
 import type { CrossfadeSettings, EqSettings, NormalizationSettings } from '@/native/types'
 
 /**
@@ -61,26 +64,69 @@ function setBand(i: number, v: number) {
   eq.value.preset = 'custom'
 }
 
-/* вертикальный ползунок полосы: тянешь пальцем вверх-вниз */
-let dragBand = -1
-function bandAt(e: PointerEvent, el: HTMLElement) {
+/*
+ * Вертикальный ползунок полосы. Страница листается тоже вертикально, поэтому полоса берётся
+ * за ручку (палец рядом с ней) или долгим касанием; тап ставит значение, свайп по рельсе листает страницу.
+ */
+let band = -1
+let bandMode: 'idle' | 'pending' | 'drag' = 'idle'
+let bandY = 0
+let bandPid = -1
+let bandEl: HTMLElement | null = null
+let bandTimer = 0
+function bandAt(y: number, el: HTMLElement) {
   const r = el.getBoundingClientRect()
-  const f = 1 - Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))
+  const f = 1 - Math.min(1, Math.max(0, (y - r.top) / r.height))
   return -12 + f * 24
 }
+function knobY(i: number, el: HTMLElement) {
+  const r = el.getBoundingClientRect()
+  return r.bottom - ((eq.value.bands[i]! + 12) / 24) * r.height
+}
+function bandGrab(y: number) {
+  if (!bandEl || band < 0) return
+  bandMode = 'drag'
+  bandEl.setPointerCapture(bandPid)
+  haptic.tick()
+  setBand(band, bandAt(y, bandEl))
+}
 function bandDown(e: PointerEvent, i: number) {
-  const el = e.currentTarget as HTMLElement
-  el.setPointerCapture(e.pointerId)
-  dragBand = i
-  setBand(i, bandAt(e, el))
+  if (e.button !== 0 || touchStoppedScroll()) return
+  band = i
+  bandEl = e.currentTarget as HTMLElement
+  bandPid = e.pointerId
+  bandY = e.clientY
+  if (Math.abs(e.clientY - knobY(i, bandEl)) < 26) return bandGrab(e.clientY)
+  bandMode = 'pending'
+  const y = e.clientY
+  bandTimer = window.setTimeout(() => bandMode === 'pending' && bandGrab(y), 320)
 }
 function bandMove(e: PointerEvent, i: number) {
-  if (dragBand !== i) return
-  setBand(i, bandAt(e, e.currentTarget as HTMLElement))
+  if (band !== i || e.pointerId !== bandPid) return
+  if (bandMode === 'pending' && Math.abs(e.clientY - bandY) > 8) bandEnd()
+  else if (bandMode === 'drag') setBand(i, bandAt(e.clientY, bandEl!))
 }
-function bandUp() {
-  dragBand = -1
+function bandUp(e: PointerEvent, i: number) {
+  if (band !== i || e.pointerId !== bandPid) return
+  if (bandMode === 'pending') setBand(i, bandAt(e.clientY, bandEl!))
+  bandEnd()
 }
+function bandEnd() {
+  clearTimeout(bandTimer)
+  bandMode = 'idle'
+  band = -1
+  bandEl = null
+}
+/** Пока тянем полосу, страница не едет */
+function eqTouchMove(e: TouchEvent) {
+  if (bandMode === 'drag' && e.cancelable) e.preventDefault()
+}
+const eqEl = ref<HTMLElement | null>(null)
+onMounted(() => eqEl.value?.addEventListener('touchmove', eqTouchMove, { passive: false }))
+onBeforeUnmount(() => {
+  eqEl.value?.removeEventListener('touchmove', eqTouchMove)
+  clearTimeout(bandTimer)
+})
 
 const pct = (v: number, min: number, max: number) => `${((v - min) / (max - min)) * 100}%`
 
@@ -149,16 +195,7 @@ async function stopPreview() {
           <header>
             <span>Длительность</span><output>{{ (a.crossfade.durationMs / 1000).toFixed(1).replace('.0', '') }} с</output>
           </header>
-          <input
-            id="xf-dur"
-            v-model.number="a.crossfade.durationMs"
-            type="range"
-            class="range"
-            min="1000"
-            max="12000"
-            step="500"
-            :style="{ '--p': pct(a.crossfade.durationMs, 1000, 12000) }"
-          />
+          <RangeSlider v-model="a.crossfade.durationMs" :min="1000" :max="12000" :step="500" />
         </div>
         <div v-if="a.crossfade.mode === 'crossfade'" class="seg three">
           <button
@@ -175,16 +212,7 @@ async function stopPreview() {
           <header>
             <span>Предыдущий трек тише на</span><output>{{ -a.crossfade.duckDb }} дБ</output>
           </header>
-          <input
-            id="xf-duck"
-            v-model.number="a.crossfade.duckDb"
-            type="range"
-            class="range"
-            min="-18"
-            max="-3"
-            step="1"
-            :style="{ '--p': pct(a.crossfade.duckDb, -18, -3) }"
-          />
+          <RangeSlider v-model="a.crossfade.duckDb" :min="-18" :max="-3" :step="1" />
         </div>
       </template>
       <label class="row">
@@ -258,7 +286,7 @@ async function stopPreview() {
           {{ p.label }}
         </button>
       </div>
-      <div class="eq" :class="{ off: !eq.enabled }">
+      <div ref="eqEl" class="eq" :class="{ off: !eq.enabled }">
         <div v-for="(f, i) in FREQ_LABELS" :key="f" class="band">
           <output class="num">{{ eq.bands[i]! > 0 ? '+' : '' }}{{ eq.bands[i] }}</output>
           <div
@@ -270,8 +298,9 @@ async function stopPreview() {
             aria-valuemax="12"
             @pointerdown="bandDown($event, i)"
             @pointermove="bandMove($event, i)"
-            @pointerup="bandUp"
-            @pointercancel="bandUp"
+            @pointerup="bandUp($event, i)"
+            @pointercancel="bandEnd"
+            @lostpointercapture="bandEnd"
           >
             <i class="zero" />
             <b
@@ -291,16 +320,7 @@ async function stopPreview() {
         <header>
           <span>Предусиление</span><output>{{ eq.preampDb > 0 ? '+' : '' }}{{ eq.preampDb }} дБ</output>
         </header>
-        <input
-          id="eq-pre"
-          v-model.number="eq.preampDb"
-          type="range"
-          class="range"
-          min="-12"
-          max="6"
-          step="0.5"
-          :style="{ '--p': pct(eq.preampDb, -12, 6) }"
-        />
+        <RangeSlider v-model="eq.preampDb" :min="-12" :max="6" :step="0.5" />
       </div>
       <p class="note">
         Если подняли низы или верха, уберите предусиление на столько же, чтобы не было перегруза. На выходе стоит лимитер.
@@ -352,7 +372,7 @@ async function stopPreview() {
   position: relative;
   width: 100%;
   height: 150px;
-  touch-action: none;
+  touch-action: pan-y;
   cursor: ns-resize;
 }
 .rail::before {

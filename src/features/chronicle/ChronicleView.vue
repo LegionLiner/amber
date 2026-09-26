@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import ChipTabs from '@/components/ChipTabs.vue'
 import OverviewTab from './OverviewTab.vue'
 import DiaryTab from './DiaryTab.vue'
@@ -19,7 +20,7 @@ const TABS: { id: ChronTab; label: string }[] = [
   { id: 'recap', label: 'Итоги' },
 ]
 
-const route = useRoute()
+const route = useViewRoute()
 const router = useRouter()
 const ui = useUi()
 const scrollEl = ref<HTMLElement | null>(null)

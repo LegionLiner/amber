@@ -16,6 +16,7 @@ import CoverArt from '@/components/CoverArt.vue'
 import Shelf from '@/components/Shelf.vue'
 import TrackRow from '@/components/TrackRow.vue'
 import TrackActionsSheet from '@/components/TrackActionsSheet.vue'
+import DamagedFilesCard from '@/components/DamagedFilesCard.vue'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useSettings } from '@/stores/settings'
@@ -113,7 +114,7 @@ async function myRadio() {
   <div ref="scrollEl" class="scroll screen home">
     <header class="hdr">
       <div class="top">
-        <span class="brand display">Янтарь</span>
+        <span class="brand display">Amber</span>
         <button type="button" class="icon-btn" aria-label="Настройки" @click="router.push('/settings')"><IconSettings /></button>
       </div>
       <h1 class="display hello">{{ hello }}</h1>
@@ -129,6 +130,7 @@ async function myRadio() {
     </div>
 
     <template v-else>
+      <DamagedFilesCard />
       <div class="quick">
         <button type="button" class="q" @click="smartMix"><IconShuffle /><span>Умный микс</span></button>
         <button type="button" class="q" :disabled="!favoritesOrBest.length" @click="favMix">

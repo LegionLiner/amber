@@ -65,6 +65,7 @@ function openSort() {
       :key="a.id"
       type="button"
       class="row"
+      data-morph-card
       @click="router.push(`/artist/${encodeURIComponent(a.id)}`)"
     >
       <CoverArt :art="a.art" :seed="a.name" :label="a.name" size="s" radius="50%" class="cv" />

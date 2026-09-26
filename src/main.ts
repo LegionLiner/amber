@@ -5,10 +5,17 @@ import '@fontsource-variable/onest'
 import './design/tokens.css'
 import './design/base.css'
 import './design/forms.css'
+import './design/motion.css'
 import App from './App.vue'
 import { router } from './app/router'
 import { boot } from './app/boot'
 import { bootState } from './app/boot-state'
+import { installTapGuard } from './composables/tapGuard'
+import { installMorphTracking, installRouteMotion } from './app/motion'
+
+installTapGuard()
+installMorphTracking()
+installRouteMotion(router)
 
 const app = createApp(App)
 app.use(createPinia())

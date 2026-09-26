@@ -5,8 +5,9 @@ import type { TagOverrides, Track } from '@/domain/track'
 import { upsertTrackUser } from './library'
 
 /**
- * Правка тегов. Сначала пробуем записать в сами файлы (mp3, с разрешения Android),
- * а если нельзя — правка живёт в приложении как «поверх файла» (track_user.overrides).
+ * Правка тегов. Сначала пробуем записать в сами файлы (с разрешения Android): mp3 — ID3,
+ * MP4/AAC — теги iTunes. Формат определяет движок по байтам, а не по расширению: у многих «.mp3»
+ * внутри MP4, и ID3 такой файл ломает. Если записать нельзя, правка живёт в приложении поверх файла.
  * Записанное в файл из поверх-правок убирается: файл теперь сам знает правильное значение.
  */
 
@@ -21,13 +22,21 @@ export interface SaveTagsResult {
   failed: { key: string; reason: string }[]
 }
 
-function isMp3(t: Track): boolean {
-  return /\.mp3$/i.test(t.fileName) || t.mime === 'audio/mpeg'
-}
+/** Форматы, в которые умеем писать теги (id3+mp4 — испорченный файл, запись его заодно чинит) */
+const WRITABLE = new Set(['mpeg', 'mp4', 'id3+mp4'])
 
 export async function saveTags(tracks: Track[], edits: Map<string, TagEdit>, toFiles: boolean): Promise<SaveTagsResult> {
   const res: SaveTagsResult = { written: 0, kept: 0, failed: [] }
-  const writable = toFiles ? tracks.filter((t) => isMp3(t) && edits.has(t.key)) : []
+  let writable = toFiles ? tracks.filter((t) => edits.has(t.key)) : []
+  if (writable.length) {
+    // Не спрашиваем разрешение на файлы, в которые писать всё равно нечем (FLAC, OGG, WAV)
+    try {
+      const { kinds } = await MusicCore.probeFormats({ uris: writable.map((t) => t.uri) })
+      writable = writable.filter((_, i) => WRITABLE.has(kinds[i] ?? 'unknown'))
+    } catch {
+      /* старый движок без проверки формата: пусть решит сам */
+    }
+  }
   const writtenKeys = new Set<string>()
   if (writable.length) {
     const items: WriteTagsItem[] = writable.map((t) => {
@@ -114,4 +123,20 @@ export async function dismiss(kind: string, keys: string[]): Promise<void> {
       .onConflict((oc) => oc.columns(['kind', 'key']).doNothing())
       .execute()
   }
+}
+
+/* ------------------------------ копии до записи ------------------------------ */
+
+/** Для каких треков можно вернуть файл к состоянию до последней записи тегов */
+export async function tagBackupKeys(): Promise<Set<string>> {
+  try {
+    return new Set((await MusicCore.tagBackups()).keys)
+  } catch {
+    return new Set()
+  }
+}
+
+export async function restoreTagFiles(tracks: Track[]): Promise<number> {
+  const r = await MusicCore.restoreTags({ items: tracks.map((t) => ({ key: t.key, uri: t.uri, path: t.path })) })
+  return r.written
 }

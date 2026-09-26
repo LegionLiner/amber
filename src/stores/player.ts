@@ -57,6 +57,8 @@ export const usePlayer = defineStore('player', () => {
   const sleepEndOfTrack = ref(false)
   const speed = ref(1)
   const pitch = ref(1)
+  /** Идёт переход между треками: сколько он ещё продлится (для анимации смены обложки) */
+  const transitionMs = ref(0)
   /** Куда идёт звук: bt:<имя>, wired, usb, speaker, web */
   const output = ref('speaker')
   const outputs = shallowRef<OutputsEvent | null>(null)
@@ -101,6 +103,7 @@ export const usePlayer = defineStore('player', () => {
     sleepEndOfTrack.value = !!e.sleepEndOfTrack
     speed.value = e.speed ?? 1
     pitch.value = e.pitch ?? 1
+    transitionMs.value = e.transitionMs ?? 0
     if (e.output) output.value = e.output
     now.value = Date.now()
     ensureLoop()
@@ -303,6 +306,19 @@ export const usePlayer = defineStore('player', () => {
     await MusicCore.skipTo({ index: i, play: true })
   }
 
+  /** Соседний трек очереди для свайпа: без перемотки текущего в начало, с кругом при повторе всего */
+  function neighborIndex(dir: 1 | -1): number {
+    const n = queue.value.length
+    const j = index.value + dir
+    if (j >= 0 && j < n) return j
+    if (repeat.value === 'all' && n > 1) return (j + n) % n
+    return -1
+  }
+  async function step(dir: 1 | -1) {
+    const j = neighborIndex(dir)
+    if (j >= 0) await jump(j)
+  }
+
   /** minutes > 0 — таймер, 'end' — после этого трека, null — выключить */
   async function setSleep(v: number | 'end' | null) {
     await MusicCore.setSleepTimer(v === 'end' ? { endOfTrack: true } : v ? { minutes: v } : {})
@@ -383,6 +399,7 @@ export const usePlayer = defineStore('player', () => {
     sleepEndOfTrack,
     speed,
     pitch,
+    transitionMs,
     output,
     outputs,
     ab,
@@ -410,6 +427,8 @@ export const usePlayer = defineStore('player', () => {
     prev,
     seek,
     jump,
+    step,
+    neighborIndex,
     cycleRepeat,
     setPlaybackParams,
     markAb,

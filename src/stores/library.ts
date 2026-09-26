@@ -1,12 +1,19 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { MusicCore } from '@/native/music-core'
-import type { PlayLoggedEvent, ScanProgress, ScanResult } from '@/native/types'
+import type { DamagedFile, PlayLoggedEvent, ScanProgress, ScanResult } from '@/native/types'
 import { loadAnalysis, loadTrackRows, saveRating, upsertTrackUser } from '@/data/repos/library'
 import { toTrack, type Track } from '@/domain/track'
 import { buildFolderTree, groupAlbums, groupArtists, groupGenres } from '@/domain/groups'
 import { scoreForRating } from '@/domain/rating'
 import { useSettings } from './settings'
+
+/**
+ * Версия чтения библиотеки. 2 — формат определяется по байтам (у многих «.mp3» внутри MP4/AAC,
+ * их теги теперь читаются правильно). 3 — отпечаток MP4 по аудиоданным (история переезжает на новый ключ).
+ * После обновления один раз перечитываем всё.
+ */
+export const SCANNER_VERSION = 3
 
 export const useLibrary = defineStore('library', () => {
   const settings = useSettings()
@@ -18,6 +25,8 @@ export const useLibrary = defineStore('library', () => {
   const scanning = ref(false)
   const progress = ref<ScanProgress | null>(null)
   const lastScan = ref<ScanResult | null>(null)
+  /** Файлы, испорченные старой записью тегов (ID3 перед MP4): их можно починить */
+  const damaged = shallowRef<DamagedFile[]>([])
   /** Фоновый анализ громкости и волны: сколько сделано из скольких */
   const analysis = ref<{ done: number; total: number } | null>(null)
   const analyzedPending = new Set<string>()
@@ -47,7 +56,9 @@ export const useLibrary = defineStore('library', () => {
         excludeFolders: settings.s.scan.excludeFolders,
       })
       lastScan.value = res
+      damaged.value = res.damaged ?? []
       settings.s.scan.lastScanAt = Date.now()
+      if (full) settings.s.scan.version = SCANNER_VERSION
       await load()
       void scheduleAnalysis()
       return res
@@ -81,6 +92,15 @@ export const useLibrary = defineStore('library', () => {
     analyzedPending.clear()
     const rows = await loadAnalysis(keys)
     patchMany(new Map(rows.map((r) => [r.key, { lufs: r.lufs, bpm: r.bpm, energy: r.energy, analyzed: true }])))
+  }
+
+  /** Починить испорченные файлы: Android один раз спросит разрешение, потом библиотека пересканируется */
+  async function repairDamaged(): Promise<{ written: number; failed: number }> {
+    const items = damaged.value.map((d) => ({ key: d.key, uri: d.uri, path: d.path }))
+    if (!items.length) return { written: 0, failed: 0 }
+    const r = await MusicCore.repairFiles({ items })
+    await scan(false)
+    return { written: r.written, failed: r.failed.length }
   }
 
   function get(key: string): Track | undefined {
@@ -159,6 +179,8 @@ export const useLibrary = defineStore('library', () => {
     scanning,
     progress,
     lastScan,
+    damaged,
+    repairDamaged,
     analysis,
     attach,
     scheduleAnalysis,

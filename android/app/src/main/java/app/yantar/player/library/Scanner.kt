@@ -30,7 +30,11 @@ class Scanner(private val ctx: Context) {
         val unchanged: Int,
         val missing: Int,
         val tookMs: Long,
+        val damaged: List<Damaged>,
     )
+
+    /** Файл, испорченный старой записью тегов (ID3 перед MP4): не играется, его можно починить */
+    class Damaged(val key: String, val uri: String, val path: String, val name: String)
 
     private class Row(
         val id: Long,
@@ -72,6 +76,9 @@ class Scanner(private val ctx: Context) {
         }
 
         val seen = LinkedHashSet<String>()
+        val damaged = ArrayList<Damaged>()
+        // Старый отпечаток → новый (MP4 теперь считается по mdat): история переедет на новый ключ
+        val renamed = HashMap<String, String>()
         var added = 0
         var updated = 0
         var unchanged = 0
@@ -85,7 +92,7 @@ class Scanner(private val ctx: Context) {
                 unchanged++
             } else {
                 val parsed = try {
-                    read(r)
+                    read(r, damaged, renamed)
                 } catch (_: Throwable) {
                     null
                 }
@@ -101,6 +108,8 @@ class Scanner(private val ctx: Context) {
             if (i % 20 == 0) progress("tags", i, rows.size)
         }
         if (pending.isNotEmpty()) Database.batch(pending)
+        for ((old, new) in renamed) if (knownKeys.contains(old)) KeyAliases.add(old, new)
+        KeyAliases.fixup()
 
         // Мягкое удаление: пропавшие файлы помечаются, история остаётся
         val stmts = ArrayList<Pair<String, List<Any?>>>()
@@ -115,8 +124,10 @@ class Scanner(private val ctx: Context) {
         val res = Database.batch(stmts)
         val missing = res[res.size - 3].changes
 
+        // Испорченные файлы MediaStore часто считает нулевой длины, поэтому ищем их отдельно среди коротких
+        findDamagedShort(opts, damaged)
         progress("finish", rows.size, rows.size)
-        return Result(seen.size, added, updated, unchanged, missing, SystemClock.elapsedRealtime() - t0)
+        return Result(seen.size, added, updated, unchanged, missing, SystemClock.elapsedRealtime() - t0, damaged.distinctBy { it.uri })
     }
 
     private fun listMediaStore(opts: Options): List<Row> {
@@ -209,15 +220,60 @@ class Scanner(private val ctx: Context) {
         }
     }
 
-    private fun read(r: Row): Parsed? {
+    /** Формат по байтам: у многих «.mp3» внутри MP4/AAC, и читать у них ID3 бессмысленно */
+    private fun sniff(ch: FileChannel, size: Long): Pair<AudioKind, Int> {
+        val head = ByteBuffer.allocate(minOf(16L, size).toInt())
+        ch.readFully(head, 0)
+        val tagSize = Id3Reader.tagSize(head.array())
+        val after = if (tagSize in 1 until size) ByteBuffer.allocate(minOf(16L, size - tagSize).toInt()).also { ch.readFully(it, tagSize.toLong()) }.array() else null
+        return AudioFormat.sniff(head.array(), after) to tagSize
+    }
+
+    private fun keyOf(ch: FileChannel, size: Long, tagSize: Int): String {
+        val audioStart = if (tagSize in 1 until size) tagSize.toLong() else 0L
+        val sample = ByteBuffer.allocate(minOf(65536L, size - audioStart).toInt().coerceAtLeast(0))
+        ch.readFully(sample, audioStart)
+        val md = MessageDigest.getInstance("SHA-1")
+        md.update(ByteBuffer.allocate(8).putLong(size - audioStart).array())
+        md.update(sample.array(), 0, sample.position())
+        return md.digest().joinToString("") { "%02x".format(it) }.take(20)
+    }
+
+    private fun findDamagedShort(opts: Options, out: MutableList<Damaged>) {
+        ctx.contentResolver.query(
+            collection,
+            arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.SIZE),
+            "(${MediaStore.Audio.Media.DURATION} IS NULL OR ${MediaStore.Audio.Media.DURATION} < ?) AND ${MediaStore.Audio.Media.SIZE} > 65536",
+            arrayOf(opts.minDurationMs.toString()),
+            null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val uri = ContentUris.withAppendedId(collection, c.getLong(0))
+                try {
+                    ctx.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                        FileInputStream(pfd.fileDescriptor).channel.use { ch ->
+                            val size = ch.size()
+                            val (kind, tagSize) = sniff(ch, size)
+                            if (kind == AudioKind.ID3_MP4) out.add(Damaged(keyOf(ch, size, tagSize), uri.toString(), c.getString(1) ?: "", c.getString(2) ?: ""))
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    private fun read(r: Row, damaged: MutableList<Damaged>, renamed: MutableMap<String, String>): Parsed? {
         val uri = ContentUris.withAppendedId(collection, r.id)
-        val isMp3 = r.mime == "audio/mpeg" || r.name.endsWith(".mp3", ignoreCase = true)
         ctx.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
             FileInputStream(pfd.fileDescriptor).channel.use { ch ->
                 val size = ch.size()
-                val head = ByteBuffer.allocate(10)
-                ch.readFully(head, 0)
-                val tagSize = Id3Reader.tagSize(head.array())
+                val (kind, tagSize) = sniff(ch, size)
+                if (kind == AudioKind.ID3_MP4) {
+                    damaged.add(Damaged(keyOf(ch, size, tagSize), uri.toString(), r.path, r.name))
+                    return null
+                }
+                val isMp3 = kind == AudioKind.MPEG
                 var tags: Id3Tags? = null
                 if (tagSize > 0) {
                     val buf = ByteBuffer.allocate(minOf(tagSize.toLong(), 8L * 1024 * 1024, size).toInt())
@@ -232,10 +288,10 @@ class Scanner(private val ctx: Context) {
                 val audioStart = if (tagSize in 1 until size) tagSize.toLong() else 0L
                 val sample = ByteBuffer.allocate(minOf(65536L, size - audioStart).toInt().coerceAtLeast(0))
                 ch.readFully(sample, audioStart)
-                val md = MessageDigest.getInstance("SHA-1")
-                md.update(ByteBuffer.allocate(8).putLong(size - audioStart).array())
-                md.update(sample.array(), 0, sample.position())
-                val key = md.digest().joinToString("") { "%02x".format(it) }.take(20)
+                val legacy = TrackKey.sha(size - audioStart, sample.array(), sample.position())
+                // MP4: отпечаток по аудиоданным (mdat), чтобы правка тегов его не меняла
+                val key = if (kind == AudioKind.MP4) TrackKey.mp4(ch) ?: legacy else legacy
+                if (key != legacy) renamed[legacy] = key
                 val frame = if (isMp3) Mp3Frame.find(sample.array(), sample.position()) else null
 
                 val t = tags

@@ -1,4 +1,4 @@
-# Сборка «Янтаря»: тесты, веб-версия, APK и Docker-образ.
+# Сборка Amber: тесты, веб-версия, APK и Docker-образ.
 # APK лежит в артефактах каждого запуска (вкладка Actions → запуск → Artifacts).
 # По тегу вида v0.2.0 создаётся релиз с APK.
 #
@@ -42,7 +42,7 @@ jobs:
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
-          name: yantar-web
+          name: amber-web
           path: dist
           retention-days: 14
 
@@ -94,15 +94,15 @@ jobs:
         run: |
           mkdir -p out
           SHORT=$(echo "$GITHUB_SHA" | cut -c1-7)
-          cp android/app/build/outputs/apk/debug/app-debug.apk "out/yantar-debug-$SHORT.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/amber-debug-$SHORT.apk"
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk "out/yantar-$SHORT.apk"
+            cp android/app/build/outputs/apk/release/app-release.apk "out/amber-$SHORT.apk"
           fi
           ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
-          name: yantar-apk
+          name: amber-apk
           path: out/*.apk
           retention-days: 30
 
@@ -124,6 +124,6 @@ jobs:
         with:
           context: .
           push: false
-          tags: yantar-web:ci
+          tags: amber-web:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max

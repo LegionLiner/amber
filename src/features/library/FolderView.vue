@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconFolder from '~icons/solar/folder-2-linear'
 import CollectionPage from '@/components/CollectionPage.vue'
 import { useLibrary } from '@/stores/library'
 import { allTracksIn, findFolder } from '@/domain/groups'
 import { countLabel } from '@/domain/format'
 
-const route = useRoute()
+const route = useViewRoute()
 const router = useRouter()
 const library = useLibrary()
 const path = computed(() => String(route.query.path ?? ''))

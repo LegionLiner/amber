@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconMore from '~icons/solar/menu-dots-bold'
 import IconOrder from '~icons/solar/sort-vertical-linear'
 import IconRules from '~icons/solar/filter-linear'
 import IconMix from '~icons/solar/transfer-horizontal-linear'
+import IconAdd from '~icons/solar/add-circle-linear'
 import CollectionPage from '@/components/CollectionPage.vue'
 import NameSheet from '@/components/NameSheet.vue'
 import PlaylistMenuSheet from './PlaylistMenuSheet.vue'
@@ -20,7 +22,7 @@ import type { Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
 import { metaFor } from './rowMeta'
 
-const route = useRoute()
+const route = useViewRoute()
 const router = useRouter()
 const library = useLibrary()
 const playlists = usePlaylists()
@@ -86,6 +88,7 @@ function menu() {
   const p = info.value
   if (!p) return
   const actions = [
+    ...(p.kind !== 'smart' ? [{ label: 'Добавить треки', icon: IconAdd, run: () => go(`/playlist/${p.id}/add`) }] : []),
     ...(p.kind === 'smart' ? [{ label: 'Условия', icon: IconRules, run: () => go(`/playlist/${p.id}/rules`) }] : []),
     ...(p.kind !== 'smart' ? [{ label: 'Изменить порядок', icon: IconOrder, run: () => go(`/playlist/${p.id}/order`) }] : []),
     ...(p.kind === 'mix' ? [{ label: 'Редактор стыков', icon: IconMix, run: () => go(`/mix/${p.id}`) }] : []),
@@ -128,8 +131,11 @@ function go(path: string) {
       <button type="button" class="icon-btn" aria-label="Меню плейлиста" @click="menu"><IconMore /></button>
     </template>
     <template #extra>
+      <button v-if="info.kind !== 'smart'" type="button" class="btn addbtn" @click="router.push(`/playlist/${info.id}/add`)">
+        <IconAdd />Добавить треки
+      </button>
       <p v-if="loaded && !tracks.length && info.kind !== 'smart'" class="hint muted">
-        Пока пусто. Долгое нажатие на любой трек → «Добавить в плейлист».
+        Пока пусто: нажми «Добавить треки» или долгое нажатие на любой трек → «Добавить в плейлист».
       </p>
       <p v-else-if="info.kind === 'smart' && !tracks.length" class="hint muted">Под условия пока ничего не подходит.</p>
       <button
@@ -152,5 +158,12 @@ function go(path: string) {
 }
 .mixbtn {
   margin-top: 12px;
+}
+.addbtn {
+  margin-top: 12px;
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  color: var(--amber-ink);
 }
 </style>

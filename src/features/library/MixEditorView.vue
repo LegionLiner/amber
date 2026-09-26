@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconPlay from '~icons/solar/play-bold'
 import IconStop from '~icons/solar/stop-bold'
 import ScreenHeader from '@/components/ScreenHeader.vue'
+import RangeSlider from '@/components/RangeSlider.vue'
 import WaveStrip from '@/components/WaveStrip.vue'
 import { useLibrary } from '@/stores/library'
 import { usePlaylists } from '@/stores/playlists'
@@ -21,7 +22,7 @@ import type { TransitionType } from '@/native/types'
  * где начинается переход, с какого места входит B, какой переход и сколько длится.
  * «Послушать стык» играет 6 секунд до перехода и сам переход.
  */
-const route = useRoute()
+const route = useViewRoute()
 const library = useLibrary()
 const playlists = usePlaylists()
 const ui = useUi()
@@ -190,16 +191,7 @@ onBeforeUnmount(() => {
           <header>
             <span>Длительность</span><output>{{ (tx(p).durationMs / 1000).toFixed(1).replace('.0', '') }} с</output>
           </header>
-          <input
-            :id="`mix-dur-${p.i}`"
-            v-model.number="tx(p).durationMs"
-            type="range"
-            class="range"
-            min="1000"
-            max="20000"
-            step="500"
-            :style="{ '--p': `${((tx(p).durationMs - 1000) / 19000) * 100}%` }"
-          />
+          <RangeSlider v-model="tx(p).durationMs" :min="1000" :max="20000" :step="500" />
         </div>
         <div v-if="tx(p).type === 'crossfade'" class="seg three">
           <button type="button" :class="{ on: tx(p).curve === 'equalPower' }" @click="tx(p).curve = 'equalPower'">Плавная</button>
@@ -210,16 +202,12 @@ onBeforeUnmount(() => {
           <header>
             <span>A тише на</span><output>{{ -(tx(p).duckDb ?? -9) }} дБ</output>
           </header>
-          <input
-            :id="`mix-duck-${p.i}`"
-            type="range"
-            class="range"
-            min="-18"
-            max="-3"
-            step="1"
-            :value="tx(p).duckDb ?? -9"
-            :style="{ '--p': `${(((tx(p).duckDb ?? -9) + 18) / 15) * 100}%` }"
-            @input="tx(p).duckDb = Number(($event.target as HTMLInputElement).value)"
+          <RangeSlider
+            :model-value="tx(p).duckDb ?? -9"
+            @update:model-value="(v: number) => (tx(p).duckDb = v)"
+            :min="-18"
+            :max="-3"
+            :step="1"
           />
         </div>
         <div class="btns">

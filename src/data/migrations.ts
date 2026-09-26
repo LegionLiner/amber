@@ -246,6 +246,19 @@ export const MIGRATIONS: Migration[] = [
       `CREATE INDEX ix_plays_counted_day ON play_events(counted, local_day)`,
     ],
   },
+  {
+    version: 3,
+    statements: [
+      // Старый отпечаток → новый. У MP4 отпечаток теперь по аудиоданным (mdat), а не по началу файла:
+      // иначе правка тегов меняла бы его и отрывала историю. Все ссылки переводит KeyAliases.fixup
+      // (Kotlin) и rekeyFixupSql (src/data/rekey.ts). Новая таблица с ключом трека — добавь её туда.
+      `CREATE TABLE key_aliases (
+        old TEXT PRIMARY KEY,
+        new TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )`,
+    ],
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version

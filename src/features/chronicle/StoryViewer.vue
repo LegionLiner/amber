@@ -81,7 +81,7 @@ async function save() {
   paused.value = true
   try {
     const data = await renderSlide(slide, slide.cover ? coverSrc(slide.cover.art, 'l') : null, props.title)
-    const name = `yantar-${props.from.slice(0, 7)}-${i.value + 1}.png`
+    const name = `amber-${props.from.slice(0, 7)}-${i.value + 1}.png`
     await MusicCore.exportFile({ name, data, mime: 'image/png', base64: true })
     ui.toast('Картинка сохранена')
   } catch (e) {
@@ -112,7 +112,7 @@ function playTop() {
       <i v-for="(_, n) in slides" :key="n"><b :style="{ transform: `scaleX(${n < i ? 1 : n === i ? progress : 0})` }" /></i>
     </div>
     <div class="top">
-      <span class="brand display">Янтарь · {{ title }}</span>
+      <span class="brand display">Amber · {{ title }}</span>
       <button type="button" class="icon-btn light" aria-label="Закрыть" @click="emit('close')"><IconClose /></button>
     </div>
     <div class="stage" @pointerdown="down" @pointerup="up" @pointercancel="paused = false">

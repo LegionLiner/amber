@@ -164,6 +164,7 @@ function go(to: Parameters<typeof router.push>[0]) {
             :key="a.id"
             type="button"
             class="chip"
+            data-morph-card
             @click="go(`/artist/${encodeURIComponent(a.id)}`)"
           >
             <CoverArt :art="a.art" :seed="a.name" :label="a.name" size="s" radius="50%" class="av" />{{ a.name }}
@@ -200,6 +201,7 @@ function go(to: Parameters<typeof router.push>[0]) {
             :key="a.id"
             type="button"
             class="album"
+            data-morph-card
             @click="go(`/album/${encodeURIComponent(albumIdOf({ album: a.title, albumArtist: a.artist }))}`)"
           >
             <CoverArt :art="a.art" :seed="a.seed" :label="a.title" size="m" radius="var(--r-m)" />

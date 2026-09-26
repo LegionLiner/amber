@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import TracksSection from './TracksSection.vue'
 import AlbumsSection from './AlbumsSection.vue'
 import ArtistsSection from './ArtistsSection.vue'
@@ -9,7 +9,7 @@ import GenresSection from './GenresSection.vue'
 import FavoritesSection from './FavoritesSection.vue'
 import PlaylistsSection from './PlaylistsSection.vue'
 
-const route = useRoute()
+const route = useViewRoute()
 const section = computed(() => (route.params.section as string | undefined) || 'tracks')
 const views = {
   tracks: TracksSection,

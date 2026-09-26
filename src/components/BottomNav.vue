@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, onMounted, ref, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import IconHome from '~icons/solar/home-2-linear'
 import IconHomeOn from '~icons/solar/home-2-bold'
@@ -26,6 +26,15 @@ const tabs: { id: TabId; to: string; label: string; icon: Component; on: Compone
 ]
 
 const active = computed(() => route.meta.tab ?? 'home')
+const activeIndex = computed(() =>
+  Math.max(
+    0,
+    tabs.findIndex((t) => t.id === active.value),
+  ),
+)
+/** Иконка «подпрыгивает», когда вкладка становится активной, но не при запуске приложения */
+const ready = ref(false)
+onMounted(() => requestAnimationFrame(() => (ready.value = true)))
 
 function go(t: (typeof tabs)[number]) {
   haptic.tick()
@@ -38,7 +47,8 @@ function go(t: (typeof tabs)[number]) {
 </script>
 
 <template>
-  <nav class="nav glass" aria-label="Разделы">
+  <nav class="nav glass" aria-label="Разделы" :style="{ '--i': activeIndex }">
+    <i class="tab-mark" aria-hidden="true" />
     <button
       v-for="t in tabs"
       :key="t.id"
@@ -48,7 +58,12 @@ function go(t: (typeof tabs)[number]) {
       :aria-current="active === t.id ? 'page' : undefined"
       @click="go(t)"
     >
-      <component :is="active === t.id ? t.on : t.icon" class="ic" />
+      <component
+        :is="active === t.id ? t.on : t.icon"
+        :key="active === t.id ? 'on' : 'off'"
+        class="ic"
+        :class="{ pop: ready && active === t.id }"
+      />
       <span>{{ t.label }}</span>
     </button>
   </nav>
@@ -68,7 +83,28 @@ function go(t: (typeof tabs)[number]) {
   border-width: 1px 0 0;
   border-radius: 0;
 }
+/* Подложка под иконкой активной вкладки (не .pill: так называются кнопки-пилюли в forms.css): центр иконки = 6 (отступ) + 6.75 (центровка) + 12 */
+.tab-mark {
+  position: absolute;
+  top: 10px;
+  left: 4px;
+  width: calc((100% - 8px) / 5);
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  transform: translateX(calc(100% * var(--i)));
+  transition: transform 360ms var(--ease-out);
+}
+.tab-mark::before {
+  content: '';
+  width: 58px;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(var(--amber-rgb), 0.14);
+}
 .item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -81,8 +117,12 @@ function go(t: (typeof tabs)[number]) {
 .item.on {
   color: var(--amber-ink);
 }
+.item:active .ic {
+  transform: scale(0.86);
+}
 .ic {
   width: 24px;
   height: 24px;
+  transition: transform var(--t-fast) var(--ease);
 }
 </style>

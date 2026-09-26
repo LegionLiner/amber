@@ -2,7 +2,7 @@
   "name": "yantar",
   "private": true,
   "version": "0.2.0",
-  "description": "Янтарь — личный офлайн-плеер для Android",
+  "description": "Amber — личный офлайн-плеер для Android",
   "type": "module",
   "scripts": {
     "dev": "vite",

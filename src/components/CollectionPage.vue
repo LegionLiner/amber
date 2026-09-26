@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onActivated, onMounted, ref, type ComponentPublicInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import IconBack from '~icons/solar/alt-arrow-left-linear'
 import IconPlay from '~icons/solar/play-bold'
@@ -12,6 +12,7 @@ import type { PlaySource } from '@/native/types'
 import { usePlayer } from '@/stores/player'
 import { ambientColors } from '@/domain/palette'
 import { formatListen, countLabel } from '@/domain/format'
+import { flyCoverTo } from '@/app/motion'
 
 /** Общая страница набора треков: альбом, исполнитель, жанр, папка */
 const props = withDefaults(
@@ -39,6 +40,12 @@ const colors = computed(() => {
   const withColor = props.tracks.find((t) => t.color1)
   return ambientColors(withColor?.color1 ?? null, withColor?.color2 ?? null, props.seed || props.title)
 })
+/* Страницу открыли тапом по карточке: обложка прилетает из неё */
+const heroCover = ref<ComponentPublicInstance | null>(null)
+const land = () => flyCoverTo(heroCover.value?.$el as HTMLElement | undefined)
+onMounted(land)
+onActivated(land)
+
 const totalMs = computed(() => props.tracks.reduce((s, t) => s + t.durationMs, 0))
 const line = computed(
   () => props.subtitle || `${countLabel(props.tracks.length, ['трек', 'трека', 'треков'])} · ${formatListen(totalMs.value)}`,
@@ -60,7 +67,15 @@ const line = computed(
             <button type="button" class="icon-btn" aria-label="Назад" @click="router.back()"><IconBack /></button>
             <slot name="actions" />
           </div>
-          <CoverArt :art="art" :seed="seed || title" :label="title" size="m" :radius="round ? '50%' : 'var(--r-l)'" class="cv" />
+          <CoverArt
+            ref="heroCover"
+            :art="art"
+            :seed="seed || title"
+            :label="title"
+            size="m"
+            :radius="round ? '50%' : 'var(--r-l)'"
+            class="cv"
+          />
           <p class="kind">{{ kind }}</p>
           <h1 class="display title">{{ title }}</h1>
           <p class="line muted">{{ line }}</p>

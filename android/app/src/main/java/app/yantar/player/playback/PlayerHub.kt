@@ -122,6 +122,8 @@ object PlayerHub {
             savePosition()
             emitState()
             checkQueueLow()
+            // Следующие треки после кроссфейда тоже должны быть проанализированы к своему стыку
+            prefetchAnalysis()
         }
 
         override fun onOutputsChanged(headphonesConnected: Boolean) {
@@ -280,6 +282,7 @@ object PlayerHub {
             .put("speed", p?.playbackParameters?.speed ?: 1f)
             .put("pitch", p?.playbackParameters?.pitch ?: 1f)
             .put("output", engine?.outputName() ?: "speaker")
+            .put("transitionMs", engine?.transitionLeftMs ?: 0L)
     }
 
     fun snapshotJson(): JSONObject {
@@ -377,9 +380,30 @@ object PlayerHub {
     fun skipTo(index: Int, play: Boolean) {
         val e = engine()
         if (index !in 0 until e.active.mediaItemCount) return
-        e.settle()
-        e.active.seekTo(index, 0)
-        if (play) play()
+        if (play) ensureService()
+        e.jumpTo(index, play)
+    }
+
+    /**
+     * Файлы получили новые отпечатки (KeyAliases): переименовать ключи у треков очереди в памяти,
+     * иначе прослушивания записались бы под старым ключом.
+     */
+    fun remapKeys(map: Map<String, String>) {
+        if (map.isEmpty()) return
+        main.post {
+            val e = engine ?: return@post
+            var changed = false
+            e.forEachDeck { deck ->
+                for (i in 0 until deck.mediaItemCount) {
+                    val q = QItem.fromMediaItem(deck.getMediaItemAt(i))
+                    map[q.key]?.let {
+                        q.rekey(it)
+                        changed = true
+                    }
+                }
+            }
+            if (changed) saveQueueSoon()
+        }
     }
 
     fun control(action: String) {

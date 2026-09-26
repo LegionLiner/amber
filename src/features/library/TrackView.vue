@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconBack from '~icons/solar/alt-arrow-left-linear'
 import IconMore from '~icons/solar/menu-dots-bold'
 import IconPlay from '~icons/solar/play-bold'
@@ -21,7 +22,7 @@ import { formatBytes, formatDate, formatDuration, formatListen, relativeDay } fr
 import { starsLabel } from '@/domain/rating'
 import type { PlaySource } from '@/native/types'
 
-const route = useRoute()
+const route = useViewRoute()
 const router = useRouter()
 const library = useLibrary()
 const player = usePlayer()

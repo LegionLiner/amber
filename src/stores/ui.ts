@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, shallowRef, type Component } from 'vue'
+import { ref, shallowRef, watch, type Component } from 'vue'
+import { blockClicks } from '@/composables/tapGuard'
 
 export interface Toast {
   id: number
@@ -14,12 +15,19 @@ export interface SheetRequest {
 
 export const useUi = defineStore('ui', () => {
   const fullPlayer = ref(false)
+  /** Мини-плеер тянут вверх: насколько открыт полный плеер, 0..1 (null — не тянут) */
+  const playerDrag = ref<number | null>(null)
   const queueOpen = ref(false)
   const sheet = shallowRef<SheetRequest | null>(null)
   const toasts = ref<Toast[]>([])
   /** Повторный тап по активной вкладке: экран прокручивается наверх */
   const reselect = ref<{ tab: string; n: number }>({ tab: '', n: 0 })
   let toastId = 0
+
+  // Новый слой открылся под пальцем: click от того же касания не должен нажать кнопку в нём
+  watch([fullPlayer, queueOpen, () => sheet.value?.component], ([f, q, s], [pf, pq, ps]) => {
+    if ((f && !pf) || (q && !pq) || (s && s !== ps)) blockClicks(400)
+  })
 
   function tabReselected(tab: string) {
     reselect.value = { tab, n: reselect.value.n + 1 }
@@ -58,5 +66,5 @@ export const useUi = defineStore('ui', () => {
     return false
   }
 
-  return { fullPlayer, queueOpen, sheet, toasts, reselect, tabReselected, openSheet, closeSheet, toast, back }
+  return { fullPlayer, playerDrag, queueOpen, sheet, toasts, reselect, tabReselected, openSheet, closeSheet, toast, back }
 })

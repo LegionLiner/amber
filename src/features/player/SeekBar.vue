@@ -83,6 +83,7 @@ function up() {
       @pointermove="move"
       @pointerup="up"
       @pointercancel="scrub = null"
+      @lostpointercapture="up"
     >
       <i v-if="abStyle" class="ab" :class="{ open: ab?.end == null }" :style="abStyle" />
       <template v-if="bars">

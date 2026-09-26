@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { usePlayer } from '@/stores/player'
 import { isNative } from '@/native/paths'
+import RangeSlider from '@/components/RangeSlider.vue'
 
 /**
  * Скорость и тон. «Slowed» и «Nightcore» — скорость и тон вместе, как на пластинке;
@@ -25,8 +26,12 @@ const current = computed(
 function set(speed: number, pitch: number) {
   void player.setPlaybackParams(Math.round(speed * 100) / 100, Math.round(pitch * 100) / 100)
 }
-function onSpeed(e: Event) {
-  const v = Number((e.target as HTMLInputElement).value)
+/** Пока палец на ползунке, меняется только цифра: применяем один раз, когда отпустили */
+const draft = ref<number | null>(null)
+const shownSpeed = computed(() => draft.value ?? player.speed)
+function applySpeed(v: number) {
+  draft.value = null
+  if (Math.abs(v - player.speed) < 0.001) return
   set(v, keepTone.value ? 1 : v)
 }
 function toggleTone() {
@@ -51,18 +56,16 @@ function toggleTone() {
     </div>
     <div class="slider-row">
       <header>
-        <span>Скорость</span><output>{{ player.speed.toFixed(2) }}×</output>
+        <span>Скорость</span><output>{{ shownSpeed.toFixed(2) }}×</output>
       </header>
-      <input
-        id="speed"
-        type="range"
-        class="range"
-        min="0.5"
-        max="2"
-        step="0.05"
-        :value="player.speed"
-        :style="{ '--p': `${((player.speed - 0.5) / 1.5) * 100}%` }"
-        @input="onSpeed"
+      <RangeSlider
+        :model-value="shownSpeed"
+        :min="0.5"
+        :max="2"
+        :step="0.05"
+        label="Скорость"
+        @update:model-value="(v: number) => (draft = v)"
+        @change="applySpeed"
       />
     </div>
     <label class="row">

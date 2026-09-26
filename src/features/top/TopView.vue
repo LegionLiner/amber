@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconPlay from '~icons/solar/play-bold'
 import ChipTabs from '@/components/ChipTabs.vue'
 import CoverArt from '@/components/CoverArt.vue'
@@ -21,7 +22,7 @@ const TABS: { id: TopTab; label: string }[] = [
   { id: 'rate', label: 'Оценить' },
 ]
 
-const route = useRoute()
+const route = useViewRoute()
 const router = useRouter()
 const library = useLibrary()
 const player = usePlayer()

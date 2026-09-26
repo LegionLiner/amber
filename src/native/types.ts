@@ -58,7 +58,19 @@ export interface ScanResult {
   unchanged: number
   missing: number
   tookMs: number
+  /** Файлы, испорченные старой записью тегов (ID3 перед MP4): не играются, их можно починить */
+  damaged?: DamagedFile[]
 }
+
+export interface DamagedFile {
+  key: string
+  uri: string
+  path: string
+  name: string
+}
+
+/** Что лежит в файле на самом деле, по байтам */
+export type AudioKind = 'mpeg' | 'mp4' | 'flac' | 'ogg' | 'wav' | 'id3+mp4' | 'unknown'
 
 export interface ScanProgress {
   phase: 'list' | 'tags' | 'finish'
@@ -158,6 +170,8 @@ export interface PlayerStateEvent {
   pitch?: number
   /** Куда идёт звук: bt:<имя>, wired, usb, speaker, web */
   output?: string
+  /** Идёт переход между треками: сколько он ещё продлится, мс (0 — перехода нет) */
+  transitionMs?: number
 }
 
 export interface PlayerSnapshot extends PlayerStateEvent {

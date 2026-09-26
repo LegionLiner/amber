@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onActivated, ref, shallowRef, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import CollectionPage from '@/components/CollectionPage.vue'
 import { useLibrary } from '@/stores/library'
 import { loadAutoContext } from '@/data/repos/auto'
@@ -8,7 +8,7 @@ import { AUTO_PLAYLISTS, buildAuto, type AutoId } from '@/domain/auto'
 import type { Track } from '@/domain/track'
 import { metaFor } from './rowMeta'
 
-const route = useRoute()
+const route = useViewRoute()
 const library = useLibrary()
 const id = computed(() => String(route.params.id) as AutoId)
 const def = computed(() => AUTO_PLAYLISTS.find((a) => a.id === id.value))

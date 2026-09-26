@@ -225,7 +225,7 @@ export async function renderSlide(s: Slide, coverUrl: string | null, footer: str
   }
   ctx.fillStyle = 'rgba(255,255,255,0.65)'
   ctx.font = '600 40px Unbounded, system-ui, sans-serif'
-  ctx.fillText('Янтарь', pad, H - 120)
+  ctx.fillText('Amber', pad, H - 120)
   ctx.font = '500 34px Onest, system-ui, sans-serif'
   const fw = ctx.measureText(footer).width
   ctx.fillText(footer, W - pad - fw, H - 120)

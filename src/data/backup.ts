@@ -123,7 +123,7 @@ export async function buildBackup(): Promise<BackupFile> {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
-    app: 'Янтарь 0.1.0',
+    app: 'Amber 0.2.0',
     tracks,
     trackUser,
     plays,
@@ -133,7 +133,7 @@ export async function buildBackup(): Promise<BackupFile> {
 
 export function backupFileName(d = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0')
-  return `yantar-backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.json`
+  return `amber-backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.json`
 }
 
 /* ------------------------------ импорт ------------------------------ */
@@ -149,7 +149,7 @@ export interface ImportReport {
 
 export function parseBackup(json: string): BackupFile {
   const data = JSON.parse(json) as BackupFile
-  if (data?.format !== BACKUP_FORMAT) throw new Error('Это не файл бэкапа «Янтаря»')
+  if (data?.format !== BACKUP_FORMAT) throw new Error('Это не файл бэкапа Amber')
   if (data.version > BACKUP_VERSION) throw new Error('Бэкап сделан более новой версией приложения')
   return data
 }

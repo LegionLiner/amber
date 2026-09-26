@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import IconStar from '~icons/solar/star-bold'
 import IconStarEmpty from '~icons/solar/star-linear'
 import { haptic } from '@/native/haptics'
+import { touchStoppedScroll } from '@/composables/tapGuard'
 
 /**
  * Звёзды с половинками. Значение 1..10 (7 = 3½★), null = без оценки.
- * Ведение пальцем меняет оценку с шагом ½ и вибрирует на каждом шаге.
- * Тап по текущей оценке снимает её.
+ * Ведение пальцем вбок меняет оценку с шагом ½, тап ставит оценку в точке касания,
+ * тап по текущей оценке снимает её.
+ *
+ * Жест определяется по первым пикселям движения: вбок — оценка, вверх-вниз — это прокрутка страницы,
+ * и оценка не меняется. Касание, остановившее прокрутку по инерции, тоже ничего не ставит.
+ *
+ * Пока ведёшь пальцем, показывается черновик (preview). Он обязан сброситься при любом исходе жеста:
+ * если Android не прислал отпускание (потерян захват касания), черновик раньше оставался навсегда
+ * и перекрывал настоящую оценку — на всех треках горели 5 звёзд и ничего не менялось.
  */
 const props = withDefaults(defineProps<{ modelValue: number | null; size?: number; readonly?: boolean }>(), {
   size: 22,
@@ -17,9 +25,15 @@ const emit = defineEmits<{ 'update:modelValue': [value: number | null] }>()
 
 const el = ref<HTMLElement | null>(null)
 const preview = ref<number | null>(null)
+const pop = ref(0)
 const shown = computed(() => preview.value ?? props.modelValue ?? 0)
+
 let startX = 0
-let moved = false
+let startY = 0
+let lastX = 0
+let lastMoveAt = 0
+let mode: 'idle' | 'pending' | 'drag' = 'idle'
+let pointerId = -1
 
 function valueAt(clientX: number): number {
   const r = el.value!.getBoundingClientRect()
@@ -28,17 +42,32 @@ function valueAt(clientX: number): number {
 }
 
 function down(e: PointerEvent) {
-  if (props.readonly) return
-  el.value!.setPointerCapture(e.pointerId)
-  startX = e.clientX
-  moved = false
-  preview.value = valueAt(e.clientX)
-  haptic.tick()
+  // Новое касание — всегда с чистого листа, даже если прошлое не закончилось как положено
+  reset()
+  if (props.readonly || e.button !== 0 || touchStoppedScroll()) return
+  mode = 'pending'
+  pointerId = e.pointerId
+  startX = lastX = e.clientX
+  startY = e.clientY
 }
 
 function move(e: PointerEvent) {
-  if (preview.value == null) return
-  if (Math.abs(e.clientX - startX) > 4) moved = true
+  if (mode === 'idle' || e.pointerId !== pointerId) return
+  lastX = e.clientX
+  lastMoveAt = performance.now()
+  const dx = e.clientX - startX
+  const dy = e.clientY - startY
+  if (mode === 'pending') {
+    if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) {
+      // Это прокрутка страницы, а не оценка
+      mode = 'idle'
+      return
+    }
+    // Порог побольше: палец на тапе чуть сдвигается, а тап по текущей оценке должен её снимать
+    if (Math.abs(dx) < 10) return
+    mode = 'drag'
+    el.value!.setPointerCapture(e.pointerId)
+  }
   const v = valueAt(e.clientX)
   if (v !== preview.value) {
     preview.value = v
@@ -46,18 +75,63 @@ function move(e: PointerEvent) {
   }
 }
 
-function up() {
-  const v = preview.value
-  preview.value = null
-  if (v == null) return
-  if (!moved && v === props.modelValue) emit('update:modelValue', null)
-  else if (v !== props.modelValue) emit('update:modelValue', v)
-  if (v === 10) haptic.success()
+function commit(v: number) {
+  if (v !== props.modelValue) emit('update:modelValue', v)
+  if (v === 10) {
+    haptic.success()
+    pop.value++
+  }
 }
 
-function cancel() {
+function finish(x: number) {
+  const was = mode
+  mode = 'idle'
+  if (was === 'drag') {
+    const v = preview.value
+    preview.value = null
+    if (v != null) commit(v)
+  } else if (was === 'pending') {
+    // Тап: без движения
+    const v = valueAt(x)
+    if (v === props.modelValue) emit('update:modelValue', null)
+    else {
+      haptic.tick()
+      commit(v)
+    }
+  }
+}
+
+function up(e: PointerEvent) {
+  if (mode === 'idle' || e.pointerId !== pointerId) return
+  finish(e.clientX)
+}
+
+/** Захват касания пропал без отпускания: доводим протяжку до конца по последней точке */
+function lost(e: PointerEvent) {
+  if (mode === 'drag' && e.pointerId === pointerId) finish(lastX)
+}
+
+function reset() {
+  mode = 'idle'
   preview.value = null
 }
+const cancel = reset
+
+// Сменился трек (или оценку поменяли в другом месте): черновик прошлого жеста не должен остаться
+watch(
+  () => props.modelValue,
+  () => {
+    // Живую протяжку не трогаем; зависшую (палец давно не двигался) — сбрасываем
+    if (mode !== 'drag' || performance.now() - lastMoveAt > 1500) reset()
+  },
+)
+
+/** Пока ведём по звёздам, страница не должна ни ехать, ни растягиваться на краю */
+function blockTouchMove(e: TouchEvent) {
+  if (mode === 'drag' && e.cancelable) e.preventDefault()
+}
+onMounted(() => el.value?.addEventListener('touchmove', blockTouchMove, { passive: false }))
+onBeforeUnmount(() => el.value?.removeEventListener('touchmove', blockTouchMove))
 
 function fill(i: number): string {
   const v = shown.value
@@ -80,7 +154,7 @@ function key(e: KeyboardEvent) {
   <div
     ref="el"
     class="stars"
-    :class="{ readonly, live: preview != null, full: shown === 10 }"
+    :class="{ readonly, live: preview != null }"
     :style="{ '--s': `${size}px` }"
     role="slider"
     :tabindex="readonly ? -1 : 0"
@@ -92,9 +166,12 @@ function key(e: KeyboardEvent) {
     @pointermove="move"
     @pointerup="up"
     @pointercancel="cancel"
+    @lostpointercapture="lost"
+    @dragstart.prevent
+    @contextmenu.prevent
     @keydown="key"
   >
-    <span v-for="i in 5" :key="i" class="star">
+    <span v-for="i in 5" :key="`${i}-${pop}`" class="star" :class="{ popping: pop && shown === 10 }" :style="{ '--i': i }">
       <IconStarEmpty class="star-empty" />
       <span class="fill" :style="{ width: fill(i) }"><IconStar /></span>
     </span>
@@ -108,6 +185,10 @@ function key(e: KeyboardEvent) {
   touch-action: pan-y;
   cursor: pointer;
   padding: 6px 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
 }
 .stars.readonly {
   cursor: default;
@@ -118,6 +199,7 @@ function key(e: KeyboardEvent) {
   width: var(--s);
   height: var(--s);
   display: block;
+  pointer-events: none;
 }
 .star svg {
   width: var(--s);
@@ -137,7 +219,20 @@ function key(e: KeyboardEvent) {
 .live .fill {
   transition: none;
 }
-.full .fill svg {
-  filter: drop-shadow(0 0 6px rgba(var(--amber-rgb), 0.55));
+/* Пять звёзд: короткий «прыжок» по очереди, без фильтров (drop-shadow в WebView давал артефакты на весь экран) */
+.star.popping {
+  animation: star-pop 420ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 45ms);
+}
+@keyframes star-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.28) rotate(-8deg);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 </style>

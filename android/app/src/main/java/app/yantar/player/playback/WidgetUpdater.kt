@@ -71,7 +71,7 @@ object WidgetUpdater {
         val ids = manager.getAppWidgetIds(ComponentName(app, PlayerWidget::class.java))
         if (ids.isEmpty()) return
 
-        var title = "Янтарь"
+        var title = "Amber"
         var artist = "Нажми, чтобы выбрать музыку"
         var artUri: String? = null
         var playing = false

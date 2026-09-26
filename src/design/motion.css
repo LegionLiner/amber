@@ -1,0 +1,193 @@
+/*
+ * Движение: переходы между экранами и отклик кнопок.
+ * Экран на время перехода кладётся поверх соседа (position: absolute), сами экраны
+ * по-прежнему скроллят себя сами. Длительности короткие: переход не должен мешать листать дальше.
+ */
+
+@property --c1 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+@property --c2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+
+/* ---------- экраны ---------- */
+.rt-forward-enter-active,
+.rt-forward-leave-active,
+.rt-back-enter-active,
+.rt-back-leave-active,
+.rt-tab-enter-active,
+.rt-tab-leave-active,
+.rt-morph-enter-active,
+.rt-morph-leave-active,
+.rt-fade-enter-active,
+.rt-fade-leave-active {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  will-change: transform, opacity;
+}
+
+/* вглубь: новый экран въезжает справа, старый уходит влево и темнеет */
+.rt-forward-enter-active {
+  z-index: 2;
+  transition: transform 380ms var(--ease-out);
+  box-shadow: -18px 0 40px -18px rgba(0, 0, 0, 0.55);
+}
+.rt-forward-enter-from {
+  transform: translateX(100%);
+}
+.rt-forward-leave-active {
+  z-index: 1;
+  transition:
+    transform 380ms var(--ease-out),
+    opacity 380ms var(--ease-out);
+}
+.rt-forward-leave-to {
+  transform: translateX(-24%);
+  opacity: 0.45;
+}
+
+/* назад: всё наоборот */
+.rt-back-enter-active {
+  z-index: 1;
+  transition:
+    transform 340ms var(--ease-out),
+    opacity 340ms var(--ease-out);
+}
+.rt-back-enter-from {
+  transform: translateX(-24%);
+  opacity: 0.45;
+}
+.rt-back-leave-active {
+  z-index: 2;
+  transition: transform 340ms var(--ease-out);
+  box-shadow: -18px 0 40px -18px rgba(0, 0, 0, 0.55);
+}
+.rt-back-leave-to {
+  transform: translateX(100%);
+}
+
+/* вкладки: старый экран быстро гаснет, новый проявляется с лёгким подъёмом */
+.rt-tab-leave-active {
+  z-index: 1;
+  transition: opacity 110ms linear;
+}
+.rt-tab-leave-to {
+  opacity: 0;
+}
+.rt-tab-enter-active {
+  z-index: 2;
+  transition:
+    opacity 240ms var(--ease) 70ms,
+    transform 320ms var(--ease-out) 70ms;
+}
+.rt-tab-enter-from {
+  opacity: 0;
+  transform: translateY(14px) scale(0.985);
+}
+
+/* из карточки: страница проявляется, а обложка перелетает сама (app/motion.ts) */
+.rt-morph-leave-active {
+  z-index: 1;
+  transition: opacity 260ms var(--ease);
+}
+.rt-morph-leave-to {
+  opacity: 0;
+}
+.rt-morph-enter-active {
+  z-index: 2;
+  transition: opacity 300ms var(--ease) 60ms;
+}
+.rt-morph-enter-from {
+  opacity: 0;
+}
+
+/* замена без истории (разделы медиатеки) */
+.rt-fade-leave-active {
+  z-index: 1;
+  transition: opacity 120ms linear;
+}
+.rt-fade-leave-to {
+  opacity: 0;
+}
+.rt-fade-enter-active {
+  z-index: 2;
+  transition: opacity 200ms var(--ease) 40ms;
+}
+.rt-fade-enter-from {
+  opacity: 0;
+}
+
+/* ---------- отклик на нажатие ---------- */
+.icon-btn svg,
+.pill,
+.chip {
+  transition:
+    transform var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.icon-btn:active svg {
+  transform: scale(0.86);
+}
+.pill:active,
+.chip:active {
+  transform: scale(0.95);
+}
+
+/* смена иконки (играть/пауза, повтор): старая сжимается с поворотом, новая раскрывается */
+.icon-swap-enter-active,
+.icon-swap-leave-active {
+  transition:
+    transform 170ms var(--ease-out),
+    opacity 170ms var(--ease-out);
+}
+.icon-swap-enter-from {
+  opacity: 0;
+  transform: scale(0.4) rotate(-60deg);
+}
+.icon-swap-leave-to {
+  opacity: 0;
+  transform: scale(0.4) rotate(60deg);
+}
+.icon-swap-leave-active {
+  position: absolute;
+}
+
+/* «прыжок» иконки при включении */
+@keyframes icon-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.32);
+  }
+  65% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.pop {
+  animation: icon-pop 420ms var(--ease-out);
+}
+@keyframes icon-spin-pop {
+  0% {
+    transform: rotate(0) scale(1);
+  }
+  50% {
+    transform: rotate(-180deg) scale(1.2);
+  }
+  100% {
+    transform: rotate(-360deg) scale(1);
+  }
+}
+.spin-pop {
+  animation: icon-spin-pop 520ms var(--ease-out);
+}

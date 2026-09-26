@@ -44,6 +44,25 @@ async function highlights() {
   <div ref="scrollEl" class="scroll screen">
     <LibraryHeader section="playlists" />
 
+    <div class="section-title"><span>Мои плейлисты</span></div>
+    <button type="button" class="row" @click="create">
+      <span class="ic add"><IconAdd /></span><span class="t">Создать</span>
+    </button>
+    <button v-for="p in playlists.list" :key="p.id" type="button" class="row" @click="router.push(`/playlist/${p.id}`)">
+      <span class="ic"><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else /></span>
+      <span class="text">
+        <span class="t ellipsis">{{ p.name }}</span>
+        <span class="s">{{
+          p.kind === 'smart'
+            ? 'умный, собирается сам'
+            : `${p.kind === 'mix' ? 'микс · ' : ''}${countLabel(p.count, ['трек', 'трека', 'треков'])}`
+        }}</span>
+      </span>
+    </button>
+    <p v-if="playlists.loaded && !playlists.list.length" class="note muted">
+      Плейлист можно собрать из любого списка: долгое нажатие на трек → «Добавить в плейлист».
+    </p>
+
     <div class="section-title"><span>Подборки</span><span class="muted hint">собираются сами</span></div>
     <div class="autos">
       <button
@@ -66,25 +85,6 @@ async function highlights() {
         <span class="s">Отмеченные отрывки подряд, с переходами</span>
       </span>
     </button>
-
-    <div class="section-title"><span>Мои плейлисты</span></div>
-    <button type="button" class="row" @click="create">
-      <span class="ic add"><IconAdd /></span><span class="t">Создать</span>
-    </button>
-    <button v-for="p in playlists.list" :key="p.id" type="button" class="row" @click="router.push(`/playlist/${p.id}`)">
-      <span class="ic"><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else /></span>
-      <span class="text">
-        <span class="t ellipsis">{{ p.name }}</span>
-        <span class="s">{{
-          p.kind === 'smart'
-            ? 'умный, собирается сам'
-            : `${p.kind === 'mix' ? 'микс · ' : ''}${countLabel(p.count, ['трек', 'трека', 'треков'])}`
-        }}</span>
-      </span>
-    </button>
-    <p v-if="playlists.loaded && !playlists.list.length" class="note muted">
-      Плейлист можно собрать из любого списка: долгое нажатие на трек → «Добавить в плейлист».
-    </p>
     <div class="bottom-space" />
   </div>
 </template>

@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { touchStoppedScroll } from '@/composables/tapGuard'
 
 /**
  * Кусок волны трека между fromMs и toMs с метками. Тап или протяжка ставит метку pick.
  * Используется в редакторе миксов: хвост трека A и начало трека B.
+ *
+ * Метка едет, только если палец пошёл вбок: вертикальный свайп по волне листает страницу.
  */
 const props = defineProps<{
   wave: Uint8Array | null
@@ -42,23 +45,51 @@ const heights = computed(() => {
 
 const pct = (ms: number) => `${Math.min(100, Math.max(0, ((ms - props.fromMs) / Math.max(1, props.toMs - props.fromMs)) * 100))}%`
 
-function at(e: PointerEvent) {
+function at(x: number) {
   const r = el.value!.getBoundingClientRect()
-  const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))
+  const f = Math.min(1, Math.max(0, (x - r.left) / r.width))
   return Math.round(props.fromMs + f * (props.toMs - props.fromMs))
 }
-let dragging = false
+let mode: 'idle' | 'pending' | 'drag' = 'idle'
+let sx = 0
+let sy = 0
+let pid = -1
 function down(e: PointerEvent) {
-  el.value!.setPointerCapture(e.pointerId)
-  dragging = true
-  emit('pick', at(e))
+  if (e.button !== 0 || touchStoppedScroll()) return
+  mode = 'pending'
+  pid = e.pointerId
+  sx = e.clientX
+  sy = e.clientY
 }
 function move(e: PointerEvent) {
-  if (dragging) emit('pick', at(e))
+  if (mode === 'idle' || e.pointerId !== pid) return
+  const dx = e.clientX - sx
+  const dy = e.clientY - sy
+  if (mode === 'pending') {
+    if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) {
+      mode = 'idle'
+      return
+    }
+    if (Math.abs(dx) < 5) return
+    mode = 'drag'
+    el.value!.setPointerCapture(e.pointerId)
+  }
+  emit('pick', at(e.clientX))
 }
-function up() {
-  dragging = false
+function up(e: PointerEvent) {
+  if (mode === 'idle' || e.pointerId !== pid) return
+  // Тап без движения ставит метку в точку касания
+  if (mode === 'pending') emit('pick', at(e.clientX))
+  mode = 'idle'
 }
+function cancel() {
+  mode = 'idle'
+}
+function blockTouchMove(e: TouchEvent) {
+  if (mode === 'drag' && e.cancelable) e.preventDefault()
+}
+onMounted(() => el.value?.addEventListener('touchmove', blockTouchMove, { passive: false }))
+onBeforeUnmount(() => el.value?.removeEventListener('touchmove', blockTouchMove))
 </script>
 
 <template>
@@ -70,7 +101,8 @@ function up() {
     @pointerdown="down"
     @pointermove="move"
     @pointerup="up"
-    @pointercancel="up"
+    @pointercancel="cancel"
+    @lostpointercapture="cancel"
   >
     <i v-if="zone" class="zone" :style="{ left: pct(zone[0]), width: `calc(${pct(zone[1])} - ${pct(zone[0])})` }" />
     <div class="bars">
@@ -86,7 +118,7 @@ function up() {
   height: 56px;
   border-radius: 10px;
   background: var(--surface-2);
-  touch-action: none;
+  touch-action: pan-y;
   cursor: ew-resize;
   overflow: hidden;
 }

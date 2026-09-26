@@ -76,6 +76,12 @@ class Engine(private val ctx: Context, private val events: Events) {
     /* ------------------------------ состояние ------------------------------ */
 
     private var tail: ExoPlayer? = null
+    /** Переход объявлен, но B ещё не зазвучал: A играет в полную, B молчит */
+    private var txPending = false
+    private var txPendingSince = 0L
+    private var txCue = 0L
+    /** Сколько обычно заводится вторая дека (мерим на каждом переходе): переход объявляем на столько раньше */
+    private var startLatencyMs = 250L
     private var txStart = 0L
     private var txDur = 0L
     private var txType = "crossfade"
@@ -212,8 +218,13 @@ class Engine(private val ctx: Context, private val events: Events) {
     fun settle() {
         if (tail != null) finishTail()
         fadeOutStart = 0
-        manualFade = 1f
         main.removeCallbacks(fadeTask)
+        manualFade = 1f
+        // Затухание прервали новой командой: то, ради чего оно шло (пропуск, смена скорости), всё равно выполняем
+        fadeAction?.let {
+            fadeAction = null
+            it()
+        }
         applyVolumes()
     }
 
@@ -237,6 +248,7 @@ class Engine(private val ctx: Context, private val events: Events) {
 
     /** Переход к соседнему треку с коротким затуханием, чтобы ручной пропуск не резал звук */
     fun skip(next: Boolean) {
+        val level = manualFade
         settle()
         val p = active
         val can = if (next) p.hasNextMediaItem() else true
@@ -245,37 +257,83 @@ class Engine(private val ctx: Context, private val events: Events) {
             if (next) p.seekToNextMediaItem() else p.seekToPrevious()
             play()
         }
-        if (p.isPlaying && skipFadeMs > 0) fadeThen(action) else action()
+        if (p.isPlaying && skipFadeMs > 0) {
+            manualFade = level
+            fadeThen(skipFadeMs, 0, skipFadeMs, action)
+        } else {
+            action()
+        }
+    }
+
+    /** Переход на трек очереди по номеру (тап в очереди, свайп обложки) — с тем же коротким затуханием */
+    fun jumpTo(index: Int, play: Boolean) {
+        val level = manualFade
+        settle()
+        val p = active
+        if (index !in 0 until p.mediaItemCount) return
+        val action = {
+            p.seekTo(index, 0)
+            if (play) play()
+        }
+        if (p.isPlaying && skipFadeMs > 0) {
+            manualFade = level
+            fadeThen(skipFadeMs, 0, skipFadeMs, action)
+        } else {
+            action()
+        }
     }
 
     private var fadeAction: (() -> Unit)? = null
     private var fadeStartAt = 0L
-    private var fadingIn = false
+    private var fadePhase = 0 // 0 — уход, 1 — тишина, 2 — возврат
+    private var fadeOutMs = 0L
+    private var fadeHoldMs = 0L
+    private var fadeInMs = 0L
+    private var fadeFrom = 1f
     private val fadeTask = object : Runnable {
         override fun run() {
-            val t = ((SystemClock.elapsedRealtime() - fadeStartAt).toFloat() / skipFadeMs).coerceIn(0f, 1f)
-            manualFade = if (fadingIn) t else 1f - t
-            applyVolumes()
-            if (t < 1f) {
-                main.postDelayed(this, 16)
-                return
-            }
-            if (!fadingIn) {
-                fadeAction?.invoke()
-                fadeAction = null
-                fadingIn = true
-                fadeStartAt = SystemClock.elapsedRealtime()
-                main.postDelayed(this, 16)
-            } else {
-                manualFade = 1f
-                applyVolumes()
+            val now = SystemClock.elapsedRealtime()
+            when (fadePhase) {
+                0 -> {
+                    val t = ((now - fadeStartAt).toFloat() / fadeOutMs.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    manualFade = fadeFrom * (1f - t)
+                    applyVolumes()
+                    if (t < 1f) {
+                        main.postDelayed(this, 16)
+                        return
+                    }
+                    val action = fadeAction
+                    fadeAction = null
+                    action?.invoke()
+                    fadePhase = 1
+                    fadeStartAt = now
+                    main.postDelayed(this, fadeHoldMs.coerceAtLeast(16))
+                }
+                1 -> {
+                    fadePhase = 2
+                    fadeStartAt = now
+                    main.post(this)
+                }
+                else -> {
+                    val t = ((now - fadeStartAt).toFloat() / fadeInMs.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    // Возврат по синусу: на слух ровнее линейного
+                    manualFade = sin(t * PI / 2).toFloat()
+                    applyVolumes()
+                    if (t < 1f) main.postDelayed(this, 16) else manualFade = 1f
+                }
             }
         }
     }
 
-    private fun fadeThen(action: () -> Unit) {
+    /** Увести звук в ноль за outMs, выполнить action, подождать holdMs и вернуть за inMs */
+    private fun fadeThen(outMs: Long, holdMs: Long, inMs: Long, action: () -> Unit) {
         fadeAction = action
-        fadingIn = false
+        // Новое затухание посреди прошлого начинается с текущей громкости, без скачка вверх
+        fadeFrom = manualFade
+        fadePhase = 0
+        fadeOutMs = outMs
+        fadeHoldMs = holdMs
+        fadeInMs = inMs
         fadeStartAt = SystemClock.elapsedRealtime()
         main.removeCallbacks(fadeTask)
         main.post(fadeTask)
@@ -287,12 +345,23 @@ class Engine(private val ctx: Context, private val events: Events) {
         if (start >= 0 && end > start) startMonitor()
     }
 
+    /**
+     * Скорость и тон. ExoPlayer при смене параметров досливает старый буфер Sonic и начинает новый —
+     * на стыке слышен щелчок. Поэтому звук коротко уходит в ноль, параметры меняются, и громкость
+     * возвращается, когда стык (он ещё сидит в буфере AudioTrack, ~250 мс) уже проигран в тишине.
+     */
     fun setPlaybackParams(speed: Float, pitch: Float) {
         val params = PlaybackParameters(speed.coerceIn(0.25f, 3f), pitch.coerceIn(0.25f, 3f))
-        decks.forEach { it.playbackParameters = params }
+        if (params == active.playbackParameters) return
+        val apply = { decks.forEach { it.playbackParameters = params } }
+        if (active.isPlaying && fadeAction == null) fadeThen(60, 300, 160, apply) else apply()
     }
 
     val playbackParams: PlaybackParameters get() = active.playbackParameters
+
+    /** Сколько ещё идёт переход между треками (для анимации в интерфейсе), 0 — перехода нет */
+    val transitionLeftMs: Long
+        get() = if (tail == null) 0 else if (txPending) txDur else (txDur - (SystemClock.elapsedRealtime() - txStart)).coerceAtLeast(0)
 
     /* ------------------------------ переходы ------------------------------ */
 
@@ -353,7 +422,12 @@ class Engine(private val ctx: Context, private val events: Events) {
         b.pauseAtEndOfMediaItems = false
         a.pauseAtEndOfMediaItems = true
         tail = a
-        txStart = SystemClock.elapsedRealtime()
+        // Кривая пойдёт, когда B реально зазвучит: старт деки занимает от десятков мс до полусекунды,
+        // и если начать сразу, A успевает притихнуть, а B ещё молчит — слышен провал
+        txPending = true
+        txPendingSince = SystemClock.elapsedRealtime()
+        txCue = b.currentPosition
+        txStart = txPendingSince
         txDur = tx.durationMs.coerceAtLeast(500)
         txType = tx.type
         txCurve = tx.curve
@@ -367,6 +441,7 @@ class Engine(private val ctx: Context, private val events: Events) {
     private fun finishTail() {
         val t = tail ?: return
         tail = null
+        txPending = false
         t.pause()
         t.volume = 0f
         t.pauseAtEndOfMediaItems = false
@@ -397,8 +472,20 @@ class Engine(private val ctx: Context, private val events: Events) {
 
     private fun tick(a: ExoPlayer) {
         if (tail != null) {
+            val now = SystemClock.elapsedRealtime()
+            if (txPending) {
+                // B пошёл, когда позиция сдвинулась от точки входа; на всякий случай не ждём дольше 1,5 с
+                val started = a.isPlaying && a.currentPosition >= txCue + 30
+                if (started || now - txPendingSince > 1500) {
+                    txPending = false
+                    txStart = now
+                    val took = now - txPendingSince
+                    if (started) startLatencyMs = ((startLatencyMs + took) / 2).coerceIn(0, 800)
+                    Log.d(TAG, "переход: B зазвучал через $took мс${if (started) "" else " (не дождались)"}, упреждение теперь $startLatencyMs мс")
+                }
+            }
             applyVolumes()
-            if (SystemClock.elapsedRealtime() - txStart >= txDur) finishTail()
+            if (!txPending && now - txStart >= txDur) finishTail()
             return
         }
         if (!a.isPlaying) return
@@ -426,7 +513,8 @@ class Engine(private val ctx: Context, private val events: Events) {
             return
         }
         if (pos >= at - 20_000) ensureAuxPrepared(nextIndex, next, tx)
-        if (pos >= at) startTransition(Tx(tx.type, dur, tx.curve, tx.outAtMs, tx.duckDb))
+        // Запуск с упреждением на время завода деки: слышимый переход начнётся ровно в точке at
+        if (pos >= at - startLatencyMs) startTransition(Tx(tx.type, dur, tx.curve, tx.outAtMs, tx.duckDb))
     }
 
     /* ------------------------------ громкость ------------------------------ */
@@ -463,6 +551,11 @@ class Engine(private val ctx: Context, private val events: Events) {
             }
             a.volume = gainOf(a) * f * common
             aux.volume = 0f
+            return
+        }
+        if (txPending) {
+            a.volume = 0f
+            t.volume = gainOf(t) * common
             return
         }
         val x = ((SystemClock.elapsedRealtime() - txStart).toFloat() / txDur).coerceIn(0f, 1f)

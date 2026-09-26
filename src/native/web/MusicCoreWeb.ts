@@ -2,9 +2,11 @@ import { WebPlugin } from '@capacitor/core'
 import type { MusicCorePlugin, MusicCoreWebExtras, WebFolderInfo } from '../music-core'
 import type {
   AnalysisProgress,
+  AudioKind,
   AudioSettings,
   ControlAction,
   CountingRule,
+  DamagedFile,
   DeviceInfo,
   EndReason,
   EngineConfig,
@@ -39,8 +41,10 @@ import type { AnalysisJob, AnalysisJobInput, AnalysisReply } from './analysis.wo
 import { parseV2, tagSize } from './id3'
 import { canPickDirectory, pickFolder, readLocal, reopenFolder, type DirHandle, type LocalEntry } from './local-files'
 import { writeId3 } from './id3-writer'
+import { sniff, unwrapId3Mp4, writeMp4Tags } from './mp4'
 import { loadCovers, saveCover } from './web-covers'
 import { DEFAULT_COUNTING, isCounted, localParts } from '@/domain/counting'
+import { rekeyFixupSql } from '@/data/rekey'
 
 interface LiveEvent {
   id: number
@@ -98,6 +102,19 @@ function idbFolder(): Promise<IDBDatabase> {
   })
 }
 
+/** Формат по байтам файла целиком */
+function sniffBytes(b: Uint8Array): AudioKind {
+  const t = tagSize(b.subarray(0, 10))
+  return sniff(b.subarray(0, 16), t > 0 ? b.subarray(t, t + 16) : undefined)
+}
+
+/** Только заданные поля правки: чтобы не затирать правку из испорченного тега пустыми */
+function definedOnly(it: WriteTagsItem) {
+  const out: Record<string, string | number> = {}
+  for (const k of ['title', 'artist', 'album', 'genre', 'year', 'trackNo'] as const) if (it[k] != null) out[k] = it[k]!
+  return out
+}
+
 /**
  * Браузерная версия движка: для разработки и для проверки в Docker.
  * Устроена как Kotlin-часть (playback/Engine.kt): две деки, переходы между треками,
@@ -131,6 +148,12 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   // переходы
   private tail: Deck | null = null
+  /** Переход объявлен, но B ещё не зазвучал: A играет в полную, B молчит (как txPending в Engine.kt) */
+  private txPending = false
+  private txPendingSince = 0
+  private txCue = 0
+  /** Сколько заводится вторая дека (мерим на переходах): переход объявляется на столько раньше */
+  private startLatency = 150
   private txStart = 0
   private txDur = 0
   private txType: Transition['type'] = 'crossfade'
@@ -160,6 +183,8 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   /** Срочные (текущая очередь) идут без пауз, фоновые — с передышкой для интерфейса */
   private urgent = new Set<string>()
   private previewEls: HTMLAudioElement[] = []
+  /** Оригиналы файлов до записи тегов (в браузере — до перезагрузки страницы) */
+  private readonly tagBackupsMem = new Map<string, Uint8Array>()
 
   constructor() {
     super()
@@ -364,6 +389,9 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     const now = Date.now()
     const statements: SqlStatement[] = []
     const seen = new Set<string>()
+    const damaged: DamagedFile[] = []
+    // Старый отпечаток → новый (MP4 теперь по аудиоданным): история переедет на новый ключ
+    const renamed = new Map<string, string>()
     let added = 0
     const upsert = (row: SqlValue[]) =>
       statements.push({
@@ -399,8 +427,15 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
         i++
         if (i % 10 === 0) this.notifyListeners('scanProgress', { phase: 'tags', done: i, total: entries.length })
         const t = await readLocal(e).catch(() => null)
+        if (t?.kind === 'id3+mp4') {
+          // Испорченный старой записью тегов: не играется, показываем для починки
+          this.files.set(t.key, { file: e.file, rel: e.relPath })
+          damaged.push({ key: t.key, uri: `local://${t.key}`, path: t.path, name: t.fileName })
+          continue
+        }
         if (!t || t.durationMs < o.minDurationMs || excluded(t.folder) || seen.has(t.key)) continue
         seen.add(t.key)
+        if (t.legacyKey) renamed.set(t.legacyKey, t.key)
         this.files.set(t.key, { file: e.file, rel: e.relPath })
         if (t.art) await saveCover(t.art.hash, t.art.blob)
         if (!existing.has(t.key)) added++
@@ -470,6 +505,17 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       }
     }
     db.batch(statements)
+    const aliases = [...renamed].filter(([old]) => existing.has(old))
+    if (aliases.length && db.query(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'key_aliases'`).values.length) {
+      db.batch([
+        ...aliases.map(([o, n]) => ({
+          sql: 'INSERT OR REPLACE INTO key_aliases (old, new, at) VALUES (?, ?, ?)',
+          params: [o, n, now],
+        })),
+        ...rekeyFixupSql().map((sql) => ({ sql })),
+      ])
+      for (const [o] of aliases) existing.delete(o)
+    }
     // Чего больше нет (например, демо после выбора своей папки), помечаем пропавшим: история и оценки остаются
     const gone = [...existing].filter((k) => !seen.has(k))
     if (gone.length) {
@@ -489,6 +535,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       unchanged: 0,
       missing: gone.length,
       tookMs: Math.round(performance.now() - t0),
+      damaged,
     }
   }
 
@@ -635,14 +682,62 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   /**
    * Запись тегов в файлы. В Chrome и Edge работает для папки, выбранной через «Открыть папку»:
-   * браузер один раз спросит разрешение на изменение. Звук в файле не трогается.
+   * браузер один раз спросит разрешение на изменение. Формат определяется по байтам:
+   * mp3 — ID3, MP4/AAC (в том числе с расширением .mp3) — теги iTunes. Звук в файле не трогается.
    */
   async writeTags(o: { items: WriteTagsItem[] }): Promise<WriteTagsResult> {
+    return this.onFiles(o.items, (bytes, it) => {
+      const kind = sniffBytes(bytes)
+      if (kind === 'mpeg') return writeId3(bytes, it)
+      if (kind === 'mp4') return writeMp4Tags(bytes, it)
+      if (kind === 'id3+mp4') {
+        const u = unwrapId3Mp4(bytes)!
+        return writeMp4Tags(u.mp4, { ...u.edit, ...definedOnly(it) })
+      }
+      throw new Error('Этот формат не поддерживается: правка сохранена в приложении')
+    })
+  }
+
+  async repairFiles(o: { items: { key: string; uri: string; path: string }[] }): Promise<WriteTagsResult> {
+    return this.onFiles(o.items, (bytes) => {
+      const u = unwrapId3Mp4(bytes)
+      if (!u) throw new Error('Файл не повреждён')
+      return writeMp4Tags(u.mp4, u.edit)
+    })
+  }
+
+  async restoreTags(o: { items: { key: string; uri: string; path: string }[] }): Promise<WriteTagsResult> {
+    return this.onFiles(o.items, (_bytes, it) => {
+      const saved = this.tagBackupsMem.get(it.key)
+      if (!saved) throw new Error('Копии нет')
+      this.tagBackupsMem.delete(it.key)
+      return saved
+    })
+  }
+
+  async tagBackups(): Promise<{ keys: string[] }> {
+    return { keys: [...this.tagBackupsMem.keys()] }
+  }
+
+  async probeFormats(o: { uris: string[] }): Promise<{ kinds: AudioKind[] }> {
+    const kinds: AudioKind[] = []
+    for (const uri of o.uris) {
+      const f = uri.startsWith('local://') ? this.files.get(this.keyOf(uri))?.file : null
+      kinds.push(f ? sniffBytes(new Uint8Array(await f.slice(0, 64 * 1024).arrayBuffer())) : 'unknown')
+    }
+    return { kinds }
+  }
+
+  /** Общий путь изменения файлов: разрешение на запись, копия оригинала, запись, строка в базе */
+  private async onFiles(
+    items: (WriteTagsItem | { key: string; uri: string; path: string })[],
+    change: (bytes: Uint8Array, it: WriteTagsItem) => Uint8Array,
+  ): Promise<WriteTagsResult> {
     const failed: WriteTagsResult['failed'] = []
     if (this.source !== 'folder' || !this.folder) {
       return {
         written: 0,
-        failed: o.items.map((i) => ({ key: i.key, reason: 'В демо-библиотеке файлов нет: правка сохранена в приложении' })),
+        failed: items.map((i) => ({ key: i.key, reason: 'В демо-библиотеке файлов нет: правка сохранена в приложении' })),
       }
     }
     if (!this.folderWritable) {
@@ -651,21 +746,23 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       if (perm !== 'granted') perm = (await h.requestPermission?.({ mode: 'readwrite' })) ?? 'denied'
       this.folderWritable = perm === 'granted'
       if (!this.folderWritable) {
-        return { written: 0, failed: o.items.map((i) => ({ key: i.key, reason: 'Нет разрешения на изменение файлов' })) }
+        return { written: 0, failed: items.map((i) => ({ key: i.key, reason: 'Нет разрешения на изменение файлов' })) }
       }
     }
     let written = 0
     const db = await this.dbReady
-    for (const it of o.items) {
+    for (const raw of items) {
+      const it = raw as WriteTagsItem
       const f = this.files.get(it.key)
-      if (!f || !/\.mp3$/i.test(f.rel)) {
-        failed.push({ key: it.key, reason: 'Записать теги можно только в mp3' })
+      if (!f) {
+        failed.push({ key: it.key, reason: 'Файл не найден в выбранной папке' })
         continue
       }
       try {
         const handle = await this.fileHandle(f.rel)
         const bytes = new Uint8Array(await f.file.arrayBuffer())
-        const out = writeId3(bytes, it)
+        const out = change(bytes, it)
+        this.tagBackupsMem.set(it.key, bytes)
         const w = await (
           handle as FileSystemFileHandle & { createWritable(): Promise<FileSystemWritableFileStream> }
         ).createWritable()
@@ -676,7 +773,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
         db.execute(
           `UPDATE tracks SET title = COALESCE(?, title), artist = COALESCE(?, artist), album = COALESCE(?, album),
              genre = COALESCE(?, genre), year = COALESCE(?, year), track_no = COALESCE(?, track_no),
-             size = ?, mtime = ?, updated_at = ? WHERE key = ?`,
+             size = ?, mtime = ?, missing_since = NULL, updated_at = ? WHERE key = ?`,
           [
             it.title ?? null,
             it.artist ?? null,
@@ -758,7 +855,9 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private setDeckVolume(d: Deck, v: number) {
     const x = Math.max(0, Math.min(1, v))
     if (d.gain) {
-      d.gain.gain.value = x
+      // Громкость меняется раз в 40 мс; скачками это слышно как треск, поэтому каждое значение
+      // догоняется плавно (постоянная времени 12 мс)
+      d.gain.gain.setTargetAtTime(x, d.gain.context.currentTime, 0.012)
       d.el.volume = 1
     } else {
       d.el.volume = x
@@ -789,6 +888,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       if (this.fadeOutStart) f = 1 - Math.min(1, (performance.now() - this.fadeOutStart) / this.fadeOutDur)
       this.setDeckVolume(a, this.gainFor(this.itemOf(a)) * f * common)
       this.setDeckVolume(this.aux, 0)
+      return
+    }
+    if (this.txPending) {
+      this.setDeckVolume(a, 0)
+      this.setDeckVolume(t, this.gainFor(this.itemOf(t)) * common)
       return
     }
     const x = Math.min(1, (performance.now() - this.txStart) / this.txDur)
@@ -835,8 +939,19 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private tick() {
     this.accumulate()
     if (this.tail) {
+      const now = performance.now()
+      if (this.txPending) {
+        // B пошёл, когда позиция сдвинулась от точки входа; дольше 1,5 с не ждём
+        const b = this.active
+        const started = !b.el.paused && b.el.currentTime * 1000 >= this.txCue + 30
+        if (started || now - this.txPendingSince > 1500) {
+          this.txPending = false
+          this.txStart = now
+          if (started) this.startLatency = Math.min(800, Math.max(0, (this.startLatency + (now - this.txPendingSince)) / 2))
+        }
+      }
       this.applyVolumes()
-      if (performance.now() - this.txStart >= this.txDur) this.finishTail()
+      if (!this.txPending && now - this.txStart >= this.txDur) this.finishTail()
       return
     }
     const a = this.active
@@ -874,7 +989,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       return
     }
     if (pos >= at - 20_000) void this.prepareAux(next, tx)
-    if (pos >= at && this.aux.qid === next.qid && this.aux.url) void this.startTransition(ni, tx, dur)
+    if (pos >= at - this.startLatency && this.aux.qid === next.qid && this.aux.url) void this.startTransition(ni, tx, dur)
   }
 
   private async prepareAux(next: QueueItem, tx: Transition) {
@@ -895,20 +1010,26 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     const a = this.active
     const b = this.aux
     if (this.tail) return
-    // Сначала закрываем прослушивание уходящего трека: он доигрывает уже в затухании
     this.tail = a
-    this.txStart = performance.now()
+    // Кривая пойдёт, когда B реально зазвучит (см. tick): иначе A успевает притихнуть, пока B заводится
+    this.txPending = true
+    this.txPendingSince = performance.now()
+    this.txCue = b.el.currentTime * 1000
+    this.txStart = this.txPendingSince
     this.txDur = Math.max(500, dur)
     this.txType = tx.type
     this.txCurve = tx.curve
     this.txDuck = Math.pow(10, (tx.duckDb ?? -9) / 20)
-    await this.finishEvent('crossfade', a)
+    // Прослушивание уходящего трека закрывается сразу (время учтено до переключения деки),
+    // а запись в базу не задерживает старт B
+    const closing = this.finishEvent('crossfade', a)
     this.activeIdx = 1 - this.activeIdx
     this.index = ni
     b.pendingStart = true
     this.applyRate(b)
     this.applyVolumes()
     await b.el.play().catch(() => undefined)
+    await closing
     this.afterIndexChange()
   }
 
@@ -916,6 +1037,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     const t = this.tail
     if (!t) return
     this.tail = null
+    this.txPending = false
     t.el.pause()
     this.setDeckVolume(t, 0)
     t.qid = null
@@ -1080,7 +1202,8 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
         const x = Math.min(1, (performance.now() - t0) / ms)
         this.manualFade = from + (to - from) * x
         this.applyVolumes()
-        if (x < 1) requestAnimationFrame(step)
+        // setTimeout, а не requestAnimationFrame: в фоновой вкладке кадры не идут, и затухание зависло бы
+        if (x < 1) setTimeout(step, 16)
         else resolve()
       }
       step()
@@ -1140,11 +1263,20 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     this.abEnd = o.endMs ?? -1
   }
 
+  /** Как Engine.setPlaybackParams: короткий провал громкости прячет стык при смене скорости */
   async setPlaybackParams(o: { speed: number; pitch: number }): Promise<void> {
-    this.speed = o.speed
-    this.pitch = o.pitch
-    for (const d of this.decks) this.applyRate(d)
-    this.emitState()
+    if (o.speed === this.speed && o.pitch === this.pitch) return
+    const apply = () => {
+      this.speed = o.speed
+      this.pitch = o.pitch
+      for (const d of this.decks) this.applyRate(d)
+      this.emitState()
+    }
+    if (this.active.el.paused || this.tail) return apply()
+    await this.fade(this.manualFade, 0, 60)
+    apply()
+    await new Promise((r) => setTimeout(r, 120))
+    await this.fade(0, 1, 160)
   }
 
   /* ---------------- вывод ---------------- */
@@ -1309,7 +1441,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   async writeBackup(o: { json: string }): Promise<{ uri: string }> {
     const d = new Date()
     const p = (n: number) => String(n).padStart(2, '0')
-    const name = `yantar-backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.json`
+    const name = `amber-backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.json`
     this.download(name, new Blob([o.json], { type: 'application/json' }))
     return { uri: `download://${name}` }
   }
@@ -1473,6 +1605,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       speed: this.speed,
       pitch: this.pitch,
       output: 'web',
+      transitionMs: this.tail ? (this.txPending ? this.txDur : Math.max(0, this.txDur - (performance.now() - this.txStart))) : 0,
     }
   }
 

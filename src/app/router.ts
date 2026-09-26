@@ -42,6 +42,12 @@ const routes: RouteRecordRaw[] = [
     meta: { tab: 'library' },
   },
   {
+    path: '/playlist/:id/add',
+    name: 'playlist-add',
+    component: () => import('@/features/library/PlaylistAddView.vue'),
+    meta: { tab: 'library' },
+  },
+  {
     path: '/playlist/:id/order',
     name: 'playlist-order',
     component: () => import('@/features/library/PlaylistOrderView.vue'),

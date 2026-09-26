@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconTrash from '~icons/solar/trash-bin-minimalistic-linear'
 import ScreenHeader from '@/components/ScreenHeader.vue'
 import { useLibrary } from '@/stores/library'
@@ -15,7 +16,7 @@ import { countLabel } from '@/domain/format'
  * Условия умного плейлиста. Сверху — сколько треков подходит прямо сейчас,
  * чтобы видеть результат, пока крутишь условия.
  */
-const route = useRoute()
+const route = useViewRoute()
 const router = useRouter()
 const library = useLibrary()
 const playlists = usePlaylists()

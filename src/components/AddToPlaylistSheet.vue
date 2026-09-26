@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import IconAdd from '~icons/solar/add-circle-linear'
 import IconList from '~icons/solar/playlist-linear'
+import IconCheck from '~icons/solar/check-circle-bold'
 import { usePlaylists } from '@/stores/playlists'
 import { useUi } from '@/stores/ui'
+import { playlistsContaining } from '@/data/repos/playlists'
 import { countLabel } from '@/domain/format'
 
 const props = defineProps<{ keys: string[] }>()
@@ -13,11 +15,35 @@ const ui = useUi()
 const creating = ref(false)
 const name = ref('')
 
-onMounted(() => void playlists.refresh())
+const uniq = computed(() => [...new Set(props.keys)])
+/** Сколько из добавляемых треков уже лежит в каждом плейлисте */
+const have = ref(new Map<number, number>())
+onMounted(async () => {
+  await playlists.refresh()
+  have.value = await playlistsContaining(uniq.value)
+})
+function state(id: number): 'all' | 'some' | 'none' {
+  const n = have.value.get(id) ?? 0
+  return n === 0 ? 'none' : n >= uniq.value.length ? 'all' : 'some'
+}
 
 async function add(id: number, title: string) {
-  const n = await playlists.add(id, props.keys)
-  ui.toast(n ? `Добавлено в «${title}»` : `Уже есть в «${title}»`)
+  const keys = uniq.value
+  if (state(id) === 'all' && keys.length === 1) {
+    // Трек уже там: повторный выбор убирает его, с возможностью вернуть
+    await playlists.removeTrack(id, keys[0]!)
+    ui.toast(`Убрано из «${title}»`, { label: 'Вернуть', run: () => void playlists.add(id, keys) })
+    emit('close')
+    return
+  }
+  const n = await playlists.add(id, keys)
+  ui.toast(
+    !n
+      ? `Уже есть в «${title}»`
+      : n < keys.length
+        ? `Добавлено в «${title}»: ${n}, остальные там уже были`
+        : `Добавлено в «${title}»`,
+  )
   emit('close')
 }
 
@@ -45,13 +71,21 @@ async function create() {
       :key="p.id"
       type="button"
       class="row"
+      :class="state(p.id)"
       @click="add(p.id, p.name)"
     >
       <span class="ic"><IconList /></span>
       <span class="text">
         <span class="t ellipsis">{{ p.name }}</span>
-        <span class="s">{{ countLabel(p.count, ['трек', 'трека', 'треков']) }}</span>
+        <span class="s">
+          <b v-if="state(p.id) === 'all'" class="here">{{
+            uniq.length === 1 ? 'уже здесь · нажми, чтобы убрать' : 'все уже здесь'
+          }}</b>
+          <b v-else-if="state(p.id) === 'some'" class="here">есть {{ have.get(p.id) }} из {{ uniq.length }} · </b>
+          <template v-if="state(p.id) !== 'all'">{{ countLabel(p.count, ['трек', 'трека', 'треков']) }}</template>
+        </span>
       </span>
+      <IconCheck v-if="state(p.id) === 'all'" class="check" />
     </button>
   </div>
 </template>
@@ -64,7 +98,7 @@ async function create() {
 .row {
   width: 100%;
   display: grid;
-  grid-template-columns: 44px 1fr;
+  grid-template-columns: 44px 1fr auto;
   gap: 14px;
   align-items: center;
   min-height: 60px;
@@ -101,6 +135,19 @@ async function create() {
   font-size: 12.5px;
   color: var(--ink-2);
   font-weight: 400;
+}
+.here {
+  font-weight: 600;
+  color: var(--amber-ink);
+}
+.check {
+  width: 24px;
+  height: 24px;
+  color: var(--amber);
+}
+.row.all .ic {
+  background: rgba(var(--amber-rgb), 0.14);
+  color: var(--amber-ink);
 }
 .new {
   display: flex;

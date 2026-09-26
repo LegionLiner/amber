@@ -90,6 +90,23 @@ export async function addToPlaylist(id: number, keys: string[]): Promise<number>
   return fresh.length
 }
 
+/** В каких плейлистах уже есть эти треки: id плейлиста → сколько из них там лежит */
+export async function playlistsContaining(keys: string[]): Promise<Map<number, number>> {
+  const out = new Map<number, number>()
+  const uniq = [...new Set(keys)]
+  // Кусками: у SQLite ограничено число параметров в одном запросе
+  for (let i = 0; i < uniq.length; i += 500) {
+    const rows = await db
+      .selectFrom('playlistItems')
+      .select(({ fn }) => ['playlistId', fn.count<number>('trackKey').distinct().as('n')])
+      .where('trackKey', 'in', uniq.slice(i, i + 500))
+      .groupBy('playlistId')
+      .execute()
+    for (const r of rows) out.set(r.playlistId, (out.get(r.playlistId) ?? 0) + Number(r.n))
+  }
+  return out
+}
+
 export async function removeTrackFromPlaylist(playlistId: number, trackKey: string): Promise<void> {
   await db.deleteFrom('playlistItems').where('playlistId', '=', playlistId).where('trackKey', '=', trackKey).execute()
 }

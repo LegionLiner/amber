@@ -12,6 +12,7 @@ import { bootState } from '@/app/boot-state'
 import { useUi } from '@/stores/ui'
 import { usePlayer } from '@/stores/player'
 import { isNative } from '@/native/paths'
+import { routeAnim } from '@/app/motion'
 
 const route = useRoute()
 const ui = useUi()
@@ -31,9 +32,11 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
       <p>{{ bootState.error }}</p>
     </div>
     <RouterView v-slot="{ Component, route: r }">
-      <KeepAlive :max="8">
-        <component :is="Component" :key="viewKey(r)" />
-      </KeepAlive>
+      <Transition :name="routeAnim === 'none' ? undefined : `rt-${routeAnim}`" :css="routeAnim !== 'none'">
+        <KeepAlive :max="8">
+          <component :is="Component" :key="viewKey(r)" />
+        </KeepAlive>
+      </Transition>
     </RouterView>
     <template v-if="!bare">
       <MiniPlayer />

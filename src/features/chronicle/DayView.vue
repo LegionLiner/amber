@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useViewRoute } from '@/app/view-route'
 import IconPlay from '~icons/solar/play-bold'
 import ScreenHeader from '@/components/ScreenHeader.vue'
 import CoverArt from '@/components/CoverArt.vue'
@@ -14,7 +14,7 @@ import { MOODS } from './mood'
 import { displayArtist, type Track } from '@/domain/track'
 
 /** День в дневнике: что звучало, в каком порядке впервые, настроение и заметка */
-const route = useRoute()
+const route = useViewRoute()
 const library = useLibrary()
 const player = usePlayer()
 const ui = useUi()

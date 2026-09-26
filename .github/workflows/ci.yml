@@ -63,7 +63,11 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: gradle
-      - uses: android-actions/setup-android@v3
+      # v3 по умолчанию ставил пакет «tools», которого в новом репозитории SDK больше нет — сборка падала.
+      # Ставим только нужное: платформу compileSdk 36 и build-tools, которые по умолчанию берёт AGP 8.13.
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
 
       - run: npm ci --no-audit --no-fund
       - run: npm run build

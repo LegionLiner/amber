@@ -1,0 +1,93 @@
+/*
+ * Дизайн-токены «Янтаря».
+ * Тема задаётся атрибутом data-theme на <html>: dark (основная), light, amoled.
+ * Компоненты берут цвета только отсюда, чтобы все три темы работали одинаково.
+ */
+:root {
+  --f-display: 'Unbounded Variable', 'Unbounded', system-ui, sans-serif;
+  --f-body: 'Onest Variable', 'Onest', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Capacitor 8 кладёт вырезы в --safe-area-inset-*, в браузере работает env() */
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+
+  --nav-h: 64px;
+  --mini-h: 60px;
+  --gutter: 16px;
+
+  --r-xs: 6px;
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 18px;
+  --r-xl: 28px;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 160ms;
+  --t-mid: 320ms;
+}
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0e0d0c;
+  --surface: #191714;
+  --surface-2: #23201b;
+  --surface-3: #2d2923;
+  --ink: #f5f1ea;
+  --ink-2: #a89f92;
+  --ink-3: #726a5f;
+  --line: rgba(255, 240, 220, 0.08);
+  --line-strong: rgba(255, 240, 220, 0.14);
+  --amber: #ffb23e;
+  --amber-ink: #ffb23e;
+  --ember: #ff7a2f;
+  --amber-rgb: 255, 178, 62;
+  --on-amber: #1a1206;
+  --glass: rgba(26, 23, 19, 0.62);
+  --glass-line: rgba(255, 255, 255, 0.09);
+  --chip: rgba(255, 255, 255, 0.07);
+  --chip-strong: rgba(255, 255, 255, 0.12);
+  --heart: #ff6b5c;
+  --good: #4cc38a;
+  --bad: #f0715b;
+  --shadow-cover: 0 18px 40px -14px rgba(0, 0, 0, 0.7);
+  --shadow-sheet: 0 -12px 40px rgba(0, 0, 0, 0.45);
+  --scrim: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='amoled'] {
+  --bg: #000000;
+  --surface: #100f0d;
+  --surface-2: #1a1815;
+  --surface-3: #24211c;
+  --glass: rgba(8, 7, 6, 0.72);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f4f0;
+  --surface: #ffffff;
+  --surface-2: #ece8e1;
+  --surface-3: #e2ddd4;
+  --ink: #1a1714;
+  --ink-2: #6a6258;
+  --ink-3: #9c9387;
+  --line: rgba(30, 20, 10, 0.08);
+  --line-strong: rgba(30, 20, 10, 0.14);
+  --amber: #ee9412;
+  --amber-ink: #9e5300;
+  --ember: #e4602b;
+  --amber-rgb: 238, 148, 18;
+  --on-amber: #ffffff;
+  --glass: rgba(255, 253, 249, 0.66);
+  --glass-line: rgba(255, 255, 255, 0.75);
+  --chip: rgba(30, 20, 10, 0.06);
+  --chip-strong: rgba(30, 20, 10, 0.1);
+  --heart: #e5484d;
+  --good: #1e8a55;
+  --bad: #c2412a;
+  --shadow-cover: 0 18px 36px -16px rgba(60, 40, 20, 0.35);
+  --shadow-sheet: 0 -12px 40px rgba(60, 40, 20, 0.18);
+  --scrim: rgba(20, 15, 10, 0.35);
+}

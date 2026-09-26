@@ -1,0 +1,125 @@
+# Сборка «Янтаря»: тесты, веб-версия, APK и Docker-образ.
+# APK лежит в артефактах каждого запуска (вкладка Actions → запуск → Artifacts).
+# По тегу вида v0.2.0 создаётся релиз с APK.
+#
+# Подпись релизного APK (необязательно). Секреты репозитория:
+#   ANDROID_KEYSTORE_BASE64    — keystore в base64
+#   ANDROID_KEYSTORE_PASSWORD  — пароль хранилища
+#   ANDROID_KEY_ALIAS          — алиас ключа
+#   ANDROID_KEY_PASSWORD       — пароль ключа
+# Без них собирается debug-APK с постоянным ключом из репозитория (обновляется поверх без удаления).
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Тесты и веб-сборка
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npx prettier --check src tests
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yantar-web
+          path: dist
+          retention-days: 14
+
+  android:
+    name: APK
+    needs: web
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Ключ релиза из секретов
+        if: env.HAS_KEYSTORE == 'true'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Сборка APK
+        working-directory: android
+        env:
+          YANTAR_KEYSTORE: ${{ env.HAS_KEYSTORE == 'true' && format('{0}/release.keystore', runner.temp) || '' }}
+          YANTAR_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          YANTAR_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          YANTAR_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          if [ -z "$YANTAR_KEYSTORE" ]; then unset YANTAR_KEYSTORE; fi
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          if [ -n "${YANTAR_KEYSTORE:-}" ]; then ./gradlew assembleRelease --no-daemon --stacktrace; fi
+
+      - name: Имена файлов
+        run: |
+          mkdir -p out
+          SHORT=$(echo "$GITHUB_SHA" | cut -c1-7)
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/yantar-debug-$SHORT.apk"
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "out/yantar-$SHORT.apk"
+          fi
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yantar-apk
+          path: out/*.apk
+          retention-days: 30
+
+      - name: Релиз по тегу
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+          generate_release_notes: true
+
+  docker:
+    name: Docker-образ
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: yantar-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

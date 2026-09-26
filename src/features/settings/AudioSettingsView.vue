@@ -1,0 +1,395 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import ScreenHeader from '@/components/ScreenHeader.vue'
+import { useSettings, EQ_PRESETS } from '@/stores/settings'
+import { usePlayer } from '@/stores/player'
+import { useLibrary } from '@/stores/library'
+import { useUi } from '@/stores/ui'
+import { MusicCore } from '@/native/music-core'
+import { outputLabel } from '@/domain/outputs'
+import type { CrossfadeSettings, EqSettings, NormalizationSettings } from '@/native/types'
+
+/**
+ * Звук: переходы между треками, выравнивание громкости и эквалайзер.
+ * Всё применяется сразу, движок получает настройки при каждом изменении.
+ */
+const settings = useSettings()
+const player = usePlayer()
+const library = useLibrary()
+const ui = useUi()
+const a = settings.s.audio
+
+const MODES: { id: CrossfadeSettings['mode']; label: string }[] = [
+  { id: 'off', label: 'Без' },
+  { id: 'crossfade', label: 'Кроссфейд' },
+  { id: 'overlay', label: 'Наложение' },
+  { id: 'fadeOutIn', label: 'Затухание' },
+]
+const MODE_HINT: Record<CrossfadeSettings['mode'], string> = {
+  off: 'Треки идут встык, без пауз.',
+  crossfade: 'Конец одного трека плавно перетекает в начало следующего.',
+  overlay: 'Следующий входит сразу, предыдущий уходит на второй план и затихает — как у диджея.',
+  fadeOutIn: 'Трек затихает, потом начинается следующий.',
+}
+const CURVES: { id: CrossfadeSettings['curve']; label: string }[] = [
+  { id: 'equalPower', label: 'Плавная' },
+  { id: 'linear', label: 'Прямая' },
+  { id: 'sCurve', label: 'S-кривая' },
+]
+const NORMS: { id: NormalizationSettings['mode']; label: string; hint: string }[] = [
+  { id: 'off', label: 'Выкл', hint: 'Как записано в файлах: одни треки громче других.' },
+  { id: 'track', label: 'Трек', hint: 'Каждый трек к одной громкости.' },
+  { id: 'album', label: 'Альбом', hint: 'Альбом целиком к одной громкости: тихие вступления остаются тихими.' },
+  { id: 'smart', label: 'Умная', hint: 'Альбом — по альбому, остальное — по треку.' },
+]
+const TARGETS = [-18, -16, -14, -11]
+const FREQ_LABELS = ['31', '62', '125', '250', '500', '1к', '2к', '4к', '8к', '16к']
+
+/* ---- эквалайзер: правим профиль текущего устройства, если он есть, иначе общий ---- */
+const profileKey = computed(() => (a.profiles[player.output] ? player.output : null))
+const eq = computed<EqSettings>(() => (profileKey.value ? a.profiles[profileKey.value]!.eq : a.eq))
+
+function applyPreset(id: string) {
+  const p = EQ_PRESETS[id]!
+  eq.value.bands = p.bands.slice()
+  eq.value.preampDb = p.preampDb
+  eq.value.preset = id
+  eq.value.enabled = true
+}
+function setBand(i: number, v: number) {
+  eq.value.bands[i] = Math.round(v * 2) / 2
+  eq.value.preset = 'custom'
+}
+
+/* вертикальный ползунок полосы: тянешь пальцем вверх-вниз */
+let dragBand = -1
+function bandAt(e: PointerEvent, el: HTMLElement) {
+  const r = el.getBoundingClientRect()
+  const f = 1 - Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))
+  return -12 + f * 24
+}
+function bandDown(e: PointerEvent, i: number) {
+  const el = e.currentTarget as HTMLElement
+  el.setPointerCapture(e.pointerId)
+  dragBand = i
+  setBand(i, bandAt(e, el))
+}
+function bandMove(e: PointerEvent, i: number) {
+  if (dragBand !== i) return
+  setBand(i, bandAt(e, e.currentTarget as HTMLElement))
+}
+function bandUp() {
+  dragBand = -1
+}
+
+const pct = (v: number, min: number, max: number) => `${((v - min) / (max - min)) * 100}%`
+
+/* ---- анализ ---- */
+const analyzedCount = computed(() => library.tracks.filter((t) => t.analyzed).length)
+async function analyzeAll() {
+  const keys = library.tracks.filter((t) => !t.analyzed).map((t) => t.key)
+  if (!keys.length) return ui.toast('Всё уже проанализировано')
+  await MusicCore.analyze({ keys, priority: 'now' })
+  ui.toast(`Анализирую ${keys.length}: громкость, тишина по краям и волна`)
+}
+
+/* ---- послушать переход на текущей паре треков ---- */
+const previewing = ref(false)
+async function previewTransition() {
+  const cur = player.current
+  const next = player.upcoming[0]
+  if (!cur || !next) return ui.toast('Нужны два трека в очереди: текущий и следующий')
+  const c = a.crossfade
+  const dur = c.mode === 'off' ? 0 : c.durationMs
+  const end = cur.trimEndMs ?? cur.durationMs
+  previewing.value = true
+  const h = await MusicCore.addListener('previewEnded', () => {
+    previewing.value = false
+    void h.remove()
+  })
+  await MusicCore.previewJunction({
+    aUri: cur.uri,
+    atMs: Math.max(0, end - dur - 1000),
+    bUri: next.uri,
+    cueMs: next.trimStartMs ?? 0,
+    type: c.mode === 'off' ? 'gapless' : c.mode,
+    durationMs: Math.max(1, dur),
+    curve: c.curve,
+    duckDb: c.duckDb,
+    leadMs: 6000,
+    tailMs: dur + 6000,
+  })
+}
+async function stopPreview() {
+  await MusicCore.previewStop()
+  previewing.value = false
+}
+</script>
+
+<template>
+  <div class="scroll screen form">
+    <ScreenHeader title="Звук" back />
+
+    <section class="group">
+      <h2 class="gtitle">Переходы между треками</h2>
+      <div class="seg four">
+        <button
+          v-for="m in MODES"
+          :key="m.id"
+          type="button"
+          :class="{ on: a.crossfade.mode === m.id }"
+          @click="a.crossfade.mode = m.id"
+        >
+          {{ m.label }}
+        </button>
+      </div>
+      <p class="note">{{ MODE_HINT[a.crossfade.mode] }}</p>
+      <template v-if="a.crossfade.mode !== 'off'">
+        <div class="slider-row">
+          <header>
+            <span>Длительность</span><output>{{ (a.crossfade.durationMs / 1000).toFixed(1).replace('.0', '') }} с</output>
+          </header>
+          <input
+            id="xf-dur"
+            v-model.number="a.crossfade.durationMs"
+            type="range"
+            class="range"
+            min="1000"
+            max="12000"
+            step="500"
+            :style="{ '--p': pct(a.crossfade.durationMs, 1000, 12000) }"
+          />
+        </div>
+        <div v-if="a.crossfade.mode === 'crossfade'" class="seg three">
+          <button
+            v-for="c in CURVES"
+            :key="c.id"
+            type="button"
+            :class="{ on: a.crossfade.curve === c.id }"
+            @click="a.crossfade.curve = c.id"
+          >
+            {{ c.label }}
+          </button>
+        </div>
+        <div v-if="a.crossfade.mode === 'overlay'" class="slider-row">
+          <header>
+            <span>Предыдущий трек тише на</span><output>{{ -a.crossfade.duckDb }} дБ</output>
+          </header>
+          <input
+            id="xf-duck"
+            v-model.number="a.crossfade.duckDb"
+            type="range"
+            class="range"
+            min="-18"
+            max="-3"
+            step="1"
+            :style="{ '--p': pct(a.crossfade.duckDb, -18, -3) }"
+          />
+        </div>
+      </template>
+      <label class="row">
+        <span><b>Альбомы без склеек</b><small>Соседние треки одного альбома по порядку идут встык, как задумано</small></span>
+        <input id="xf-smart" v-model="a.crossfade.smart" type="checkbox" class="switch" />
+      </label>
+      <label class="row">
+        <span><b>Мягкий пропуск</b><small>Короткое затухание, когда листаешь треки</small></span>
+        <select id="xf-skip" v-model.number="a.crossfade.skipFadeMs" class="select">
+          <option :value="0">выкл</option>
+          <option :value="150">быстро</option>
+          <option :value="250">обычно</option>
+          <option :value="450">медленно</option>
+        </select>
+      </label>
+      <button type="button" class="btn block" @click="previewing ? stopPreview() : previewTransition()">
+        {{ previewing ? 'Остановить' : 'Послушать переход' }}
+      </button>
+    </section>
+
+    <section class="group">
+      <h2 class="gtitle">Одинаковая громкость</h2>
+      <div class="seg four">
+        <button
+          v-for="n in NORMS"
+          :key="n.id"
+          type="button"
+          :class="{ on: a.normalization.mode === n.id }"
+          @click="a.normalization.mode = n.id"
+        >
+          {{ n.label }}
+        </button>
+      </div>
+      <p class="note">{{ NORMS.find((n) => n.id === a.normalization.mode)?.hint }}</p>
+      <label v-if="a.normalization.mode !== 'off'" class="row">
+        <span><b>Уровень</b><small>−14 LUFS как у стримингов; −18 тише и с запасом для динамики</small></span>
+        <select id="norm-target" v-model.number="a.normalization.targetLufs" class="select">
+          <option v-for="t in TARGETS" :key="t" :value="t">{{ t }} LUFS</option>
+        </select>
+      </label>
+      <p class="note">
+        Проанализировано {{ analyzedCount }} из {{ library.tracks.length }}.
+        <template v-if="library.analysis"> Сейчас идёт: {{ library.analysis.done }} из {{ library.analysis.total }}.</template>
+        На телефоне анализ идёт на зарядке или пока приложение открыто. Пока трек не проанализирован, берётся ReplayGain из тегов.
+      </p>
+      <button v-if="analyzedCount < library.tracks.length" type="button" class="btn block" @click="analyzeAll">
+        Проанализировать сейчас
+      </button>
+    </section>
+
+    <section class="group">
+      <div class="eq-head">
+        <h2 class="gtitle">Эквалайзер</h2>
+        <input id="eq-on" v-model="eq.enabled" type="checkbox" class="switch" aria-label="Включить эквалайзер" />
+      </div>
+      <p class="note">
+        <template v-if="profileKey"
+          >Профиль устройства «{{ outputLabel(profileKey) }}»: включается сам, когда звук идёт туда.</template
+        >
+        <template v-else>Общий для всех устройств. Свой профиль для наушников или колонки — в «Вывод звука» в плеере.</template>
+      </p>
+      <div class="pills">
+        <button
+          v-for="(p, id) in EQ_PRESETS"
+          :key="id"
+          type="button"
+          class="pill"
+          :class="{ on: eq.preset === id && eq.enabled }"
+          @click="applyPreset(String(id))"
+        >
+          {{ p.label }}
+        </button>
+      </div>
+      <div class="eq" :class="{ off: !eq.enabled }">
+        <div v-for="(f, i) in FREQ_LABELS" :key="f" class="band">
+          <output class="num">{{ eq.bands[i]! > 0 ? '+' : '' }}{{ eq.bands[i] }}</output>
+          <div
+            class="rail"
+            role="slider"
+            :aria-label="`${f} Гц`"
+            :aria-valuenow="eq.bands[i]"
+            aria-valuemin="-12"
+            aria-valuemax="12"
+            @pointerdown="bandDown($event, i)"
+            @pointermove="bandMove($event, i)"
+            @pointerup="bandUp"
+            @pointercancel="bandUp"
+          >
+            <i class="zero" />
+            <b
+              class="fillb"
+              :style="
+                eq.bands[i]! >= 0
+                  ? { bottom: '50%', height: `${(eq.bands[i]! / 24) * 100}%` }
+                  : { top: '50%', height: `${(-eq.bands[i]! / 24) * 100}%` }
+              "
+            />
+            <span class="knob" :style="{ bottom: pct(eq.bands[i]!, -12, 12) }" />
+          </div>
+          <small>{{ f }}</small>
+        </div>
+      </div>
+      <div class="slider-row">
+        <header>
+          <span>Предусиление</span><output>{{ eq.preampDb > 0 ? '+' : '' }}{{ eq.preampDb }} дБ</output>
+        </header>
+        <input
+          id="eq-pre"
+          v-model.number="eq.preampDb"
+          type="range"
+          class="range"
+          min="-12"
+          max="6"
+          step="0.5"
+          :style="{ '--p': pct(eq.preampDb, -12, 6) }"
+        />
+      </div>
+      <p class="note">
+        Если подняли низы или верха, уберите предусиление на столько же, чтобы не было перегруза. На выходе стоит лимитер.
+      </p>
+    </section>
+
+    <section class="group">
+      <label class="row">
+        <span><b>Продолжать при подключении</b><small>Наушники подключились — музыка продолжается с того же места</small></span>
+        <input id="auto-resume" v-model="a.autoResume" type="checkbox" class="switch" />
+      </label>
+    </section>
+    <div class="bottom-space" />
+  </div>
+</template>
+
+<style scoped>
+.eq-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.eq {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  padding: 4px 0;
+  transition: opacity var(--t-mid) var(--ease);
+}
+.eq.off {
+  opacity: 0.4;
+}
+.band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.band output {
+  font-size: 10.5px;
+  color: var(--ink-2);
+  height: 12px;
+}
+.band small {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.rail {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  touch-action: none;
+  cursor: ns-resize;
+}
+.rail::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+.zero {
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 50%;
+  height: 1px;
+  background: var(--ink-3);
+}
+.fillb {
+  position: absolute;
+  left: 50%;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--amber), var(--ember));
+}
+.knob {
+  position: absolute;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin: 0 0 -9px -9px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 4px rgba(var(--amber-rgb), 0.2);
+}
+</style>

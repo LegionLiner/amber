@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Янтарь</string>
+    <string name="title_activity_main">Янтарь</string>
+    <string name="package_name">app.yantar.player</string>
+    <string name="custom_url_scheme">app.yantar.player</string>
+    <string name="widget_description">Что играет и управление</string>
+    <string name="shortcut_mix">Умный микс</string>
+    <string name="shortcut_resume">Продолжить</string>
+    <string name="shortcut_radio">Радио</string>
+</resources>

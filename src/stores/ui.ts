@@ -1,0 +1,62 @@
+import { defineStore } from 'pinia'
+import { ref, shallowRef, type Component } from 'vue'
+
+export interface Toast {
+  id: number
+  text: string
+  action?: { label: string; run: () => void }
+}
+
+export interface SheetRequest {
+  component: Component
+  props?: Record<string, unknown>
+}
+
+export const useUi = defineStore('ui', () => {
+  const fullPlayer = ref(false)
+  const queueOpen = ref(false)
+  const sheet = shallowRef<SheetRequest | null>(null)
+  const toasts = ref<Toast[]>([])
+  /** Повторный тап по активной вкладке: экран прокручивается наверх */
+  const reselect = ref<{ tab: string; n: number }>({ tab: '', n: 0 })
+  let toastId = 0
+
+  function tabReselected(tab: string) {
+    reselect.value = { tab, n: reselect.value.n + 1 }
+  }
+
+  function openSheet(component: Component, props?: Record<string, unknown>) {
+    sheet.value = { component, props }
+  }
+
+  function closeSheet() {
+    sheet.value = null
+  }
+
+  function toast(text: string, action?: Toast['action'], ms = 3200) {
+    const id = ++toastId
+    toasts.value = [...toasts.value.slice(-2), { id, text, action }]
+    setTimeout(() => {
+      toasts.value = toasts.value.filter((t) => t.id !== id)
+    }, ms)
+  }
+
+  /** Системная кнопка «назад»: закрывает верхний слой. true, если что-то закрыли. */
+  function back(): boolean {
+    if (sheet.value) {
+      closeSheet()
+      return true
+    }
+    if (queueOpen.value) {
+      queueOpen.value = false
+      return true
+    }
+    if (fullPlayer.value) {
+      fullPlayer.value = false
+      return true
+    }
+    return false
+  }
+
+  return { fullPlayer, queueOpen, sheet, toasts, reselect, tabReselected, openSheet, closeSheet, toast, back }
+})

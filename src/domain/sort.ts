@@ -1,0 +1,109 @@
+import type { Track } from './track'
+
+export type TrackSortKey =
+  | 'title'
+  | 'artist'
+  | 'album'
+  | 'added'
+  | 'duration'
+  | 'rating'
+  | 'plays'
+  | 'lastPlayed'
+  | 'listened'
+  | 'skips'
+  | 'fileName'
+  | 'folder'
+  | 'year'
+  | 'random'
+
+export const TRACK_SORTS: { key: TrackSortKey; label: string; dir: 'asc' | 'desc' }[] = [
+  { key: 'rating', label: 'Оценка и место', dir: 'desc' },
+  { key: 'plays', label: 'Прослушивания', dir: 'desc' },
+  { key: 'title', label: 'Название', dir: 'asc' },
+  { key: 'artist', label: 'Исполнитель', dir: 'asc' },
+  { key: 'album', label: 'Альбом', dir: 'asc' },
+  { key: 'added', label: 'Дата добавления', dir: 'desc' },
+  { key: 'lastPlayed', label: 'Последнее прослушивание', dir: 'desc' },
+  { key: 'listened', label: 'Время прослушивания', dir: 'desc' },
+  { key: 'duration', label: 'Длительность', dir: 'desc' },
+  { key: 'skips', label: 'Пропуски', dir: 'desc' },
+  { key: 'year', label: 'Год', dir: 'desc' },
+  { key: 'fileName', label: 'Имя файла', dir: 'asc' },
+  { key: 'folder', label: 'Папка', dir: 'asc' },
+  { key: 'random', label: 'Случайно', dir: 'asc' },
+]
+
+const coll = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' })
+
+function seeded(key: string, seed: number): number {
+  let h = seed >>> 0
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193) >>> 0
+  return h
+}
+
+/** Пустые значения всегда уходят в конец, независимо от направления */
+function nullsLast(a: number | null, b: number | null, dir: number): number {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  return (a - b) * dir
+}
+
+export function sortTracks(list: Track[], key: TrackSortKey, dir: 'asc' | 'desc', seed = 1): Track[] {
+  const d = dir === 'asc' ? 1 : -1
+  const out = list.slice()
+  const byTitle = (a: Track, b: Track) => coll.compare(a.title, b.title)
+  let cmp: (a: Track, b: Track) => number
+  switch (key) {
+    case 'title':
+      cmp = (a, b) => coll.compare(a.title, b.title) * d
+      break
+    case 'artist':
+      cmp = (a, b) => (!a.artist ? 1 : !b.artist ? -1 : coll.compare(a.artist, b.artist) * d) || byTitle(a, b)
+      break
+    case 'album':
+      cmp = (a, b) => (!a.album ? 1 : !b.album ? -1 : coll.compare(a.album, b.album) * d) || (a.trackNo ?? 0) - (b.trackNo ?? 0)
+      break
+    case 'added':
+      cmp = (a, b) => (a.addedAt - b.addedAt) * d || byTitle(a, b)
+      break
+    case 'duration':
+      cmp = (a, b) => (a.durationMs - b.durationMs) * d
+      break
+    case 'rating':
+      cmp = (a, b) =>
+        nullsLast(
+          a.rankScore ?? (a.rating != null ? a.rating * 500 : null),
+          b.rankScore ?? (b.rating != null ? b.rating * 500 : null),
+          d,
+        ) ||
+        b.plays - a.plays ||
+        byTitle(a, b)
+      break
+    case 'plays':
+      cmp = (a, b) => (a.plays - b.plays) * d || (a.listenedMs - b.listenedMs) * d || byTitle(a, b)
+      break
+    case 'lastPlayed':
+      cmp = (a, b) => nullsLast(a.lastPlayedAt, b.lastPlayedAt, d) || byTitle(a, b)
+      break
+    case 'listened':
+      cmp = (a, b) => (a.listenedMs - b.listenedMs) * d || byTitle(a, b)
+      break
+    case 'skips':
+      cmp = (a, b) => (a.skips - b.skips) * d || byTitle(a, b)
+      break
+    case 'year':
+      cmp = (a, b) => nullsLast(a.year, b.year, d) || byTitle(a, b)
+      break
+    case 'fileName':
+      cmp = (a, b) => coll.compare(a.fileName, b.fileName) * d
+      break
+    case 'folder':
+      cmp = (a, b) => coll.compare(a.folder, b.folder) * d || coll.compare(a.fileName, b.fileName)
+      break
+    case 'random':
+      cmp = (a, b) => seeded(a.key, seed) - seeded(b.key, seed)
+      break
+  }
+  return out.sort(cmp)
+}

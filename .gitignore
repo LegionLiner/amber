@@ -1,0 +1,24 @@
+node_modules
+dist
+*.local
+.DS_Store
+coverage
+
+# android
+android/.gradle
+android/build
+android/app/build
+android/local.properties
+android/.idea
+android/captures
+*.apk
+*.aab
+*.jks
+# ключ отладки нужен в репозитории, ключи релиза — нет
+*.keystore
+!android/app/yantar-debug.keystore
+
+# editors
+.vscode/*
+!.vscode/extensions.json
+.idea

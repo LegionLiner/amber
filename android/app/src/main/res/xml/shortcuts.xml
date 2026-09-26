@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ярлыки по долгому нажатию на иконку приложения -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher_fg"
+        android:shortcutId="smartmix"
+        android:shortcutShortLabel="@string/shortcut_mix">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="yantar://action/smartmix"
+            android:targetClass="app.yantar.player.MainActivity"
+            android:targetPackage="app.yantar.player" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher_fg"
+        android:shortcutId="resume"
+        android:shortcutShortLabel="@string/shortcut_resume">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="yantar://action/resume"
+            android:targetClass="app.yantar.player.MainActivity"
+            android:targetPackage="app.yantar.player" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher_fg"
+        android:shortcutId="radio"
+        android:shortcutShortLabel="@string/shortcut_radio">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="yantar://action/radio"
+            android:targetClass="app.yantar.player.MainActivity"
+            android:targetPackage="app.yantar.player" />
+    </shortcut>
+</shortcuts>

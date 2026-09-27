@@ -1,4 +1,5 @@
 import { parseV2, tagSize, trackKey } from './id3'
+import { fromBase64, isPng } from './id3-writer'
 
 /**
  * MP4/M4A (AAC): определение формата по содержимому, чтение и запись тегов iTunes (moov/udta/meta/ilst).
@@ -196,6 +197,8 @@ export interface Mp4Edit {
   genre?: string
   year?: number
   trackNo?: number
+  /** Новая обложка, base64 JPEG/PNG */
+  picture?: string
 }
 
 function textItem(type: string, value: string): Uint8Array {
@@ -250,6 +253,11 @@ export function writeMp4Tags(file: Uint8Array, edit: Mp4Edit): Uint8Array {
   }
   if (edit.year != null) replace.set(ITEM.year, edit.year > 0 ? textItem(ITEM.year, String(edit.year)) : null)
   if (edit.trackNo != null) replace.set(ITEM.track, edit.trackNo > 0 ? trackItem(edit.trackNo, total) : null)
+  if (edit.picture) {
+    // Обложка: covr → data с типом 13 (JPEG) или 14 (PNG)
+    const pic = fromBase64(edit.picture)
+    replace.set(ITEM.cover, makeBox('covr', makeBox('data', [...be32(isPng(pic) ? 14 : 13), ...be32(0), ...pic])))
+  }
 
   const newItems: Uint8Array[] = []
   const done = new Set<string>()

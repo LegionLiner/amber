@@ -14,6 +14,8 @@ import { upsertTrackUser } from './library'
 export type TagEdit = Partial<Record<'title' | 'artist' | 'album' | 'genre', string>> & {
   year?: number | null
   trackNo?: number | null
+  /** Новая обложка, base64 JPEG; в файл, а если формат не даёт — своей обложкой в приложении */
+  picture?: string
 }
 
 export interface SaveTagsResult {
@@ -51,6 +53,7 @@ export async function saveTags(tracks: Track[], edits: Map<string, TagEdit>, toF
         genre: e.genre,
         year: e.year ?? undefined,
         trackNo: e.trackNo ?? undefined,
+        picture: e.picture,
       }
     })
     try {
@@ -77,14 +80,25 @@ export async function saveTags(tracks: Track[], edits: Map<string, TagEdit>, toF
       else ov.year = e.year
     }
     if (!writtenKeys.has(t.key)) res.kept++
-    await upsertTrackUser(t.key, { overrides: Object.keys(ov).length ? JSON.stringify(ov) : null })
+    let customArt: string | null | undefined
+    if (e.picture && !writtenKeys.has(t.key)) {
+      try {
+        customArt = (await MusicCore.saveCover({ data: e.picture })).art
+      } catch {
+        /* картинку не прочитали: оставим старую обложку */
+      }
+    }
+    await upsertTrackUser(t.key, {
+      overrides: Object.keys(ov).length ? JSON.stringify(ov) : null,
+      ...(customArt ? { customArt } : {}),
+    })
   }
   return res
 }
 
 /** Убрать все правки поверх файла */
 export async function clearOverrides(keys: string[]): Promise<void> {
-  for (const key of keys) await upsertTrackUser(key, { overrides: null })
+  for (const key of keys) await upsertTrackUser(key, { overrides: null, customArt: null })
 }
 
 /* ------------------------------ тексты ------------------------------ */

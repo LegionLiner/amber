@@ -14,6 +14,9 @@ import { useUi } from '@/stores/ui'
 import { AUTO_PLAYLISTS } from '@/domain/auto'
 import { coverGradient } from '@/domain/palette'
 import { countLabel } from '@/domain/format'
+import CoverArt from '@/components/CoverArt.vue'
+import { useLongPress } from '@/composables/useLongPress'
+import { openPlaylistMenu } from './playlistMenu'
 
 const playlists = usePlaylists()
 const ui = useUi()
@@ -28,6 +31,8 @@ watch(
 )
 
 const radio = useRadio()
+/** Удержание на плейлисте — его меню (то же, что ⋯ на странице плейлиста) */
+const hold = useLongPress()
 
 function create() {
   ui.openSheet(NewPlaylistSheet)
@@ -48,8 +53,18 @@ async function highlights() {
     <button type="button" class="row" @click="create">
       <span class="ic add"><IconAdd /></span><span class="t">Создать</span>
     </button>
-    <button v-for="p in playlists.list" :key="p.id" type="button" class="row" @click="router.push(`/playlist/${p.id}`)">
-      <span class="ic"><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else /></span>
+    <button
+      v-for="p in playlists.list"
+      :key="p.id"
+      type="button"
+      class="row"
+      v-bind="hold(() => openPlaylistMenu(p, router))"
+      @click="router.push(`/playlist/${p.id}`)"
+    >
+      <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
+      <span v-else class="ic"
+        ><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else
+      /></span>
       <span class="text">
         <span class="t ellipsis">{{ p.name }}</span>
         <span class="s">{{
@@ -140,6 +155,9 @@ async function highlights() {
   place-items: center;
   background: var(--surface-2);
   color: var(--ink-2);
+}
+.pcv {
+  width: 48px;
 }
 .ic.add,
 .ic.hl {

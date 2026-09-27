@@ -65,6 +65,8 @@ export interface MusicCorePlugin {
   restoreTags(options: { items: { key: string; uri: string; path: string }[] }): Promise<WriteTagsResult>
   /** Для каких треков есть копия до записи тегов */
   tagBackups(): Promise<{ keys: string[] }>
+  /** Своя картинка (base64) в общую папку обложек: ключ для CoverArt и цвета для фона */
+  saveCover(options: { data: string }): Promise<{ art: string; color1?: string | null; color2?: string | null }>
 
   // воспроизведение: TS решает, что играть, движок решает, как
   configure(options: EngineConfig): Promise<void>

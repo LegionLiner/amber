@@ -38,9 +38,9 @@ import { synthWav } from './tone'
 import { AudioGraph } from './audio-graph'
 import { analyzeBuffer, type AnalysisResult } from './analysis'
 import type { AnalysisJob, AnalysisJobInput, AnalysisReply } from './analysis.worker'
-import { parseV2, tagSize } from './id3'
+import { parseV2, sha1Hex, tagSize } from './id3'
 import { canPickDirectory, pickFolder, readLocal, reopenFolder, type DirHandle, type LocalEntry } from './local-files'
-import { writeId3 } from './id3-writer'
+import { fromBase64, isPng, writeId3 } from './id3-writer'
 import { sniff, unwrapId3Mp4, writeMp4Tags } from './mp4'
 import { loadCovers, saveCover } from './web-covers'
 import { DEFAULT_COUNTING, isCounted, localParts } from '@/domain/counting'
@@ -715,6 +715,14 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     })
   }
 
+  /** Как saveCover на телефоне: картинка в IndexedDB под хешем. Цвета для фона здесь не считаем */
+  async saveCover(o: { data: string }): Promise<{ art: string; color1?: string | null; color2?: string | null }> {
+    const bytes = fromBase64(o.data)
+    const art = sha1Hex([bytes]).slice(0, 16)
+    await saveCover(art, new Blob([bytes as Uint8Array<ArrayBuffer>], { type: isPng(bytes) ? 'image/png' : 'image/jpeg' }))
+    return { art, color1: null, color2: null }
+  }
+
   async tagBackups(): Promise<{ keys: string[] }> {
     return { keys: [...this.tagBackupsMem.keys()] }
   }
@@ -787,6 +795,12 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
             it.key,
           ],
         )
+        // Новая обложка уже в файле — показываем её сразу
+        if (it.picture) {
+          const { art } = await this.saveCover({ data: it.picture })
+          db.execute('UPDATE tracks SET art = ? WHERE key = ?', [art, it.key])
+          db.execute('UPDATE track_user SET custom_art = NULL WHERE key = ?', [it.key])
+        }
         written++
       } catch (e) {
         failed.push({ key: it.key, reason: e instanceof Error ? e.message : String(e) })
@@ -931,6 +945,8 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   private cueIn(item: QueueItem, tx: Transition): number {
+    // В миксе точка входа выбрана руками — ровно с неё, без пропуска тишины
+    if (item.transitionIn) return item.trimStartMs ?? 0
     const intro = tx.type === 'crossfade' || tx.type === 'overlay' ? (this.loud.get(item.key)?.introMs ?? 0) : 0
     return Math.max(item.trimStartMs ?? 0, Math.min(10_000, intro))
   }
@@ -970,6 +986,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     }
     if (this.fadeOutStart) {
       this.applyVolumes()
+      // Затихло — сразу следующий с его точки входа, а не тишина до конца файла
+      if (performance.now() - this.fadeOutStart >= this.fadeOutDur) {
+        a.el.pause()
+        void this.onEnded()
+      }
       return
     }
     if (this.repeat === 'one' || this.sleepEndOfTrack) return
@@ -977,7 +998,14 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     const next = this.queue[ni]
     if (!next) return
     const tx = this.transitionFor(cur, next)
-    if (tx.type === 'gapless' || tx.type === 'cut') return
+    if (tx.type === 'gapless' || tx.type === 'cut') {
+      // Точка выхода микса: дальше этот трек не звучит
+      if (tx.outAtMs != null && pos >= tx.outAtMs) {
+        a.el.pause()
+        void this.onEnded()
+      }
+      return
+    }
     const end = this.effectiveEnd(a, cur)
     const dur = Math.min(tx.durationMs, end / 2)
     const at = tx.outAtMs ?? end - dur

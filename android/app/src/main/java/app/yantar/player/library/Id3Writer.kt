@@ -15,7 +15,11 @@ object Id3Writer {
         val genre: String?,
         val year: Int?,
         val trackNo: Int?,
+        /** Новая обложка (JPEG или PNG); null — оставить как есть */
+        val picture: ByteArray? = null,
     )
+
+    fun isPng(b: ByteArray) = b.size > 4 && b[0] == 0x89.toByte() && b[1] == 'P'.code.toByte() && b[2] == 'N'.code.toByte()
 
     private class Frame(val id: String, val data: ByteArray)
 
@@ -138,8 +142,20 @@ object Id3Writer {
             body.write(data)
         }
         for ((id, value) in replaced) if (value.isNotBlank()) writeFrame(id, utf16Text(value.trim()))
+        edit.picture?.let { pic ->
+            // APIC: кодировка, MIME, тип «обложка спереди» (3), пустое описание, картинка
+            val apic = ByteArrayOutputStream()
+            apic.write(0)
+            apic.write((if (isPng(pic)) "image/png" else "image/jpeg").toByteArray(Charsets.ISO_8859_1))
+            apic.write(0)
+            apic.write(3)
+            apic.write(0)
+            apic.write(pic)
+            writeFrame("APIC", apic.toByteArray())
+        }
         for (f in old) {
             if (f.id in replaced) continue
+            if (f.id == "APIC" && edit.picture != null) continue
             toV23(f)?.let { writeFrame(it.id, it.data) }
         }
         // Запас на будущие правки, чтобы не переписывать файл целиком каждый раз

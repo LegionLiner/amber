@@ -25,6 +25,7 @@ function track(key: string, title: string, artist: string): Track {
     sampleRate: null,
     mime: null,
     art: null,
+    hasCustomArt: false,
     color1: null,
     color2: null,
     hasLyrics: false,

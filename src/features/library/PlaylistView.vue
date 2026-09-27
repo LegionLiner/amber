@@ -3,17 +3,13 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useViewRoute } from '@/app/view-route'
 import IconMore from '~icons/solar/menu-dots-bold'
-import IconOrder from '~icons/solar/sort-vertical-linear'
-import IconRules from '~icons/solar/filter-linear'
 import IconMix from '~icons/solar/transfer-horizontal-linear'
 import IconAdd from '~icons/solar/add-circle-linear'
 import CollectionPage from '@/components/CollectionPage.vue'
-import NameSheet from '@/components/NameSheet.vue'
-import PlaylistMenuSheet from './PlaylistMenuSheet.vue'
+import { openPlaylistMenu } from './playlistMenu'
 import { useLibrary } from '@/stores/library'
 import { usePlaylists } from '@/stores/playlists'
 import { toQueueItem, usePlayer } from '@/stores/player'
-import { useUi } from '@/stores/ui'
 import { playlistItems, type PlaylistItemRow } from '@/data/repos/playlists'
 import { applyRules, describe, parseRules } from '@/domain/smart'
 import { applyMixTransition, parseTransition } from '@/domain/mix'
@@ -27,7 +23,6 @@ const router = useRouter()
 const library = useLibrary()
 const playlists = usePlaylists()
 const player = usePlayer()
-const ui = useUi()
 
 const id = computed(() => Number(route.params.id))
 const info = computed(() => playlists.list.find((p) => p.id === id.value))
@@ -85,34 +80,7 @@ async function playMix(index: number, shuffle: boolean) {
 }
 
 function menu() {
-  const p = info.value
-  if (!p) return
-  const actions = [
-    ...(p.kind !== 'smart' ? [{ label: 'Добавить треки', icon: IconAdd, run: () => go(`/playlist/${p.id}/add`) }] : []),
-    ...(p.kind === 'smart' ? [{ label: 'Условия', icon: IconRules, run: () => go(`/playlist/${p.id}/rules`) }] : []),
-    ...(p.kind !== 'smart' ? [{ label: 'Изменить порядок', icon: IconOrder, run: () => go(`/playlist/${p.id}/order`) }] : []),
-    ...(p.kind === 'mix' ? [{ label: 'Редактор стыков', icon: IconMix, run: () => go(`/mix/${p.id}`) }] : []),
-  ]
-  ui.openSheet(PlaylistMenuSheet, {
-    name: p.name,
-    actions,
-    onRename: () =>
-      ui.openSheet(NameSheet, {
-        title: 'Переименовать',
-        initial: p.name,
-        confirm: 'Сохранить',
-        onDone: (v: string) => playlists.rename(p.id, v),
-      }),
-    onDelete: async () => {
-      await playlists.remove(p.id)
-      ui.toast(`«${p.name}» удалён`)
-      router.back()
-    },
-  })
-}
-function go(path: string) {
-  ui.closeSheet()
-  void router.push(path)
+  if (info.value) openPlaylistMenu(info.value, router, () => router.back())
 }
 </script>
 
@@ -121,6 +89,7 @@ function go(path: string) {
     v-if="info"
     :kind="kindLabel"
     :title="info.name"
+    :art="info.cover"
     :subtitle="subtitle || undefined"
     :tracks="tracks"
     :source="source"

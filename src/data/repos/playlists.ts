@@ -11,6 +11,8 @@ export interface PlaylistRow {
   kind: 'manual' | 'smart' | 'mix'
   rules: string | null
   note: string | null
+  /** Своя обложка (ключ в папке обложек), только в приложении */
+  cover: string | null
   createdAt: number
   updatedAt: number
   count: number
@@ -33,6 +35,7 @@ export async function listPlaylists(): Promise<PlaylistRow[]> {
       'p.kind',
       'p.rules',
       'p.note',
+      'p.cover',
       'p.createdAt',
       'p.updatedAt',
       fn.count<number>('i.id').as('count'),
@@ -58,6 +61,15 @@ export async function createPlaylist(
 
 export async function renamePlaylist(id: number, name: string): Promise<void> {
   await db.updateTable('playlists').set({ name, updatedAt: Date.now() }).where('id', '=', id).execute()
+}
+
+/** Микс ↔ обычный плейлист: переходы остаются у треков и снова работают, если вернуть микс */
+export async function setPlaylistKind(id: number, kind: 'manual' | 'mix'): Promise<void> {
+  await db.updateTable('playlists').set({ kind, updatedAt: Date.now() }).where('id', '=', id).execute()
+}
+
+export async function setPlaylistCover(id: number, cover: string | null): Promise<void> {
+  await db.updateTable('playlists').set({ cover, updatedAt: Date.now() }).where('id', '=', id).execute()
 }
 
 export async function deletePlaylist(id: number): Promise<void> {

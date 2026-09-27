@@ -7,6 +7,8 @@ import {
   listPlaylists,
   removeTrackFromPlaylist,
   renamePlaylist,
+  setPlaylistCover,
+  setPlaylistKind,
   type PlaylistRow,
 } from '@/data/repos/playlists'
 
@@ -45,6 +47,16 @@ export const usePlaylists = defineStore('playlists', () => {
     await refresh()
   }
 
+  async function setKind(id: number, kind: 'manual' | 'mix') {
+    await setPlaylistKind(id, kind)
+    await refresh()
+  }
+
+  async function setCover(id: number, art: string | null) {
+    await setPlaylistCover(id, art)
+    await refresh()
+  }
+
   async function remove(id: number) {
     await deletePlaylist(id)
     await refresh()
@@ -55,5 +67,5 @@ export const usePlaylists = defineStore('playlists', () => {
     await refresh()
   }
 
-  return { list, loaded, version, refresh, create, add, rename, remove, removeTrack }
+  return { list, loaded, version, refresh, create, add, rename, setKind, setCover, remove, removeTrack }
 })

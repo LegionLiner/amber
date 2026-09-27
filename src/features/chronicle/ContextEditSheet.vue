@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useUi } from '@/stores/ui'
+import ColorPicker from '@/components/ColorPicker.vue'
+import { TINTS } from '@/domain/palette'
 import { usePlayer } from '@/stores/player'
 import { deleteContext, saveContext, type ContextRow } from '@/data/repos/contexts'
 import { outputLabel } from '@/domain/outputs'
@@ -15,12 +17,11 @@ const emit = defineEmits<{ close: [] }>()
 const ui = useUi()
 const player = usePlayer()
 
-const COLORS = ['#ff9a3e', '#e5484d', '#8e6cf0', '#3e9bff', '#2fbf8f', '#c9b458']
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const form = reactive({
   title: props.ctx?.title ?? '',
   icon: props.ctx?.icon ?? 'run',
-  color: props.ctx?.color ?? COLORS[0]!,
+  color: props.ctx?.color ?? TINTS[0]!,
   useHours: !!props.ctx?.rules.hours,
   from: props.ctx?.rules.hours?.[0] ?? 7,
   to: props.ctx?.rules.hours?.[1] ?? 10,
@@ -85,18 +86,7 @@ async function remove() {
         <component :is="ic" />
       </button>
     </div>
-    <div class="colors">
-      <button
-        v-for="c in COLORS"
-        :key="c"
-        type="button"
-        class="sw"
-        :class="{ on: form.color === c }"
-        :style="{ background: c }"
-        :aria-label="c"
-        @click="form.color = c"
-      />
-    </div>
+    <ColorPicker v-model="form.color" />
 
     <h4 class="sub">Когда включать самому</h4>
     <label class="row">
@@ -168,20 +158,6 @@ async function remove() {
 .ic.on {
   background: color-mix(in srgb, var(--cc) 22%, transparent);
   color: var(--cc);
-}
-.colors {
-  display: flex;
-  gap: 10px;
-}
-.sw {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-}
-.sw.on {
-  box-shadow:
-    0 0 0 3px var(--bg),
-    0 0 0 5px var(--ink);
 }
 .sub {
   font: 600 14px/1.2 var(--f-body);

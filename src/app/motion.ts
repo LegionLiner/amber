@@ -118,3 +118,32 @@ export function flyCoverTo(target: HTMLElement | null | undefined): void {
   anim.onfinish = finish
   anim.oncancel = finish
 }
+
+/* ---------------- прокрутка экранов ---------------- */
+
+/**
+ * Экраны живут в KeepAlive, но когда элемент вынимают из документа и вставляют обратно,
+ * браузер сбрасывает прокрутку в ноль. Поэтому перед уходом запоминаем прокрутку всех
+ * прокручиваемых блоков экрана (сам экран, списки внутри), а при возвращении ставим обратно.
+ */
+const scrolls = new WeakMap<Element, { top: number; left: number }>()
+
+function scrollables(root: Element): Element[] {
+  return [root, ...root.querySelectorAll('.scroll, .list, .chips')]
+}
+
+export function rememberScroll(el: Element): void {
+  for (const n of scrollables(el)) {
+    if (n.scrollTop || n.scrollLeft) scrolls.set(n, { top: n.scrollTop, left: n.scrollLeft })
+    else scrolls.delete(n)
+  }
+}
+
+export function restoreScroll(el: Element): void {
+  for (const n of scrollables(el)) {
+    const s = scrolls.get(n)
+    if (!s) continue
+    n.scrollTop = s.top
+    n.scrollLeft = s.left
+  }
+}

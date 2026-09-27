@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useUi } from '@/stores/ui'
+import ColorPicker from '@/components/ColorPicker.vue'
+import { TINTS } from '@/domain/palette'
 import { deleteEra, saveEra, type EraRow } from '@/data/repos/eras'
 import { todayKey } from '@/domain/streaks'
 
@@ -9,12 +11,11 @@ const props = defineProps<{ era?: EraRow | null; onSaved?: (id: number | null) =
 const emit = defineEmits<{ close: [] }>()
 const ui = useUi()
 
-const COLORS = ['#ff9a3e', '#e5484d', '#8e6cf0', '#3e9bff', '#2fbf8f', '#c9b458']
 const form = reactive({
   title: props.era?.title ?? '',
   startDay: props.era?.startDay ?? todayKey(new Date(Date.now() - 30 * 86_400_000)),
   endDay: props.era?.endDay ?? todayKey(),
-  color: props.era?.color ?? COLORS[0]!,
+  color: props.era?.color ?? TINTS[0]!,
   note: props.era?.note ?? '',
 })
 const confirmDelete = ref(false)
@@ -49,18 +50,7 @@ async function remove() {
       <label><span>С</span><input id="era-from" v-model="form.startDay" type="date" class="field" /></label>
       <label><span>По</span><input id="era-to" v-model="form.endDay" type="date" class="field" /></label>
     </div>
-    <div class="colors">
-      <button
-        v-for="c in COLORS"
-        :key="c"
-        type="button"
-        class="sw"
-        :class="{ on: form.color === c }"
-        :style="{ background: c }"
-        :aria-label="c"
-        @click="form.color = c"
-      />
-    </div>
+    <ColorPicker v-model="form.color" />
     <textarea id="era-note" v-model="form.note" class="field" placeholder="Пара слов о том времени" />
     <div class="btns">
       <template v-if="era">
@@ -84,20 +74,6 @@ async function remove() {
   gap: 4px;
   font-size: 12.5px;
   color: var(--ink-2);
-}
-.colors {
-  display: flex;
-  gap: 10px;
-}
-.sw {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-}
-.sw.on {
-  box-shadow:
-    0 0 0 3px var(--bg),
-    0 0 0 5px var(--ink);
 }
 .danger {
   color: var(--bad);

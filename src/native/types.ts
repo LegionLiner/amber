@@ -290,6 +290,8 @@ export interface WriteTagsItem {
   genre?: string
   year?: number
   trackNo?: number
+  /** Новая обложка, base64 JPEG/PNG */
+  picture?: string
 }
 
 export interface WriteTagsResult {

@@ -2,11 +2,17 @@
 import { computed, onActivated, onMounted, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import IconAdd from '~icons/solar/add-circle-linear'
+import IconPen from '~icons/solar/pen-linear'
+import IconPlay from '~icons/solar/play-linear'
+import IconStop from '~icons/solar/stop-linear'
+import IconOpen from '~icons/solar/history-linear'
 import ContextEditSheet from './ContextEditSheet.vue'
+import ActionMenuSheet from '@/components/ActionMenuSheet.vue'
+import { useLongPress } from '@/composables/useLongPress'
 import { contextIcon } from './contextIcons'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
-import { activeContext, listContexts, startContext, stopContexts, type ContextRow } from '@/data/repos/contexts'
+import { activeContext, deleteContext, listContexts, startContext, stopContexts, type ContextRow } from '@/data/repos/contexts'
 
 /**
  * Контексты: ситуации со своим саундтреком. Запускаешь вручную («Начать») или они включаются
@@ -35,6 +41,39 @@ async function toggle(c: ContextRow) {
   }
   await load()
 }
+/** Удержание на контексте — меню: открыть, начать/стоп, изменить, удалить */
+const hold = useLongPress()
+function menu(c: ContextRow) {
+  ui.openSheet(ActionMenuSheet, {
+    title: c.title,
+    actions: [
+      {
+        label: 'Открыть',
+        icon: IconOpen,
+        run: () => {
+          ui.closeSheet()
+          void router.push(`/context/${c.id}`)
+        },
+      },
+      {
+        label: c.running != null ? 'Закончить' : 'Начать',
+        icon: c.running != null ? IconStop : IconPlay,
+        run: () => {
+          ui.closeSheet()
+          void toggle(c)
+        },
+      },
+      { label: 'Изменить', icon: IconPen, run: () => ui.openSheet(ContextEditSheet, { ctx: c, onSaved: load }) },
+    ],
+    deleteNote: 'Прослушивания останутся в истории, но без этой пометки.',
+    onDelete: async () => {
+      await deleteContext(c.id)
+      ui.toast(`Контекст «${c.title}» удалён`)
+      await load()
+    },
+  })
+}
+
 function create() {
   ui.openSheet(ContextEditSheet, { onSaved: load })
 }
@@ -58,7 +97,7 @@ function rulesText(c: ContextRow): string {
       :class="{ on: active?.id === c.id }"
       :style="{ '--cc': c.color ?? 'var(--amber)' }"
     >
-      <button type="button" class="main" @click="router.push(`/context/${c.id}`)">
+      <button type="button" class="main" v-bind="hold(() => menu(c))" @click="router.push(`/context/${c.id}`)">
         <span class="ic"><component :is="contextIcon(c.icon)" /></span>
         <span class="text">
           <b class="ellipsis">{{ c.title }}</b>

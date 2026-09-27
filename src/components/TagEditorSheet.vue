@@ -4,6 +4,8 @@ import { useLibrary } from '@/stores/library'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { clearOverrides, restoreTagFiles, saveTags, tagBackupKeys, type TagEdit } from '@/data/repos/tags'
+import { pickImage, type PickedImage } from '@/app/pick-image'
+import CoverArt from './CoverArt.vue'
 import type { Track } from '@/domain/track'
 
 /**
@@ -41,7 +43,14 @@ const form = reactive({
 const initial = JSON.stringify(form)
 const toFiles = ref(settings.s.writeTagsToFiles)
 const busy = ref(false)
-const hasOverrides = computed(() => tracks.value.some((t) => Object.keys(t.overrides).length))
+const hasOverrides = computed(() => tracks.value.some((t) => Object.keys(t.overrides).length || t.hasCustomArt))
+
+/** Новая обложка: пишется в файл вместе с тегами (а если формат не даёт — остаётся в приложении) */
+const picture = ref<PickedImage | null>(null)
+async function choosePicture() {
+  const p = await pickImage()
+  if (p) picture.value = p
+}
 /** Файлы, которые можно вернуть к состоянию до последней записи тегов */
 const backups = ref(new Set<string>())
 onMounted(async () => (backups.value = await tagBackupKeys()))
@@ -63,7 +72,7 @@ async function restoreFiles() {
 }
 
 async function save() {
-  if (JSON.stringify(form) === initial) return emit('close')
+  if (JSON.stringify(form) === initial && !picture.value) return emit('close')
   busy.value = true
   try {
     const edits = new Map<string, TagEdit>()
@@ -76,6 +85,7 @@ async function save() {
       if (form.genre !== init.genre) e.genre = form.genre.trim()
       if (form.year !== init.year) e.year = form.year ? Number(form.year) : null
       if (single.value && form.trackNo !== init.trackNo) e.trackNo = form.trackNo ? Number(form.trackNo) : null
+      if (picture.value) e.picture = picture.value.base64
       edits.set(t.key, e)
     }
     settings.s.writeTagsToFiles = toFiles.value
@@ -104,6 +114,19 @@ async function reset() {
   <div class="sheet-body form">
     <h3 class="sheet-head">{{ single ? 'Теги трека' : `Теги: ${tracks.length} треков` }}</h3>
     <p v-if="single && first" class="note ellipsis">{{ first.fileName }}</p>
+    <div class="cover-row">
+      <img v-if="picture" :src="picture.url" alt="" class="cover-pick" />
+      <CoverArt v-else-if="first" :art="first.art" :seed="first.title" :label="first.title" size="m" class="cover-pick" />
+      <div class="cover-text">
+        <b>Обложка</b>
+        <small>{{
+          picture ? 'Запишется в файл вместе с тегами' : single ? 'Своя картинка для этого трека' : 'Одна картинка на все треки'
+        }}</small>
+        <button type="button" class="btn small-btn" @click="choosePicture">
+          {{ picture ? 'Другая картинка' : 'Выбрать картинку' }}
+        </button>
+      </div>
+    </div>
     <label v-if="single" class="fl"><span>Название</span><input id="tag-title" v-model="form.title" class="field" /></label>
     <label class="fl"
       ><span>Исполнитель</span
@@ -139,6 +162,36 @@ async function reset() {
 </template>
 
 <style scoped>
+.cover-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 0 12px;
+}
+.cover-pick {
+  width: 84px;
+  height: 84px;
+  border-radius: var(--r-m);
+  object-fit: cover;
+  flex: none;
+}
+.cover-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.cover-text small {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.small-btn {
+  min-height: 36px;
+  margin-top: 6px;
+  padding: 0 14px;
+  font-size: 13.5px;
+}
 .fl {
   display: flex;
   flex-direction: column;

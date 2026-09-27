@@ -1,7 +1,6 @@
 package app.yantar.player.playback
 
 import android.net.Uri
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import org.json.JSONObject
@@ -49,14 +48,8 @@ class QItem(val json: JSONObject) {
             .setUri(uri)
             .setMediaMetadata(meta.build())
             .setTag(this)
-        if ((trimStartMs ?: 0) > 0 || trimEndMs != null) {
-            b.setClippingConfiguration(
-                MediaItem.ClippingConfiguration.Builder()
-                    .setStartPositionMs(trimStartMs ?: 0)
-                    .setEndPositionMs(trimEndMs ?: C.TIME_END_OF_SOURCE)
-                    .build(),
-            )
-        }
+        // Обрезку и точку входа микса держит Engine: с ClippingConfiguration позиции становились
+        // относительными, а переходы микса считаются в позициях файла — стык уезжал от выбранного места
         return b.build()
     }
 

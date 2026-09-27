@@ -31,3 +31,28 @@ export function ambientColors(color1: string | null, color2: string | null, seed
   if (color1) return [color1, color2 ?? color1]
   return coverPair(seed)
 }
+
+/**
+ * Цвета эпох и контекстов: 18 оттенков (подобраны так, чтобы читались на тёмной и светлой теме)
+ * и «свой» — системный выбор любого цвета.
+ */
+export const TINTS = [
+  '#ff9a3e',
+  '#ff7a2f',
+  '#ffc23d',
+  '#e8d44d',
+  '#c9b458',
+  '#9bd65a',
+  '#4cc38a',
+  '#2fbf8f',
+  '#1fb6b0',
+  '#3ec7f0',
+  '#3e9bff',
+  '#5b6cff',
+  '#8e6cf0',
+  '#b46cf0',
+  '#e56cc9',
+  '#ff6b9a',
+  '#e5484d',
+  '#a1887f',
+]

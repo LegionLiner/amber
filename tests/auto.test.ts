@@ -28,6 +28,7 @@ function t(key: string, extra: Partial<Track> = {}): Track {
     sampleRate: null,
     mime: null,
     art: null,
+    hasCustomArt: false,
     color1: null,
     color2: null,
     hasLyrics: false,

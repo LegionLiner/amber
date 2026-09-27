@@ -381,8 +381,14 @@ function togglePlay() {
       role="dialog"
       aria-label="Плеер"
     >
-      <div class="ambient" :style="{ '--c1': colors[0], '--c2': colors[1] }" aria-hidden="true">
-        <i class="b1" /><i class="b2" /><i class="b3" />
+      <!-- Фон нового трека проявляется поверх старого (только прозрачность — это делает видеоускоритель;
+           анимация самих цветов перерисовывала размытые пятна на каждом кадре и дёргалась) -->
+      <div class="ambient" aria-hidden="true">
+        <TransitionGroup name="amb">
+          <div v-for="c in [colors]" :key="c.join()" class="amb" :style="{ '--c1': c[0], '--c2': c[1] }">
+            <i class="b1" /><i class="b2" /><i class="b3" />
+          </div>
+        </TransitionGroup>
         <div class="veil" />
       </div>
 
@@ -536,10 +542,18 @@ function togglePlay() {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  /* Цвета фона перетекают при смене трека (--c1/--c2 объявлены через @property в motion.css) */
-  transition:
-    --c1 1200ms var(--ease),
-    --c2 1200ms var(--ease);
+}
+.amb {
+  position: absolute;
+  inset: 0;
+}
+.amb-enter-active,
+.amb-leave-active {
+  transition: opacity 1200ms var(--ease);
+}
+.amb-enter-from,
+.amb-leave-to {
+  opacity: 0;
 }
 .ambient i {
   position: absolute;

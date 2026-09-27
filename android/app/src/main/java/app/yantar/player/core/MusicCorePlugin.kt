@@ -363,7 +363,23 @@ class MusicCorePlugin : Plugin() {
     private fun editOf(it: JSONObject): Id3Writer.Edit {
         fun str(n: String) = if (it.has(n) && !it.isNull(n)) it.optString(n) else null
         fun int(n: String) = if (it.has(n) && !it.isNull(n)) it.optInt(n) else null
-        return Id3Writer.Edit(str("title"), str("artist"), str("album"), str("genre"), int("year"), int("trackNo"))
+        val picture = str("picture")?.let { b64 -> android.util.Base64.decode(b64, android.util.Base64.DEFAULT) }
+        return Id3Writer.Edit(str("title"), str("artist"), str("album"), str("genre"), int("year"), int("trackNo"), picture)
+    }
+
+    /** Своя картинка (обложка плейлиста или трека внутри приложения): в общую папку обложек, ответ — её ключ */
+    @PluginMethod
+    fun saveCover(call: PluginCall) {
+        val data = call.getString("data") ?: return call.reject("нет картинки")
+        work.execute {
+            try {
+                val saved = Covers.save(context, android.util.Base64.decode(data, android.util.Base64.DEFAULT))
+                    ?: return@execute call.reject("Не удалось прочитать картинку")
+                call.resolve(JSObject().put("art", saved.hash).put("color1", saved.color1).put("color2", saved.color2))
+            } catch (e: Exception) {
+                call.reject(e.message ?: "ошибка")
+            }
+        }
     }
 
     /** Системный запрос «Разрешить изменить файлы?» для всех uri сразу */
@@ -411,6 +427,16 @@ class MusicCorePlugin : Plugin() {
                        size = ?, updated_at = ? WHERE key = ?""",
                     listOf(e.title, e.artist, e.album, e.genre, e.year, e.trackNo, r.size, System.currentTimeMillis(), key),
                 )
+                // Новая обложка уже в файле: показываем её сразу, не дожидаясь пересканирования
+                e.picture?.let { pic ->
+                    Covers.save(context, pic)?.let { c ->
+                        Database.execute(
+                            "UPDATE tracks SET art = ?, color1 = COALESCE(?, color1), color2 = COALESCE(?, color2) WHERE key = ?",
+                            listOf(c.hash, c.color1, c.color2, key),
+                        )
+                        Database.execute("UPDATE track_user SET custom_art = NULL WHERE key = ?", listOf(key))
+                    }
+                }
                 it.optString("path").takeIf { p -> p.isNotEmpty() }?.let(paths::add)
                 // Отпечаток сменился (MP4 теперь по аудиоданным): история, оценки и плейлисты переезжают следом
                 r.newKey?.let { nk -> if (nk != key) KeyAliases.add(key, nk) }

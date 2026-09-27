@@ -174,10 +174,14 @@ object PlayerHub {
                 sleepEndOfTrack = false
                 deck.pauseAtEndOfMediaItems = false
             }
-            val why = when (reason) {
-                Player.MEDIA_ITEM_TRANSITION_REASON_AUTO, Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "completed"
-                Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> "skipped"
-                else -> "replaced"
+            val why = if (engine?.consumeAdvancing() == true) {
+                "completed"
+            } else {
+                when (reason) {
+                    Player.MEDIA_ITEM_TRANSITION_REASON_AUTO, Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "completed"
+                    Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> "skipped"
+                    else -> "replaced"
+                }
             }
             tracker.finish(why)
             if (deck.isPlaying) {
@@ -322,8 +326,10 @@ object PlayerHub {
         val r = edit { e ->
             val start = index.coerceIn(0, maxOf(0, items.size - 1))
             val active = e.active
+            // С начала — значит с точки входа трека
+            val pos = if (positionMs <= 0) items.getOrNull(start)?.trimStartMs ?: 0L else positionMs
             e.forEachDeck { d ->
-                d.setMediaItems(items.map { it.toMediaItem() }, start, positionMs)
+                d.setMediaItems(items.map { it.toMediaItem() }, start, pos)
                 if (d !== active) d.stop()
             }
             active.prepare()

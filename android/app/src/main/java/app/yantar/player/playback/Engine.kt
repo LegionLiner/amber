@@ -80,6 +80,8 @@ class Engine(private val ctx: Context, private val events: Events) {
     private var txPending = false
     private var txPendingSince = 0L
     private var txCue = 0L
+    private var txGap = 0L
+    private var txLastTick = 0L
     /** Сколько обычно заводится вторая дека (мерим на каждом переходе): переход объявляем на столько раньше */
     private var startLatencyMs = 250L
     private var txStart = 0L
@@ -143,6 +145,11 @@ class Engine(private val ctx: Context, private val events: Events) {
                 if (p === active) {
                     fadeOutStart = 0
                     applyVolumes()
+                    // Точки входа трека держит движок (без ClippingConfiguration): новый трек — с его начала
+                    if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                        val start = startOf(p, p.currentMediaItemIndex)
+                        if (start > 0 && p.currentPosition < start - 50) p.seekTo(start)
+                    }
                 }
             }
         })
@@ -234,7 +241,7 @@ class Engine(private val ctx: Context, private val events: Events) {
         val p = active
         if (p.mediaItemCount == 0) return
         if (p.playbackState == Player.STATE_IDLE) p.prepare()
-        if (p.playbackState == Player.STATE_ENDED) p.seekTo(p.currentMediaItemIndex, 0)
+        if (p.playbackState == Player.STATE_ENDED) p.seekTo(p.currentMediaItemIndex, startOf(p, p.currentMediaItemIndex))
         requestFocus()
         applyVolumes()
         p.play()
@@ -254,7 +261,15 @@ class Engine(private val ctx: Context, private val events: Events) {
         val can = if (next) p.hasNextMediaItem() else true
         if (!can) return
         val action = {
-            if (next) p.seekToNextMediaItem() else p.seekToPrevious()
+            val cur = p.currentMediaItemIndex
+            val target = when {
+                next -> p.nextMediaItemIndex
+                // «Назад» после трёх секунд — в начало этого же трека
+                p.currentPosition - startOf(p, cur) > 3000 -> cur
+                p.previousMediaItemIndex != C.INDEX_UNSET -> p.previousMediaItemIndex
+                else -> cur
+            }
+            if (target != C.INDEX_UNSET) p.seekTo(target, startOf(p, target))
             play()
         }
         if (p.isPlaying && skipFadeMs > 0) {
@@ -272,7 +287,7 @@ class Engine(private val ctx: Context, private val events: Events) {
         val p = active
         if (index !in 0 until p.mediaItemCount) return
         val action = {
-            p.seekTo(index, 0)
+            p.seekTo(index, startOf(p, index))
             if (play) play()
         }
         if (p.isPlaying && skipFadeMs > 0) {
@@ -368,6 +383,22 @@ class Engine(private val ctx: Context, private val events: Events) {
     private fun itemAt(p: ExoPlayer, index: Int): QItem? =
         if (index in 0 until p.mediaItemCount) QItem.fromMediaItem(p.getMediaItemAt(index)) else null
 
+    /** Откуда начинать трек: точка входа микса или обрезка начала (позиции везде абсолютные, как в файле) */
+    fun startOf(p: ExoPlayer, index: Int): Long = itemAt(p, index)?.trimStartMs ?: 0L
+
+    /**
+     * Трек сменился по воле движка (конец обрезки, затухание): для учёта это дослушанный трек,
+     * а не пропуск. PlayerHub забирает флаг в onMediaItemTransition.
+     */
+    private var advancing = false
+
+    fun consumeAdvancing(): Boolean = advancing.also { advancing = false }
+
+    private fun advance(p: ExoPlayer, index: Int) {
+        advancing = true
+        p.seekTo(index, startOf(p, index))
+    }
+
     /** Какой стык между двумя треками: своя настройка микса, умные правила или общие настройки */
     fun transitionFor(prev: QItem, next: QItem): Tx {
         next.transitionIn?.let { t ->
@@ -397,6 +428,8 @@ class Engine(private val ctx: Context, private val events: Events) {
     }
 
     private fun cueIn(item: QItem, tx: Tx): Long {
+        // В миксе точка входа выбрана руками — ровно с неё, без пропуска тишины
+        if (item.transitionIn != null) return item.trimStartMs ?: 0L
         val intro = if (tx.type == "crossfade" || tx.type == "overlay") Loudness.get(item.key)?.introMs ?: 0L else 0L
         return maxOf(item.trimStartMs ?: 0L, intro.coerceAtMost(10_000))
     }
@@ -428,7 +461,9 @@ class Engine(private val ctx: Context, private val events: Events) {
         txPendingSince = SystemClock.elapsedRealtime()
         txCue = b.currentPosition
         txStart = txPendingSince
-        txDur = tx.durationMs.coerceAtLeast(500)
+        txDur = if (tx.type == "cut" || tx.type == "gapless") tx.durationMs.coerceAtLeast(30) else tx.durationMs.coerceAtLeast(500)
+        txGap = 0L
+        txLastTick = 0L
         txType = tx.type
         txCurve = tx.curve
         txDuck = dbToLinear(tx.duckDb).toFloat()
@@ -473,6 +508,9 @@ class Engine(private val ctx: Context, private val events: Events) {
     private fun tick(a: ExoPlayer) {
         if (tail != null) {
             val now = SystemClock.elapsedRealtime()
+            // Диагностика: самая длинная пауза между тиками громкости за переход (зависание главного потока = ступенька)
+            if (txLastTick > 0) txGap = maxOf(txGap, now - txLastTick)
+            txLastTick = now
             if (txPending) {
                 // B пошёл, когда позиция сдвинулась от точки входа; на всякий случай не ждём дольше 1,5 с
                 val started = a.isPlaying && a.currentPosition >= txCue + 30
@@ -485,7 +523,10 @@ class Engine(private val ctx: Context, private val events: Events) {
                 }
             }
             applyVolumes()
-            if (!txPending && now - txStart >= txDur) finishTail()
+            if (!txPending && now - txStart >= txDur) {
+                Log.d(TAG, "переход окончен: $txType $txDur мс, самая длинная пауза тиков $txGap мс")
+                finishTail()
+            }
             return
         }
         if (!a.isPlaying) return
@@ -494,13 +535,32 @@ class Engine(private val ctx: Context, private val events: Events) {
             a.seekTo(abStart)
             return
         }
-        if (a.repeatMode == Player.REPEAT_MODE_ONE) return
         val cur = itemAt(a, a.currentMediaItemIndex) ?: return
+        // Обрезка конца: дальше трек не звучит
+        val trimEnd = cur.trimEndMs
+        if (a.repeatMode == Player.REPEAT_MODE_ONE) {
+            if (trimEnd != null && pos >= trimEnd) a.seekTo(startOf(a, a.currentMediaItemIndex))
+            return
+        }
         val nextIndex = a.nextMediaItemIndex
-        if (nextIndex == C.INDEX_UNSET) return
+        if (nextIndex == C.INDEX_UNSET) {
+            if (trimEnd != null && pos >= trimEnd) {
+                a.pause()
+                a.seekTo(startOf(a, a.currentMediaItemIndex))
+            }
+            return
+        }
         val next = itemAt(a, nextIndex) ?: return
         val tx = transitionFor(cur, next)
-        if (tx.type == "gapless" || tx.type == "cut") return
+        if (tx.type == "gapless" || tx.type == "cut") {
+            // Встык внутри одной деки ExoPlayer делает сам, но только от конца файла к его началу.
+            // Если у стыка есть точка выхода, обрезка конца или точка входа у следующего — стык делают две деки
+            val len = a.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: cur.durationMs
+            val at = tx.outAtMs ?: trimEnd ?: if ((next.trimStartMs ?: 0) > 0) len - 60 else return
+            if (pos >= at - 20_000) ensureAuxPrepared(nextIndex, next, tx)
+            if (pos >= at - startLatencyMs) startTransition(Tx(tx.type, 40, "linear", tx.outAtMs, 0.0))
+            return
+        }
         val end = effectiveEnd(a, cur)
         val dur = tx.durationMs.coerceAtMost(end / 2)
         val at = tx.outAtMs ?: (end - dur)
@@ -509,7 +569,11 @@ class Engine(private val ctx: Context, private val events: Events) {
                 fadeOutStart = SystemClock.elapsedRealtime()
                 fadeOutDur = dur.coerceAtLeast(500)
             }
-            if (fadeOutStart > 0) applyVolumes()
+            if (fadeOutStart > 0) {
+                applyVolumes()
+                // Затихло — сразу следующий с его точки входа, а не тишина до конца файла
+                if (SystemClock.elapsedRealtime() - fadeOutStart >= fadeOutDur) advance(a, nextIndex)
+            }
             return
         }
         if (pos >= at - 20_000) ensureAuxPrepared(nextIndex, next, tx)

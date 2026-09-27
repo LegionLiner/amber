@@ -12,6 +12,8 @@ export interface Id3Edit {
   genre?: string
   year?: number
   trackNo?: number
+  /** Новая обложка, base64 JPEG/PNG */
+  picture?: string
 }
 
 interface Frame {
@@ -107,6 +109,17 @@ function toV23(f: Frame): Frame | null {
   return null
 }
 
+export function fromBase64(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out
+}
+
+export function isPng(b: Uint8Array): boolean {
+  return b.length > 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e
+}
+
 export function writeId3(file: Uint8Array, edit: Id3Edit): Uint8Array {
   const size = Math.min(tagSize(file.subarray(0, 10)), file.length)
   const old = size > 0 ? readFrames(file, size) : []
@@ -121,8 +134,19 @@ export function writeId3(file: Uint8Array, edit: Id3Edit): Uint8Array {
 
   const frames: Frame[] = []
   for (const [id, value] of replaced) if (value.trim()) frames.push({ id, data: utf16Text(value.trim()) })
+  if (edit.picture) {
+    // APIC: кодировка, MIME, тип «обложка спереди» (3), пустое описание, картинка
+    const pic = fromBase64(edit.picture)
+    const mime = new TextEncoder().encode(isPng(pic) ? 'image/png' : 'image/jpeg')
+    const data = new Uint8Array(1 + mime.length + 3 + pic.length)
+    data.set(mime, 1)
+    data[1 + mime.length + 1] = 3
+    data.set(pic, 1 + mime.length + 3)
+    frames.push({ id: 'APIC', data })
+  }
   for (const f of old) {
     if (replaced.has(f.id)) continue
+    if (f.id === 'APIC' && edit.picture) continue
     const v = toV23(f)
     if (v) frames.push(v)
   }

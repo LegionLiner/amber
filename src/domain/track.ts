@@ -79,6 +79,8 @@ export interface Track {
   sampleRate: number | null
   mime: string | null
   art: string | null
+  /** Обложка своя, заданная в приложении (не из файла) */
+  hasCustomArt: boolean
   color1: string | null
   color2: string | null
   hasLyrics: boolean
@@ -155,6 +157,7 @@ export function toTrack(r: TrackRow, opts: TrackOptions): Track {
     sampleRate: r.sampleRate,
     mime: r.mime,
     art: r.customArt || r.art,
+    hasCustomArt: !!r.customArt,
     color1: r.color1,
     color2: r.color2,
     hasLyrics: !!r.hasLyrics,

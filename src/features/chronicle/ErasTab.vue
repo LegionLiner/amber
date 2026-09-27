@@ -2,9 +2,13 @@
 import { computed, onActivated, onMounted, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import IconAdd from '~icons/solar/add-circle-linear'
+import IconPen from '~icons/solar/pen-linear'
+import IconOpen from '~icons/solar/history-linear'
 import EraEditSheet from './EraEditSheet.vue'
+import ActionMenuSheet from '@/components/ActionMenuSheet.vue'
 import { useUi } from '@/stores/ui'
-import { customEras, historyBounds, playsByDay, type EraRow } from '@/data/repos/eras'
+import { useLongPress } from '@/composables/useLongPress'
+import { customEras, deleteEra, historyBounds, playsByDay, type EraRow } from '@/data/repos/eras'
 import { seasonOf, seasonsBetween, type Season } from '@/domain/seasons'
 import { dayLabel, parseDay } from '@/domain/weeks'
 import { formatListen } from '@/domain/format'
@@ -52,6 +56,31 @@ const seasons = computed(() => {
 })
 const mine = computed(() => eras.value.map((e) => ({ e, ...sum(e.startDay, e.endDay) })))
 
+/** Удержание на своей эпохе — меню: открыть, изменить, удалить */
+const hold = useLongPress()
+function menu(e: EraRow) {
+  ui.openSheet(ActionMenuSheet, {
+    title: e.title,
+    actions: [
+      {
+        label: 'Открыть',
+        icon: IconOpen,
+        run: () => {
+          ui.closeSheet()
+          void router.push(`/era/c-${e.id}`)
+        },
+      },
+      { label: 'Изменить', icon: IconPen, run: () => ui.openSheet(EraEditSheet, { era: e, onSaved: () => load() }) },
+    ],
+    deleteNote: 'История прослушиваний останется.',
+    onDelete: async () => {
+      await deleteEra(e.id)
+      ui.toast(`Эпоха «${e.title}» удалена`)
+      await load()
+    },
+  })
+}
+
 function create() {
   ui.openSheet(EraEditSheet, { onSaved: (id: number | null) => (id ? router.push(`/era/c-${id}`) : load()) })
 }
@@ -66,6 +95,7 @@ function create() {
       type="button"
       class="era"
       :style="{ '--ec': x.e.color ?? 'var(--amber)' }"
+      v-bind="hold(() => menu(x.e))"
       @click="router.push(`/era/c-${x.e.id}`)"
     >
       <b>{{ x.e.title }}</b>

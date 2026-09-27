@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { mp4KeyFromBytes, mp4KeyFromFile, readMoov, sniff, unwrapId3Mp4, writeMp4Tags } from '@/native/web/mp4'
 import { writeId3 } from '@/native/web/id3-writer'
-import { tagSize } from '@/native/web/id3'
+import { parseV2, tagSize } from '@/native/web/id3'
 
 /**
  * Файлы в fixtures сделаны ffmpeg: AAC в MP4 с расширением .mp3 — как в реальной библиотеке.
@@ -130,5 +130,44 @@ describe('отпечаток MP4', () => {
   it('в браузере по кусочкам файла — то же, что по байтам целиком', async () => {
     const src = fixture('aac-faststart.mp3')
     expect(await mp4KeyFromFile(new Blob([src]))).toBe(mp4KeyFromBytes(src))
+  })
+})
+
+describe('обложка', () => {
+  // Маленький «JPEG»: движку важны только байты, картинку никто не декодирует
+  const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, ...Array.from({ length: 300 }, (_, i) => i & 255), 0xff, 0xd9])
+  const b64 = Buffer.from(jpeg).toString('base64')
+
+  for (const name of ['aac-faststart.mp3', 'aac-moovend.mp3']) {
+    it(`записывается в m4a (${name}) и читается обратно, аудио на месте`, () => {
+      const src = fixture(name)
+      const out = writeMp4Tags(src, { picture: b64 })
+      const { tags } = readMoov(moovOf(out))
+      expect([...(tags.picture?.data ?? [])]).toEqual([...jpeg])
+      expect(tags.title).toBe(readMoov(moovOf(src)).tags.title)
+      const before = chunkOffsets(src)
+      const after = chunkOffsets(out)
+      for (let i = 0; i < before.length; i++) {
+        expect([...out.subarray(after[i]!, after[i]! + 32)]).toEqual([...src.subarray(before[i]!, before[i]! + 32)])
+      }
+      // Вторая обложка заменяет первую, а не добавляется рядом
+      const again = writeMp4Tags(out, { picture: Buffer.from(jpeg.slice().reverse()).toString('base64') })
+      expect(readMoov(moovOf(again)).tags.picture?.data.length).toBe(jpeg.length)
+    })
+  }
+
+  it('записывается в mp3 кадром APIC и заменяет старую', () => {
+    const audio = Uint8Array.from([0xff, 0xfb, 0x90, 0x64, ...Array.from({ length: 400 }, () => 0)])
+    const once = writeId3(audio, { title: 'С обложкой', picture: b64 })
+    const tags = parseV2(once.subarray(0, tagSize(once.subarray(0, 10))))!
+    expect(tags.title).toBe('С обложкой')
+    expect([...(tags.picture?.data ?? [])]).toEqual([...jpeg])
+    expect(tags.picture?.mime).toBe('image/jpeg')
+    const twice = writeId3(once, { picture: Buffer.from(jpeg.slice(0, 100)).toString('base64') })
+    const t2 = parseV2(twice.subarray(0, tagSize(twice.subarray(0, 10))))!
+    expect(t2.picture?.data.length).toBe(100)
+    expect(t2.title).toBe('С обложкой')
+    // Аудио после тега не тронуто
+    expect([...twice.subarray(tagSize(twice.subarray(0, 10)))]).toEqual([...audio])
   })
 })

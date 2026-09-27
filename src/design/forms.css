@@ -126,6 +126,8 @@
   min-width: 0;
   padding: 0 12px;
   height: 46px;
+  min-height: 46px;
+  flex-shrink: 0;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--surface-2);
@@ -213,6 +215,10 @@
   gap: 12px;
   overflow-y: auto;
   min-height: 0;
+}
+/* Клавиатура уменьшает экран: шторка прокручивается, а не сплющивает поля и кнопки */
+.sheet-body > * {
+  flex-shrink: 0;
 }
 .sheet-head {
   font: 600 17px/1.2 var(--f-body);

@@ -138,6 +138,8 @@ object Mp4Tagger {
         }
         edit.year?.let { replace[DAY] = if (it > 0) textItem(DAY, it.toString()) else null }
         edit.trackNo?.let { replace[TRKN] = if (it > 0) trackItem(it, total) else null }
+        // Обложка: covr → data с типом 13 (JPEG) или 14 (PNG)
+        edit.picture?.let { pic -> replace["covr"] = box("covr", box("data", be32(if (Id3Writer.isPng(pic)) 14 else 13) + be32(0) + pic)) }
 
         val newItems = ByteArrayOutputStream()
         val done = HashSet<String>()

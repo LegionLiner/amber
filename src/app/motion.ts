@@ -147,3 +147,24 @@ export function restoreScroll(el: Element): void {
     n.scrollLeft = s.left
   }
 }
+
+/**
+ * Дождаться, когда CSS-переход сдвига у элемента действительно закончится. Не «по часам»: если кадр
+ * тяжёлый (перерисовка плеера под новый трек), переход стартует позже, и таймер срабатывал
+ * посреди движения — лента прыгала на место.
+ */
+export function afterSlide(el: HTMLElement | null | undefined, fn: () => void, fallbackMs = 700): void {
+  let done = false
+  const finish = () => {
+    if (done) return
+    done = true
+    el?.removeEventListener('transitionend', onEnd)
+    clearTimeout(timer)
+    fn()
+  }
+  const onEnd = (e: TransitionEvent) => {
+    if (e.target === el && e.propertyName === 'transform') finish()
+  }
+  el?.addEventListener('transitionend', onEnd)
+  const timer = window.setTimeout(finish, fallbackMs)
+}

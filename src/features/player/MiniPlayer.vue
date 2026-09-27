@@ -8,7 +8,7 @@ import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { formatDuration } from '@/domain/format'
 import { haptic } from '@/native/haptics'
-import { motionReduced } from '@/app/motion'
+import { afterSlide, motionReduced } from '@/app/motion'
 import type { QueueItem } from '@/native/types'
 
 /**
@@ -153,8 +153,9 @@ function commit(dir: 1 | -1) {
   expect = target.qid
   animateTo(-dir * (w + GAP), 200)
   clearTimeout(freezeTimer)
-  freezeTimer = window.setTimeout(release, 1500)
-  void player.step(dir)
+  freezeTimer = window.setTimeout(release, 2000)
+  // Как в полном плеере: сначала лента доезжает, потом переключается трек
+  afterSlide(mainEl.value?.querySelector<HTMLElement>('.strip'), () => void player.step(dir))
 }
 
 /** Трек сменился кнопками или сам: новый въезжает с той стороны, откуда он в очереди */

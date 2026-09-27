@@ -13,10 +13,12 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import org.json.JSONObject
 import kotlin.math.PI
-import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -80,15 +82,10 @@ class Engine(private val ctx: Context, private val events: Events) {
     private var txPending = false
     private var txPendingSince = 0L
     private var txCue = 0L
-    private var txGap = 0L
-    private var txLastTick = 0L
     /** Сколько обычно заводится вторая дека (мерим на каждом переходе): переход объявляем на столько раньше */
     private var startLatencyMs = 250L
-    private var txStart = 0L
     private var txDur = 0L
     private var txType = "crossfade"
-    private var txCurve = "equalPower"
-    private var txDuck = 0.35f
     private var fadeOutStart = 0L
     private var fadeOutDur = 0L
     private var manualFade: Float = 1f
@@ -104,8 +101,16 @@ class Engine(private val ctx: Context, private val events: Events) {
     private var hasFocus = false
     private var preferredDevice: AudioDeviceInfo? = null
 
+    /** Кривые переходов в самом звуке каждой деки (см. Fader) */
+    private val faders = arrayOf(Fader(), Fader())
+
+    private fun faderOf(p: ExoPlayer): Fader = faders[if (p === decks[0]) 0 else 1]
+
+    /** Часы идущего перехода: сколько уже прозвучал входящий трек */
+    private var txClock: Fader.Clock? = null
+
     init {
-        decks = arrayOf(build(), build())
+        decks = arrayOf(build(faders[0]), build(faders[1]))
         am.registerAudioDeviceCallback(object : android.media.AudioDeviceCallback() {
             override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) {
                 applyProfile()
@@ -121,9 +126,17 @@ class Engine(private val ctx: Context, private val events: Events) {
         rebuildFx()
     }
 
-    private fun build(): ExoPlayer {
+    private fun build(fader: Fader): ExoPlayer {
         val attrs = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
-        val p = ExoPlayer.Builder(ctx)
+        val renderers = object : DefaultRenderersFactory(ctx) {
+            override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
+                DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(fader))
+                    .build()
+        }
+        val p = ExoPlayer.Builder(ctx, renderers)
             .setAudioAttributes(attrs, false)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
@@ -143,6 +156,7 @@ class Engine(private val ctx: Context, private val events: Events) {
                     return
                 }
                 if (p === active) {
+                    if (fadeOutStart > 0) faderOf(p).clear()
                     fadeOutStart = 0
                     applyVolumes()
                     // Точки входа трека держит движок (без ClippingConfiguration): новый трек — с его начала
@@ -224,7 +238,10 @@ class Engine(private val ctx: Context, private val events: Events) {
     /** Любая команда пользователя сначала завершает идущий переход */
     fun settle() {
         if (tail != null) finishTail()
+        if (fadeOutStart > 0) faderOf(active).clear()
         fadeOutStart = 0
+        // Недоигранная кривая входа (переход прервали командой) — сразу в полную громкость
+        if (faderOf(active).plan != null) faderOf(active).clear()
         main.removeCallbacks(fadeTask)
         manualFade = 1f
         // Затухание прервали новой командой: то, ради чего оно шло (пропуск, смена скорости), всё равно выполняем
@@ -376,7 +393,7 @@ class Engine(private val ctx: Context, private val events: Events) {
 
     /** Сколько ещё идёт переход между треками (для анимации в интерфейсе), 0 — перехода нет */
     val transitionLeftMs: Long
-        get() = if (tail == null) 0 else if (txPending) txDur else (txDur - (SystemClock.elapsedRealtime() - txStart)).coerceAtLeast(0)
+        get() = if (tail == null) 0 else (txDur - (txClock?.playedUs ?: 0L) / 1000).coerceAtLeast(0)
 
     /* ------------------------------ переходы ------------------------------ */
 
@@ -434,15 +451,26 @@ class Engine(private val ctx: Context, private val events: Events) {
         return maxOf(item.trimStartMs ?: 0L, intro.coerceAtMost(10_000))
     }
 
+    private fun txLength(tx: Tx): Long =
+        if (tx.type == "cut" || tx.type == "gapless") tx.durationMs.coerceAtLeast(30) else tx.durationMs.coerceAtLeast(500)
+
+    /**
+     * Следующий трек заранее готовится во второй деке. Кривая входа ставится ДО подготовки:
+     * ExoPlayer ещё на паузе успевает обработать первые сотни мс звука, и они должны пройти
+     * уже с начала кривой, а не в полную громкость.
+     */
     private fun ensureAuxPrepared(nextIndex: Int, next: QItem, tx: Tx) {
         val b = aux
         if (b.mediaItemCount != active.mediaItemCount) return
         val sameItem = b.currentMediaItem?.mediaId == next.qid && b.currentMediaItemIndex == nextIndex
         val cue = cueIn(next, tx)
-        if (!sameItem || b.playbackState == Player.STATE_IDLE || b.playbackState == Player.STATE_ENDED) {
+        val fader = faderOf(b)
+        val armed = fader.plan?.let { it.role == Fader.Role.IN && it.type == tx.type && it.durUs == txLength(tx) * 1000 } == true
+        if (!sameItem || !armed || b.playbackState == Player.STATE_IDLE || b.playbackState == Player.STATE_ENDED) {
             b.playWhenReady = false
-            b.volume = 0f
+            fader.armIn(tx.type, tx.curve, txLength(tx), dbToLinear(tx.duckDb).toFloat())
             b.repeatMode = active.repeatMode
+            // Перемотка сбрасывает уже обработанный звук: он пройдёт заново, по новой кривой
             b.seekTo(nextIndex, cue)
             b.prepare()
         }
@@ -451,7 +479,13 @@ class Engine(private val ctx: Context, private val events: Events) {
     private fun startTransition(tx: Tx) {
         val a = active
         val b = aux
-        b.volume = 0f
+        val len = txLength(tx)
+        val duckGain = dbToLinear(tx.duckDb).toFloat()
+        val bFader = faderOf(b)
+        val clock = bFader.plan?.takeIf { it.role == Fader.Role.IN }?.clock ?: bFader.armIn(tx.type, tx.curve, len, duckGain)
+        faderOf(a).armOut(clock, tx.type, tx.curve, len, duckGain)
+        clock.playing = true
+        txClock = clock
         b.pauseAtEndOfMediaItems = false
         a.pauseAtEndOfMediaItems = true
         tail = a
@@ -460,13 +494,8 @@ class Engine(private val ctx: Context, private val events: Events) {
         txPending = true
         txPendingSince = SystemClock.elapsedRealtime()
         txCue = b.currentPosition
-        txStart = txPendingSince
-        txDur = if (tx.type == "cut" || tx.type == "gapless") tx.durationMs.coerceAtLeast(30) else tx.durationMs.coerceAtLeast(500)
-        txGap = 0L
-        txLastTick = 0L
+        txDur = len
         txType = tx.type
-        txCurve = tx.curve
-        txDuck = dbToLinear(tx.duckDb).toFloat()
         activeIndex = 1 - activeIndex
         b.play()
         events.onActiveChanged(a, b, "crossfade")
@@ -477,9 +506,12 @@ class Engine(private val ctx: Context, private val events: Events) {
         val t = tail ?: return
         tail = null
         txPending = false
+        txClock = null
         t.pause()
-        t.volume = 0f
         t.pauseAtEndOfMediaItems = false
+        faderOf(t).clear()
+        // Кривая входа доиграна (или переход прервали) — дальше новый трек звучит без неё
+        faderOf(active).clear()
         applyVolumes()
     }
 
@@ -508,23 +540,20 @@ class Engine(private val ctx: Context, private val events: Events) {
     private fun tick(a: ExoPlayer) {
         if (tail != null) {
             val now = SystemClock.elapsedRealtime()
-            // Диагностика: самая длинная пауза между тиками громкости за переход (зависание главного потока = ступенька)
-            if (txLastTick > 0) txGap = maxOf(txGap, now - txLastTick)
-            txLastTick = now
             if (txPending) {
                 // B пошёл, когда позиция сдвинулась от точки входа; на всякий случай не ждём дольше 1,5 с
                 val started = a.isPlaying && a.currentPosition >= txCue + 30
                 if (started || now - txPendingSince > 1500) {
                     txPending = false
-                    txStart = now
                     val took = now - txPendingSince
                     if (started) startLatencyMs = ((startLatencyMs + took) / 2).coerceIn(0, 800)
                     Log.d(TAG, "переход: B зазвучал через $took мс${if (started) "" else " (не дождались)"}, упреждение теперь $startLatencyMs мс")
                 }
             }
-            applyVolumes()
-            if (!txPending && now - txStart >= txDur) {
-                Log.d(TAG, "переход окончен: $txType $txDur мс, самая длинная пауза тиков $txGap мс")
+            val played = (txClock?.playedUs ?: 0L) / 1000
+            // Страховка: B так и не пошёл (ошибка файла) — не держим A вечно
+            if (played >= txDur || (played == 0L && now - txPendingSince > 5000)) {
+                Log.d(TAG, "переход окончен: $txType $txDur мс")
                 finishTail()
             }
             return
@@ -568,12 +597,10 @@ class Engine(private val ctx: Context, private val events: Events) {
             if (pos >= at && fadeOutStart == 0L) {
                 fadeOutStart = SystemClock.elapsedRealtime()
                 fadeOutDur = dur.coerceAtLeast(500)
+                faderOf(a).armFadeOut(fadeOutDur)
             }
-            if (fadeOutStart > 0) {
-                applyVolumes()
-                // Затихло — сразу следующий с его точки входа, а не тишина до конца файла
-                if (SystemClock.elapsedRealtime() - fadeOutStart >= fadeOutDur) advance(a, nextIndex)
-            }
+            // Затихло — сразу следующий с его точки входа, а не тишина до конца файла
+            if (fadeOutStart > 0 && faderOf(a).silent) advance(a, nextIndex)
             return
         }
         if (pos >= at - 20_000) ensureAuxPrepared(nextIndex, next, tx)
@@ -592,53 +619,16 @@ class Engine(private val ctx: Context, private val events: Events) {
         return dbToLinear(db).coerceIn(0.0, 1.0).toFloat()
     }
 
-    private fun curveIn(t: Float): Float = when (txCurve) {
-        "linear" -> t
-        "sCurve" -> (0.5 - 0.5 * cos(PI * t)).toFloat()
-        else -> sin(t * PI / 2).toFloat()
-    }
-
-    private fun curveOut(t: Float): Float = when (txCurve) {
-        "linear" -> 1 - t
-        "sCurve" -> (0.5 + 0.5 * cos(PI * t)).toFloat()
-        else -> cos(t * PI / 2).toFloat()
-    }
-
+    /**
+     * Громкость дек: нормализация × приглушение (аудиофокус) × сон-таймер × короткое затухание при пропуске.
+     * Кривые переходов сюда не входят — их ведут процессоры Fader прямо в звуке.
+     */
     fun applyVolumes() {
         val common = duck * sleepFactor * manualFade
         val a = active
         val t = tail
-        if (t == null) {
-            var f = 1f
-            if (fadeOutStart > 0) {
-                f = 1f - ((SystemClock.elapsedRealtime() - fadeOutStart).toFloat() / fadeOutDur).coerceIn(0f, 1f)
-            }
-            a.volume = gainOf(a) * f * common
-            aux.volume = 0f
-            return
-        }
-        if (txPending) {
-            a.volume = 0f
-            t.volume = gainOf(t) * common
-            return
-        }
-        val x = ((SystemClock.elapsedRealtime() - txStart).toFloat() / txDur).coerceIn(0f, 1f)
-        val inF: Float
-        val outF: Float
-        if (txType == "overlay") {
-            // B входит почти сразу, A отходит на второй план и уходит в конце
-            inF = (x / 0.08f).coerceAtMost(1f)
-            outF = when {
-                x < 0.15f -> 1f - (1f - txDuck) * (x / 0.15f)
-                x < 0.75f -> txDuck
-                else -> txDuck * (1f - (x - 0.75f) / 0.25f)
-            }
-        } else {
-            inF = curveIn(x)
-            outF = curveOut(x)
-        }
-        a.volume = gainOf(a) * inF * common
-        t.volume = gainOf(t) * outF * common
+        a.volume = gainOf(a) * common
+        if (t != null) t.volume = gainOf(t) * common else aux.volume = 0f
     }
 
     /* ------------------------------ эквалайзер ------------------------------ */

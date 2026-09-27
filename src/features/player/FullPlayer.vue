@@ -34,7 +34,7 @@ import { useUi } from '@/stores/ui'
 import { ambientColors } from '@/domain/palette'
 import { sourceLabel } from '@/domain/sources'
 import { haptic } from '@/native/haptics'
-import { motionReduced } from '@/app/motion'
+import { afterSlide, motionReduced } from '@/app/motion'
 import type { QueueItem } from '@/native/types'
 
 const player = usePlayer()
@@ -191,7 +191,12 @@ let artW = 0
 let animEnd = 0
 let expect: string | null = null
 let freezeTimer = 0
-const slide = computed(() => (artW ? Math.min(1, Math.abs(artDx.value) / (artW + GAP)) : 0))
+/** Насколько сдвинута лента, 0..1. artDx читается всегда: иначе при первом расчёте (artW ещё 0)
+ * вычисление не подписывалось на сдвиг и соседние обложки навсегда оставались тусклыми */
+const slide = computed(() => {
+  const dx = Math.abs(artDx.value)
+  return artW ? Math.min(1, dx / (artW + GAP)) : 0
+})
 
 const deckStyle = computed(() => ({ transform: `translateX(${artDx.value}px)`, transition: artAnim.value ?? 'none' }))
 function slotStyle(i: number) {
@@ -224,8 +229,10 @@ function commit(dir: 1 | -1) {
   expect = target.qid
   animateTo(-dir * (artW + GAP), 240)
   clearTimeout(freezeTimer)
-  freezeTimer = window.setTimeout(release, 1500)
-  void player.step(dir)
+  freezeTimer = window.setTimeout(release, 2000)
+  // Трек переключаем, когда обложка уже доехала: перерисовка плеера под новый трек тяжёлая,
+  // и если начать её вместе с анимацией, обложка замирает, а потом прыгает
+  afterSlide(deck.value, () => void player.step(dir))
 }
 function release() {
   clearTimeout(freezeTimer)
@@ -381,14 +388,15 @@ function togglePlay() {
       role="dialog"
       aria-label="Плеер"
     >
-      <!-- Фон нового трека проявляется поверх старого (только прозрачность — это делает видеоускоритель;
-           анимация самих цветов перерисовывала размытые пятна на каждом кадре и дёргалась) -->
+      <!-- Фон нового трека проявляется поверх старого (только прозрачность — это делает видеоускоритель).
+           Обычный Transition, не TransitionGroup: тот на каждом обновлении замерял позиции и пересчитывал
+           раскладку всей страницы — почти 100 мс ровно в момент смены трека -->
       <div class="ambient" aria-hidden="true">
-        <TransitionGroup name="amb">
-          <div v-for="c in [colors]" :key="c.join()" class="amb" :style="{ '--c1': c[0], '--c2': c[1] }">
+        <Transition name="amb">
+          <div :key="colors.join()" class="amb" :style="{ '--c1': colors[0], '--c2': colors[1] }">
             <i class="b1" /><i class="b2" /><i class="b3" />
           </div>
-        </TransitionGroup>
+        </Transition>
         <div class="veil" />
       </div>
 
@@ -430,7 +438,7 @@ function togglePlay() {
         </div>
 
         <div class="info">
-          <Transition name="names" mode="out-in">
+          <Transition name="title">
             <div :key="item.qid" class="names">
               <h2 class="display ellipsis">{{ item.title }}</h2>
               <p class="ellipsis">
@@ -555,35 +563,40 @@ function togglePlay() {
 .amb-leave-to {
   opacity: 0;
 }
+/*
+ * Пятна фона — радиальные градиенты с мягким краем, а не круги с filter: blur(60px): размытие
+ * перерисовывалось при каждой смене трека и на полсекунды подвешивало интерфейс (и анимацию смены).
+ * Профиль градиента повторяет размытый круг: плотная середина, половина яркости у бывшего края.
+ */
 .ambient i {
   position: absolute;
   border-radius: 50%;
-  filter: blur(60px);
   opacity: 0.75;
+  --c: var(--c1);
+  background: radial-gradient(closest-side, var(--c) 26%, color-mix(in srgb, var(--c) 50%, transparent) 72%, transparent);
+  will-change: transform;
 }
 .b1 {
-  width: 90vw;
-  height: 90vw;
-  left: -30vw;
-  top: -20vw;
-  background: var(--c1);
+  width: 120vw;
+  height: 120vw;
+  left: -45vw;
+  top: -35vw;
   animation: drift1 26s ease-in-out infinite alternate;
 }
 .b2 {
-  width: 80vw;
-  height: 80vw;
-  right: -35vw;
-  top: 30vh;
-  background: var(--c2);
+  width: 106vw;
+  height: 106vw;
+  right: -48vw;
+  top: calc(30vh - 13vw);
+  --c: var(--c2);
   opacity: 0.5 !important;
   animation: drift2 30s ease-in-out infinite alternate;
 }
 .b3 {
-  width: 70vw;
-  height: 70vw;
-  left: 10vw;
-  top: 10vh;
-  background: var(--c1);
+  width: 94vw;
+  height: 94vw;
+  left: -2vw;
+  top: calc(10vh - 12vw);
   opacity: 0.35 !important;
   animation: drift1 34s ease-in-out infinite alternate-reverse;
 }
@@ -670,6 +683,8 @@ function togglePlay() {
   inset: 0;
   border-radius: var(--r-l);
   box-shadow: var(--shadow-cover);
+  /* Своя слойка у каждой обложки: сдвиг и масштаб при смене трека — без перерисовки */
+  will-change: transform, opacity;
 }
 .burst {
   position: absolute;
@@ -695,6 +710,7 @@ function togglePlay() {
   }
 }
 .info {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 12px;
@@ -713,6 +729,27 @@ function togglePlay() {
   margin-top: 5px;
   font-size: 14.5px;
   color: var(--ink-2);
+}
+/* Название нового трека проявляется поверх уходящего, без пустого места между ними */
+.title-enter-active,
+.title-leave-active {
+  transition:
+    opacity 260ms var(--ease),
+    transform 320ms var(--ease-out);
+}
+.title-leave-active {
+  position: absolute;
+  left: 0;
+  right: 52px;
+  bottom: 0;
+}
+.title-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.title-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 .names-enter-active,
 .names-leave-active {

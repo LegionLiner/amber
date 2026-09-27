@@ -622,12 +622,31 @@ class MusicCorePlugin : Plugin() {
 
     /* ---------------- файлы бэкапа ---------------- */
 
+    /** Содержимое экспортируемого файла, пока пользователь выбирает, куда его сохранить */
+    private val exportStash get() = java.io.File(context.cacheDir, "export-pending.bin")
+
     @PluginMethod
     fun exportFile(call: PluginCall) {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType(call.getString("mime") ?: "application/json")
             .putExtra(Intent.EXTRA_TITLE, call.getString("name") ?: "amber-backup.json")
+        // Данные не должны ехать вместе с вызовом: пока открыт системный выбор папки, Capacitor
+        // кладёт вызов целиком в сохранённое состояние активности, а у Android там лимит ~1 МБ.
+        // Бэкап с большой историей (десятки МБ) ронял приложение (TransactionTooLargeException).
+        // Поэтому содержимое — во временный файл (переживёт и выгрузку процесса), в вызове только имя.
+        try {
+            val data = call.getString("data") ?: ""
+            val bytes = if (call.getBoolean("base64", false) == true) {
+                android.util.Base64.decode(data, android.util.Base64.DEFAULT)
+            } else {
+                data.toByteArray()
+            }
+            exportStash.writeBytes(bytes)
+        } catch (e: Exception) {
+            return call.reject(e.message ?: "Не удалось подготовить файл")
+        }
+        call.data.remove("data")
         startActivityForResult(call, intent, "onExportPicked")
     }
 
@@ -636,17 +655,16 @@ class MusicCorePlugin : Plugin() {
         if (call == null) return
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
+            exportStash.delete()
             call.reject("Сохранение отменено", "CANCELLED")
             return
         }
         onWork(call) {
-            val data = call.getString("data") ?: ""
-            val bytes = if (call.getBoolean("base64", false) == true) {
-                android.util.Base64.decode(data, android.util.Base64.DEFAULT)
-            } else {
-                data.toByteArray()
-            }
-            context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: error("Не удалось открыть файл для записи")
+            val stash = exportStash
+            if (!stash.exists()) error("Данные для сохранения потерялись, повтори экспорт")
+            context.contentResolver.openOutputStream(uri, "wt")?.use { out -> stash.inputStream().use { it.copyTo(out) } }
+                ?: error("Не удалось открыть файл для записи")
+            stash.delete()
             call.resolve(JSObject().put("uri", uri.toString()))
         }
     }

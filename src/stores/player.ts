@@ -91,7 +91,19 @@ export const usePlayer = defineStore('player', () => {
     return durationMs.value > 0 ? Math.min(p, durationMs.value) : p
   })
 
+  /**
+   * Переход на трек по номеру: движок сначала 250 мс уводит звук и всё это время присылает старый номер.
+   * Интерфейс уже показывает новый трек и не должен откатываться назад (название мигало бы туда-обратно)
+   */
+  let pendingIndex: { index: number; until: number } | null = null
+
   function applyState(e: PlayerStateEvent) {
+    const p = pendingIndex
+    if (p && e.index !== p.index && Date.now() < p.until) {
+      // Ждём, пока движок дойдёт до нужного трека; позицию старого трека не показываем
+      return
+    }
+    pendingIndex = null
     index.value = e.index
     playing.value = e.playing
     buffering.value = e.buffering
@@ -303,6 +315,7 @@ export const usePlayer = defineStore('player', () => {
 
   async function jump(i: number) {
     index.value = i
+    pendingIndex = { index: i, until: Date.now() + 1500 }
     await MusicCore.skipTo({ index: i, play: true })
   }
 

@@ -49,6 +49,15 @@ android {
     }
 }
 
+android {
+    compileOptions {
+        // NewPipeExtractor использует java.nio.file, которого нет в Android до API 33
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
@@ -71,6 +80,9 @@ dependencies {
     implementation "androidx.media3:media3-session:$media3Version"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion"
     implementation "androidx.palette:palette:$paletteVersion"
+    // Разбор страниц YouTube для загрузки аудио по ссылке (та же библиотека, что у NewPipe)
+    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

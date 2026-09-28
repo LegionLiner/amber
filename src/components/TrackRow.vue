@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject, ref } from 'vue'
 import IconMore from '~icons/solar/menu-dots-bold'
 import IconHeart from '~icons/solar/heart-bold'
 import IconNext from '~icons/solar/list-arrow-down-linear'
@@ -7,6 +7,7 @@ import IconStar from '~icons/solar/star-bold'
 import CoverArt from './CoverArt.vue'
 import EqBars from './EqBars.vue'
 import { useRowGesture } from '@/composables/useRowGesture'
+import { PAGE_SWIPES } from '@/app/paging'
 import { displayArtist, type Track } from '@/domain/track'
 
 export type RowMeta = { kind: 'stars'; rating: number | null } | { kind: 'text'; text: string } | { kind: 'none' }
@@ -25,11 +26,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{ tap: []; more: []; swipeLeft: []; swipeRight: [] }>()
 
+/** В листаемых разделах горизонтальный свайп листает раздел, а не двигает строку */
+const pageSwipes = inject(PAGE_SWIPES, ref(false))
 const { dx, dragging, handlers } = useRowGesture({
   onTap: () => emit('tap'),
   onLongPress: () => emit('more'),
   onSwipeLeft: () => emit('swipeLeft'),
   onSwipeRight: () => emit('swipeRight'),
+  swipes: () => !pageSwipes.value,
 })
 
 const sub = computed(() => props.subtitle ?? displayArtist(props.track))

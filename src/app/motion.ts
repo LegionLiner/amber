@@ -9,9 +9,15 @@ import type { RouteLocationNormalized, Router } from 'vue-router'
  * смена вкладки — «проявление» без сдвига, как в Material. Если экран открыли тапом по обложке,
  * обложка перелетает из карточки на место большой обложки новой страницы.
  */
-export type RouteAnim = 'forward' | 'back' | 'tab' | 'morph' | 'fade' | 'none'
+export type RouteAnim = 'forward' | 'back' | 'tab' | 'morph' | 'fade' | 'slide-next' | 'slide-prev' | 'none'
 
 export const routeAnim = ref<RouteAnim>('none')
+
+/** Анимация для следующего перехода, заданная явно (листание разделов свайпом, чипсы медиатеки) */
+let forced: RouteAnim | null = null
+export function nextRouteAnim(a: RouteAnim): void {
+  forced = a
+}
 
 export function motionReduced(): boolean {
   return document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -31,7 +37,10 @@ export function installRouteMotion(router: Router): void {
     const pos = position()
     const dir = pos - last
     last = pos
+    const f = forced
+    forced = null
     if (!from.matched.length || motionReduced()) routeAnim.value = 'none'
+    else if (f) routeAnim.value = f
     else if (
       to.meta.tab !== from.meta.tab ||
       (TAB_ROOTS.has(String(to.name)) && TAB_ROOTS.has(String(from.name)) && to.name !== from.name)

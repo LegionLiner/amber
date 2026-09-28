@@ -22,6 +22,11 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // NewPipeExtractor (загрузка с YouTube) публикуется только в JitPack
+        maven {
+            url 'https://jitpack.io'
+            content { includeGroupByRegex 'com\\.github\\..*' }
+        }
     }
 }
 

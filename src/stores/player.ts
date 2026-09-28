@@ -258,6 +258,11 @@ export const usePlayer = defineStore('player', () => {
     await edit([{ op: 'remove', index: i }], local, i < index.value ? index.value - 1 : index.value)
   }
 
+  /** Убрать из очереди все вхождения этих треков (удалённые файлы) */
+  async function removeKeys(keys: Set<string>) {
+    for (let i = queue.value.length - 1; i >= 0; i--) if (keys.has(queue.value[i]!.key)) await removeAt(i)
+  }
+
   async function move(from: number, to: number) {
     if (from === to) return
     const local = queue.value.slice()
@@ -430,6 +435,7 @@ export const usePlayer = defineStore('player', () => {
     addToQueue,
     append,
     removeAt,
+    removeKeys,
     move,
     clearUpcoming,
     toggleShuffle,

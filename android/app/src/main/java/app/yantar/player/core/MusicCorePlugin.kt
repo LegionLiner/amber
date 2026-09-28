@@ -367,6 +367,70 @@ class MusicCorePlugin : Plugin() {
         return Id3Writer.Edit(str("title"), str("artist"), str("album"), str("genre"), int("year"), int("trackNo"), picture)
     }
 
+    /* ---------------- YouTube: единственная онлайн-функция ---------------- */
+
+    private val ytWork = Executors.newSingleThreadExecutor { r -> Thread(r, "yantar-youtube").apply { isDaemon = true } }
+    /** Разобранная страница: ссылки на звук живут несколько часов, повторно не разбираем */
+    @Volatile private var ytLast: Pair<String, app.yantar.player.online.YouTube.Info>? = null
+
+    private fun ytError(e: Throwable): String = when (e) {
+        is org.schabi.newpipe.extractor.exceptions.ReCaptchaException -> "YouTube просит проверку «я не робот». Попробуй позже"
+        is org.schabi.newpipe.extractor.exceptions.AgeRestrictedContentException -> "Видео с ограничением по возрасту — без входа в аккаунт его не скачать"
+        is org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException -> "Видео недоступно: удалено, закрыто или не для этой страны"
+        is java.net.UnknownHostException -> "Нет интернета"
+        is org.schabi.newpipe.extractor.exceptions.ParsingException -> "Не получилось разобрать страницу YouTube. Возможно, нужна новая версия приложения"
+        else -> e.message ?: e.toString()
+    }
+
+    @PluginMethod
+    fun youtubeInfo(call: PluginCall) {
+        val url = call.getString("url")?.trim().orEmpty()
+        if (url.isEmpty()) return call.reject("Нет ссылки")
+        ytWork.execute {
+            try {
+                val i = app.yantar.player.online.YouTube.info(url)
+                ytLast = url to i
+                call.resolve(
+                    JSObject()
+                        .put("title", i.title)
+                        .put("artist", i.artist)
+                        .put("uploader", i.uploader)
+                        .put("durationMs", i.durationMs)
+                        .put("thumbnail", i.thumbnail),
+                )
+            } catch (e: Throwable) {
+                android.util.Log.w("MusicCore", "youtube info", e)
+                call.reject(ytError(e))
+            }
+        }
+    }
+
+    @PluginMethod
+    fun youtubeDownload(call: PluginCall) {
+        val url = call.getString("url")?.trim().orEmpty()
+        if (url.isEmpty()) return call.reject("Нет ссылки")
+        ytWork.execute {
+            try {
+                val info = ytLast?.takeIf { it.first == url }?.second ?: app.yantar.player.online.YouTube.info(url)
+                val title = call.getString("title")?.trim()?.takeIf { it.isNotEmpty() } ?: info.title
+                val artist = call.getString("artist")?.trim()?.takeIf { it.isNotEmpty() } ?: info.artist
+                var lastSent = 0L
+                val saved = app.yantar.player.online.YouTube.download(context, info, title, artist) { stage, done, total ->
+                    val now = System.currentTimeMillis()
+                    if (stage != "download" || now - lastSent > 200 || done == total) {
+                        lastSent = now
+                        notifyListeners("youtubeProgress", JSObject().put("stage", stage).put("done", done).put("total", total))
+                    }
+                }
+                ytLast = null
+                call.resolve(JSObject().put("uri", saved.uri.toString()).put("path", saved.path).put("name", saved.name))
+            } catch (e: Throwable) {
+                android.util.Log.w("MusicCore", "youtube download", e)
+                call.reject(ytError(e))
+            }
+        }
+    }
+
     /** Своя картинка (обложка плейлиста или трека внутри приложения): в общую папку обложек, ответ — её ключ */
     @PluginMethod
     fun saveCover(call: PluginCall) {
@@ -393,6 +457,37 @@ class MusicCorePlugin : Plugin() {
             val launcher = writeLauncher ?: return call.reject("Запрос на запись недоступен")
             pendingWrite = call to then
             launcher.launch(IntentSenderRequest.Builder(MediaStore.createWriteRequest(context.contentResolver, uris).intentSender).build())
+        } catch (e: Exception) {
+            pendingWrite = null
+            call.reject(e.message ?: e.toString())
+        }
+    }
+
+    /**
+     * Удаление файлов с телефона. Подтверждение показывает сам Android (MediaStore.createDeleteRequest),
+     * без него приложение чужие файлы удалить не может. История прослушиваний и оценки остаются:
+     * трек помечается пропавшим (missing_since) и уходит из медиатеки.
+     */
+    @PluginMethod
+    fun deleteFiles(call: PluginCall) {
+        val items = call.getArray("items") ?: JSArray()
+        if (items.length() == 0) return call.resolve(JSObject().put("deleted", 0))
+        val uris = (0 until items.length()).map { Uri.parse(items.getJSONObject(it).optString("uri")) }
+        val keys = (0 until items.length()).map { items.getJSONObject(it).optString("key") }
+        try {
+            val launcher = writeLauncher ?: return call.reject("Запрос на удаление недоступен")
+            pendingWrite = call to { ok ->
+                if (!ok) {
+                    call.reject("Удаление отменено", "CANCELLED")
+                } else {
+                    work.execute {
+                        val now = System.currentTimeMillis()
+                        for (k in keys) Database.execute("UPDATE tracks SET missing_since = ? WHERE key = ?", listOf(now, k))
+                        call.resolve(JSObject().put("deleted", keys.size))
+                    }
+                }
+            }
+            launcher.launch(IntentSenderRequest.Builder(MediaStore.createDeleteRequest(context.contentResolver, uris).intentSender).build())
         } catch (e: Exception) {
             pendingWrite = null
             call.reject(e.message ?: e.toString())

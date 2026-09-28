@@ -60,7 +60,7 @@ function shuffleAll() {
 </script>
 
 <template>
-  <TrackList ref="list" :tracks="sorted" :source="source" :meta="meta">
+  <TrackList ref="list" :tracks="sorted" :source="source" :meta="meta" :class="{ 'with-alpha': alphaNames }">
     <template #header>
       <LibraryHeader section="tracks" />
       <div class="toolbar">
@@ -82,6 +82,10 @@ function shuffleAll() {
 </template>
 
 <style scoped>
+/* Справа буквенная полоса: кнопка «⋯» строки не должна оказываться под ней */
+.with-alpha :deep(.row) {
+  padding-right: calc(var(--gutter) + 14px);
+}
 .toolbar {
   display: flex;
   align-items: center;

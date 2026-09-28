@@ -31,6 +31,7 @@ import type {
   Transition,
   WriteTagsItem,
   WriteTagsResult,
+  YoutubeInfo,
 } from '../types'
 import { WebDb } from './web-db'
 import { buildDemoLibrary, type DemoTrack } from './demo-library'
@@ -713,6 +714,41 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       this.tagBackupsMem.delete(it.key)
       return saved
     })
+  }
+
+  async youtubeInfo(): Promise<YoutubeInfo> {
+    throw new Error('Загрузка с YouTube работает в приложении на телефоне')
+  }
+
+  async youtubeDownload(): Promise<{ uri: string; path: string; name: string }> {
+    throw new Error('Загрузка с YouTube работает в приложении на телефоне')
+  }
+
+  /** Как deleteFiles на телефоне: файл удаляется из выбранной папки, трек помечается пропавшим */
+  async deleteFiles(o: { items: { key: string; uri: string; path: string }[] }): Promise<{ deleted: number }> {
+    const db = await this.dbReady
+    const folderMode = this.source === 'folder' && !!this.folder
+    if (folderMode && !this.folderWritable) {
+      const h = this.folder as DirHandle
+      let perm = (await h.queryPermission?.({ mode: 'readwrite' })) ?? 'granted'
+      if (perm !== 'granted') perm = (await h.requestPermission?.({ mode: 'readwrite' })) ?? 'denied'
+      this.folderWritable = perm === 'granted'
+      if (!this.folderWritable) throw new Error('Нет разрешения на изменение файлов')
+    }
+    let deleted = 0
+    for (const it of o.items) {
+      const f = this.files.get(it.key)
+      if (folderMode && f) {
+        const parts = f.rel.split('/')
+        let dir = this.folder as FileSystemDirectoryHandle
+        for (const p of parts.slice(1, -1)) dir = await dir.getDirectoryHandle(p)
+        await dir.removeEntry(parts[parts.length - 1]!)
+        this.files.delete(it.key)
+      }
+      db.execute('UPDATE tracks SET missing_since = ? WHERE key = ?', [Date.now(), it.key])
+      deleted++
+    }
+    return { deleted }
   }
 
   /** Как saveCover на телефоне: картинка в IndexedDB под хешем. Цвета для фона здесь не считаем */

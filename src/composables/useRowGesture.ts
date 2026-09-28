@@ -7,6 +7,8 @@ export interface RowGestureOptions {
   onLongPress?: () => void
   onSwipeLeft?: () => void
   onSwipeRight?: () => void
+  /** Можно ли сейчас свайпать строку (в листаемых разделах — нет) */
+  swipes?: () => boolean
 }
 
 const THRESHOLD = 72
@@ -64,7 +66,7 @@ export function useRowGesture(opts: RowGestureOptions) {
     const my = e.clientY - sy
     if (!lock && Math.hypot(mx, my) > 8) {
       clearTimeout(timer)
-      const canSwipe = (mx > 0 && opts.onSwipeRight) || (mx < 0 && opts.onSwipeLeft)
+      const canSwipe = (opts.swipes?.() ?? true) && ((mx > 0 && opts.onSwipeRight) || (mx < 0 && opts.onSwipeLeft))
       lock = Math.abs(mx) > Math.abs(my) * 1.3 && canSwipe ? 'x' : 'y'
       if (lock === 'x') (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     }

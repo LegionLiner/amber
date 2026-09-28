@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, provide } from 'vue'
 import { useRoute, type RouteLocationNormalizedLoaded } from 'vue-router'
 import BottomNav from '@/components/BottomNav.vue'
 import SheetHost from '@/components/SheetHost.vue'
@@ -13,11 +13,17 @@ import { useUi } from '@/stores/ui'
 import { usePlayer } from '@/stores/player'
 import { isNative } from '@/native/paths'
 import { rememberScroll, restoreScroll, routeAnim } from '@/app/motion'
+import { PAGE_SWIPES, pagingFor, usePageSwipe } from '@/app/paging'
+import { useRouter } from 'vue-router'
 
 const route = useRoute()
 const ui = useUi()
 const player = usePlayer()
 const bare = computed(() => !!route.meta.bare)
+
+/* Главные экраны листаются свайпом вбок; строки треков там свои свайпы не забирают */
+const pageSwipe = usePageSwipe(useRouter(), route)
+provide(PAGE_SWIPES, pagingFor(route))
 
 /** Экраны вкладок живут в KeepAlive под своим адресом, поэтому помнят прокрутку */
 function viewKey(r: RouteLocationNormalizedLoaded): string {
@@ -31,18 +37,20 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
       <h3>Не удалось запустить</h3>
       <p>{{ bootState.error }}</p>
     </div>
-    <RouterView v-slot="{ Component, route: r }">
-      <Transition
-        :name="routeAnim === 'none' ? undefined : `rt-${routeAnim}`"
-        :css="routeAnim !== 'none'"
-        @before-leave="rememberScroll"
-        @enter="restoreScroll"
-      >
-        <KeepAlive :max="8">
-          <component :is="Component" :key="viewKey(r)" />
-        </KeepAlive>
-      </Transition>
-    </RouterView>
+    <div class="pages" v-bind="pageSwipe">
+      <RouterView v-slot="{ Component, route: r }">
+        <Transition
+          :name="routeAnim === 'none' ? undefined : `rt-${routeAnim}`"
+          :css="routeAnim !== 'none'"
+          @before-leave="rememberScroll"
+          @enter="restoreScroll"
+        >
+          <KeepAlive :max="8">
+            <component :is="Component" :key="viewKey(r)" />
+          </KeepAlive>
+        </Transition>
+      </RouterView>
+    </div>
     <template v-if="!bare">
       <MiniPlayer />
       <BottomNav @reselect="ui.tabReselected" />
@@ -57,6 +65,11 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
 
 <style scoped>
 .shell {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+.pages {
   position: relative;
   height: 100%;
   overflow: hidden;

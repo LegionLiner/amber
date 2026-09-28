@@ -3,10 +3,11 @@ import { useRouter } from 'vue-router'
 import IconRefresh from '~icons/solar/refresh-linear'
 import ChipTabs from '@/components/ChipTabs.vue'
 import { useLibrary } from '@/stores/library'
+import { nextRouteAnim } from '@/app/motion'
 
 export type LibrarySection = 'tracks' | 'playlists' | 'albums' | 'artists' | 'folders' | 'genres' | 'favorites'
 
-defineProps<{ section: LibrarySection }>()
+const props = defineProps<{ section: LibrarySection }>()
 const router = useRouter()
 const library = useLibrary()
 
@@ -21,6 +22,9 @@ const SECTIONS: { id: LibrarySection; label: string }[] = [
 ]
 
 function select(id: LibrarySection) {
+  const from = SECTIONS.findIndex((s) => s.id === props.section)
+  const to = SECTIONS.findIndex((s) => s.id === id)
+  if (from >= 0 && to !== from) nextRouteAnim(to > from ? 'slide-next' : 'slide-prev')
   void router.replace(`/library/${id}`)
 }
 </script>

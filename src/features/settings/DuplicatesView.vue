@@ -6,6 +6,7 @@ import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { findDuplicates, type DuplicateGroup } from '@/domain/duplicates'
 import { mergeDuplicates } from '@/data/repos/library'
+import { deleteTracks } from '@/app/delete-tracks'
 import { dismiss, dismissedKeys } from '@/data/repos/tags'
 import { formatBytes, formatDuration } from '@/domain/format'
 
@@ -38,6 +39,24 @@ async function merge(g: DuplicateGroup) {
   )
   await library.load()
   ui.toast('Слито: история и оценки теперь у одного файла')
+  await load()
+}
+
+/** Слить историю в выбранный файл, а остальные копии удалить с телефона */
+async function mergeAndDelete(g: DuplicateGroup) {
+  const best = choice.value.get(g.id) ?? g.best.key
+  const extra = g.tracks.filter((t) => t.key !== best)
+  await mergeDuplicates(
+    best,
+    extra.map((t) => t.key),
+  )
+  try {
+    const n = await deleteTracks(extra)
+    ui.toast(n ? `Слито, лишних файлов удалено: ${n}` : 'Слито. Лишние файлы остались на месте')
+  } catch (e) {
+    ui.toast(`Слито, но удалить не получилось: ${e instanceof Error ? e.message : String(e)}`)
+  }
+  await library.load()
   await load()
 }
 
@@ -76,12 +95,19 @@ async function notDup(g: DuplicateGroup) {
         <button type="button" class="btn" @click="notDup(g)">Это разные</button>
         <button type="button" class="btn primary" @click="merge(g)">Слить</button>
       </div>
+      <button type="button" class="btn block del" @click="mergeAndDelete(g)">Слить и удалить лишние файлы</button>
     </section>
     <div class="bottom-space" />
   </div>
 </template>
 
 <style scoped>
+.del {
+  margin-top: 8px;
+  min-height: 40px;
+  font-size: 14px;
+  color: var(--bad);
+}
 .head {
   display: grid;
   grid-template-columns: 44px 1fr;

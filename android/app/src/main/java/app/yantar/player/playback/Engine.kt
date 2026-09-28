@@ -115,6 +115,9 @@ class Engine(private val ctx: Context, private val events: Events) {
             override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) {
                 applyProfile()
                 events.onOutputsChanged(added.any { kindOf(it) == "bluetooth" || kindOf(it) == "wired" })
+                // Колонка появляется в списке раньше, чем на неё переключается звук: через секунду
+                // сообщаем интерфейсу ещё раз, уже с установившимся маршрутом (контексты по устройству)
+                main.postDelayed({ events.onOutputsChanged(false) }, 1200)
             }
 
             override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) {
@@ -730,9 +733,11 @@ class Engine(private val ctx: Context, private val events: Events) {
             AudioDeviceInfo.TYPE_USB_DEVICE,
         )
         if (android.os.Build.VERSION.SDK_INT >= 31) {
+            // Колонки и наушники с LE Audio (JBL Go 4, новые AirPods) подключаются так, а не через A2DP
             wanted += AudioDeviceInfo.TYPE_BLE_HEADSET
             wanted += AudioDeviceInfo.TYPE_BLE_SPEAKER
         }
+        if (android.os.Build.VERSION.SDK_INT >= 33) wanted += AudioDeviceInfo.TYPE_BLE_BROADCAST
         return am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).filter { it.type in wanted }
     }
 
@@ -754,12 +759,32 @@ class Engine(private val ctx: Context, private val events: Events) {
 
     /** Куда сейчас идёт звук: bt:<имя>, wired, usb или speaker */
     fun outputName(): String {
-        preferredDevice?.let { d -> return if (kindOf(d) == "bluetooth") "bt:${d.productName}" else kindOf(d) }
+        preferredDevice?.let { d -> return nameOf(d) }
+        // Android 13+: система прямо говорит, куда сейчас идёт музыка — это точнее, чем «есть ли Bluetooth в списке»
+        routedMediaDevice()?.let { return nameOf(it) }
         val outs = outputs()
         outs.firstOrNull { kindOf(it) == "bluetooth" }?.let { return "bt:${it.productName}" }
         if (outs.any { kindOf(it) == "wired" }) return "wired"
         if (outs.any { kindOf(it) == "usb" }) return "usb"
         return "speaker"
+    }
+
+    private fun nameOf(d: AudioDeviceInfo): String =
+        if (kindOf(d) == "bluetooth") "bt:${d.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Bluetooth"}" else kindOf(d)
+
+    private fun routedMediaDevice(): AudioDeviceInfo? {
+        if (android.os.Build.VERSION.SDK_INT < 33) return null
+        return try {
+            val attrs = android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+            // Устройство, на которое система сейчас направит музыку; только из «наших» типов вывода
+            val wanted = outputs().map { it.id }.toSet()
+            am.getAudioDevicesForAttributes(attrs).firstOrNull { it.id in wanted }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun release() {

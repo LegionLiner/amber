@@ -34,6 +34,8 @@ onMounted(() => void player.refreshOutputs().catch(() => undefined))
 const outputOptions = computed(() => {
   const set = new Set<string>(['bt:', 'wired', 'speaker'])
   for (const d of player.outputs?.devices ?? []) if (d.kind === 'bluetooth') set.add(`bt:${d.name}`)
+  // Ровно то имя, которое движок пишет в историю прослушиваний
+  if (player.output.startsWith('bt:')) set.add(player.output)
   for (const o of form.outputs) set.add(o)
   return [...set]
 })

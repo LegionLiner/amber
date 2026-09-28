@@ -7,9 +7,9 @@ import { haptic } from '@/native/haptics'
  * Алфавитная полоса справа: ведёшь пальцем — список прыгает к первой записи на эту букву,
  * над пальцем крупно видна текущая буква. Кириллица и латиница вперемешку, как в списке.
  *
- * Полоса узкая и стоит у края, куда часто попадает большой палец при прокрутке. Поэтому она
- * «спит», пока список не листают: касание уходит в прокрутку, а схватить полосу можно долгим
- * касанием. Пока список едет (и полторы секунды после), полоса яркая и берётся сразу.
+ * Полоса узкая и стоит у края, где кнопки «⋯» строк и куда попадает большой палец при прокрутке.
+ * Поэтому, пока список не листают, она «спит» и пропускает касания насквозь (к кнопкам и списку).
+ * Пока список едет (и полторы секунды после), полоса яркая и берётся сразу — как в контактах Android.
  */
 const props = defineProps<{ names: string[] }>()
 const emit = defineEmits<{ jump: [index: number] }>()
@@ -35,7 +35,6 @@ const awake = ref(false)
 const bubbleY = ref(0)
 
 let sleepTimer = 0
-let holdTimer = 0
 let pid = -1
 
 function wake() {
@@ -59,7 +58,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('scroll', onScroll, { capture: true })
   el.value?.removeEventListener('touchmove', blockTouchMove)
   clearTimeout(sleepTimer)
-  clearTimeout(holdTimer)
 })
 
 function pick(y: number) {
@@ -82,17 +80,12 @@ function grab(y: number) {
 function down(e: PointerEvent) {
   if (e.button !== 0) return
   pid = e.pointerId
-  if (awake.value) return grab(e.clientY)
-  // Спит: ждём, не окажется ли это прокруткой. Палец постоял на месте — значит, хотят полосу
-  const y = e.clientY
-  clearTimeout(holdTimer)
-  holdTimer = window.setTimeout(() => grab(y), 320)
+  if (awake.value) grab(e.clientY)
 }
 function move(e: PointerEvent) {
   if (dragging.value && e.pointerId === pid) pick(e.clientY)
 }
 function up() {
-  clearTimeout(holdTimer)
   if (!dragging.value) return
   dragging.value = false
   active.value = null
@@ -143,11 +136,13 @@ function blockTouchMove(e: TouchEvent) {
   user-select: none;
   -webkit-user-select: none;
   opacity: 0.35;
+  pointer-events: none;
   transition:
     opacity var(--t-mid) var(--ease),
     background-color var(--t-mid) var(--ease);
 }
 .alpha.awake {
+  pointer-events: auto;
   opacity: 1;
   background: var(--chip);
 }

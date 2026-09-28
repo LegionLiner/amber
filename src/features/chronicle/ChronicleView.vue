@@ -9,6 +9,7 @@ import ErasTab from './ErasTab.vue'
 import ContextsTab from './ContextsTab.vue'
 import RecapTab from './RecapTab.vue'
 import { useUi } from '@/stores/ui'
+import { tabSlide } from '@/app/paging'
 
 /** Хроника: обзор статистики, дневник, эпохи, контексты и итоги */
 type ChronTab = 'overview' | 'diary' | 'eras' | 'contexts' | 'recap'
@@ -29,6 +30,12 @@ watch(
   () => route.query.tab,
   (t) => t && (tab.value = t as ChronTab),
 )
+/** Куда листается вкладка — для анимации: вправо по порядку чипсов или влево */
+watch(tab, (n, o) => {
+  const a = TABS.findIndex((x) => x.id === o)
+  const b = TABS.findIndex((x) => x.id === n)
+  if (a >= 0 && b >= 0 && a !== b) tabSlide.value = b > a ? 'next' : 'prev'
+})
 function setTab(t: ChronTab) {
   tab.value = t
   void router.replace({ query: { tab: t } })
@@ -45,11 +52,14 @@ watch(
       <h1 class="display title">Хроника</h1>
     </header>
     <ChipTabs :items="TABS" :model-value="tab" @update:model-value="setTab" />
-    <OverviewTab v-if="tab === 'overview'" />
-    <DiaryTab v-else-if="tab === 'diary'" />
-    <ErasTab v-else-if="tab === 'eras'" />
-    <ContextsTab v-else-if="tab === 'contexts'" />
-    <RecapTab v-else />
+    <!-- Новая вкладка въезжает с той стороны, куда листали (чипсы или свайп) -->
+    <Transition :name="`tab-${tabSlide}`">
+      <OverviewTab v-if="tab === 'overview'" />
+      <DiaryTab v-else-if="tab === 'diary'" />
+      <ErasTab v-else-if="tab === 'eras'" />
+      <ContextsTab v-else-if="tab === 'contexts'" />
+      <RecapTab v-else />
+    </Transition>
     <div class="bottom-space" />
   </div>
 </template>

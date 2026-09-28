@@ -30,6 +30,8 @@ import type {
   SqlValue,
   WriteTagsItem,
   WriteTagsResult,
+  YoutubeInfo,
+  YoutubeProgress,
 } from './types'
 
 /**
@@ -65,6 +67,12 @@ export interface MusicCorePlugin {
   restoreTags(options: { items: { key: string; uri: string; path: string }[] }): Promise<WriteTagsResult>
   /** Для каких треков есть копия до записи тегов */
   tagBackups(): Promise<{ keys: string[] }>
+  /** YouTube по ссылке: название, автор, обложка (единственная онлайн-функция, только на телефоне) */
+  youtubeInfo(options: { url: string }): Promise<YoutubeInfo>
+  /** Скачать звук ролика в «Музыка/Amber» с тегами и обложкой; ход — событиями youtubeProgress */
+  youtubeDownload(options: { url: string; title?: string; artist?: string }): Promise<{ uri: string; path: string; name: string }>
+  /** Удалить файлы треков (Android спрашивает подтверждение). История остаётся, трек уходит из медиатеки */
+  deleteFiles(options: { items: { key: string; uri: string; path: string }[] }): Promise<{ deleted: number }>
   /** Своя картинка (base64) в общую папку обложек: ключ для CoverArt и цвета для фона */
   saveCover(options: { data: string }): Promise<{ art: string; color1?: string | null; color2?: string | null }>
 
@@ -110,6 +118,7 @@ export interface MusicCorePlugin {
   addListener(event: 'analysisProgress', cb: (e: AnalysisProgress) => void): Promise<PluginListenerHandle>
   addListener(event: 'queueLow', cb: (e: { left: number }) => void): Promise<PluginListenerHandle>
   addListener(event: 'previewEnded', cb: () => void): Promise<PluginListenerHandle>
+  addListener(event: 'youtubeProgress', cb: (e: YoutubeProgress) => void): Promise<PluginListenerHandle>
   /** Только браузер: трек из своей папки не открылся — нужен клик, чтобы вернуть доступ */
   addListener(event: 'folderAccess', cb: () => void): Promise<PluginListenerHandle>
   removeAllListeners(): Promise<void>

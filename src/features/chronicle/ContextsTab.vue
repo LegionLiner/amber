@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onMounted, shallowRef } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import IconAdd from '~icons/solar/add-circle-linear'
 import IconPen from '~icons/solar/pen-linear'
@@ -12,7 +12,16 @@ import { useLongPress } from '@/composables/useLongPress'
 import { contextIcon } from './contextIcons'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
-import { activeContext, deleteContext, listContexts, startContext, stopContexts, type ContextRow } from '@/data/repos/contexts'
+import {
+  activeContext,
+  deleteContext,
+  listContexts,
+  matchesRules,
+  startContext,
+  stopContexts,
+  type ContextRow,
+} from '@/data/repos/contexts'
+import { outputLabel } from '@/domain/outputs'
 
 /**
  * Контексты: ситуации со своим саундтреком. Запускаешь вручную («Начать») или они включаются
@@ -30,6 +39,12 @@ onMounted(load)
 onActivated(load)
 
 const active = computed(() => activeContext(list.value, new Date(), player.output))
+/** Минута меняется — правила по часам пересчитываются */
+const now = ref(new Date())
+const clock = window.setInterval(() => (now.value = new Date()), 30_000)
+onBeforeUnmount(() => clearInterval(clock))
+const matching = computed(() => new Set(list.value.filter((c) => matchesRules(c, now.value, player.output)).map((c) => c.id)))
+onMounted(() => void player.refreshOutputs().catch(() => undefined))
 
 async function toggle(c: ContextRow) {
   if (c.running != null) {
@@ -90,11 +105,14 @@ function rulesText(c: ContextRow): string {
 <template>
   <section>
     <p class="lead muted">Ситуации со своим саундтреком: дорога, работа, тренировка. Что звучало в контексте — видно отдельно.</p>
+    <p class="now-out">
+      Звук сейчас идёт: <b>{{ outputLabel(player.output) }}</b>
+    </p>
     <div
       v-for="c in list"
       :key="c.id"
       class="ctx"
-      :class="{ on: active?.id === c.id }"
+      :class="{ on: active?.id === c.id || matching.has(c.id) }"
       :style="{ '--cc': c.color ?? 'var(--amber)' }"
     >
       <button type="button" class="main" v-bind="hold(() => menu(c))" @click="router.push(`/context/${c.id}`)">
@@ -102,7 +120,7 @@ function rulesText(c: ContextRow): string {
         <span class="text">
           <b class="ellipsis">{{ c.title }}</b>
           <small class="ellipsis">{{
-            active?.id === c.id ? (c.running != null ? 'идёт сейчас' : 'сейчас по правилам') : rulesText(c)
+            c.running != null ? 'идёт сейчас, включён вручную' : matching.has(c.id) ? 'подходит сейчас по правилам' : rulesText(c)
           }}</small>
         </span>
       </button>
@@ -115,6 +133,15 @@ function rulesText(c: ContextRow): string {
 </template>
 
 <style scoped>
+.now-out {
+  padding: 0 var(--gutter) 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.now-out b {
+  color: var(--ink);
+  font-weight: 600;
+}
 .lead {
   padding: 0 var(--gutter) 10px;
   font-size: 13px;

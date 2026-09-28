@@ -20,6 +20,8 @@ import java.security.MessageDigest
  * Правка тегов, переименование и перенос файла его не меняют: оценки и история остаются с треком.
  */
 class Scanner(private val ctx: Context) {
+    /** Папка, куда приложение скачивает треки (YouTube); фильтр по длительности к ней не относится */
+    private val DOWNLOADS = "Music/Amber/"
 
     class Options(val full: Boolean, val minDurationMs: Long, val exclude: List<String>)
 
@@ -155,8 +157,9 @@ class Scanner(private val ctx: Context) {
         ctx.contentResolver.query(
             collection,
             projection,
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?",
-            arrayOf(opts.minDurationMs.toString()),
+            // Короткие файлы (звонки, уведомления) не берём, кроме скачанного самим пользователем в «Музыка/Amber»
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND (${MediaStore.Audio.Media.DURATION} >= ? OR ${MediaStore.Audio.Media.RELATIVE_PATH} = ?)",
+            arrayOf(opts.minDurationMs.toString(), DOWNLOADS),
             null,
         )?.use { c ->
             fun str(i: Int) = if (c.isNull(i)) null else c.getString(i)

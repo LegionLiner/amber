@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import IconNext from '~icons/solar/list-arrow-down-linear'
 import IconQueue from '~icons/solar/playlist-linear'
@@ -15,6 +15,7 @@ import IconAddList from '~icons/solar/add-square-linear'
 import IconRemove from '~icons/solar/minus-circle-linear'
 import IconRadio from '~icons/solar/radio-linear'
 import IconTags from '~icons/solar/pen-new-square-linear'
+import IconTrash from '~icons/solar/trash-bin-minimalistic-linear'
 import AddToPlaylistSheet from './AddToPlaylistSheet.vue'
 import TagEditorSheet from './TagEditorSheet.vue'
 import { useRadio } from '@/stores/radio'
@@ -29,6 +30,7 @@ import { displayArtist } from '@/domain/track'
 import { albumIdOf, artistIdOf } from '@/domain/groups'
 import { upsertTrackUser } from '@/data/repos/library'
 import { haptic } from '@/native/haptics'
+import { deleteTracks } from '@/app/delete-tracks'
 
 const props = defineProps<{ trackKey: string; source: PlaySource }>()
 const emit = defineEmits<{ close: [] }>()
@@ -140,6 +142,29 @@ const actions = computed(() => {
   ]
 })
 
+/* ---- удаление файла: сначала подтверждение здесь, потом системное ---- */
+const confirmDelete = ref(false)
+const deleting = ref(false)
+async function removeFile() {
+  const track = t.value
+  if (!track) return
+  deleting.value = true
+  try {
+    const n = await deleteTracks([track])
+    if (n) {
+      ui.toast(`«${track.title}» удалён`)
+      emit('close')
+      // Удаляли с карточки этого трека — её больше нечем показывать
+      if (router.currentRoute.value.path === `/track/${track.key}`) router.back()
+    }
+  } catch (e) {
+    ui.toast(`Не получилось удалить: ${e instanceof Error ? e.message : String(e)}`)
+  } finally {
+    deleting.value = false
+    confirmDelete.value = false
+  }
+}
+
 function rate(v: number | null) {
   if (t.value) void library.setRating(t.value.key, v)
 }
@@ -163,11 +188,47 @@ function rate(v: number | null) {
         <component :is="a.icon" />
         <span class="ellipsis">{{ a.label }}</span>
       </button>
+      <button v-if="!confirmDelete" type="button" class="act danger" @click="confirmDelete = true">
+        <IconTrash />
+        <span class="ellipsis">Удалить файл</span>
+      </button>
+    </div>
+    <div v-if="confirmDelete" class="confirm">
+      <p>Удалить «{{ t.title }}» с телефона? Файл пропадёт из памяти, а история прослушиваний и оценка останутся в статистике.</p>
+      <div class="btns">
+        <button type="button" class="btn" :disabled="deleting" @click="confirmDelete = false">Отмена</button>
+        <button type="button" class="btn danger-btn" :disabled="deleting" @click="removeFile">
+          {{ deleting ? 'Удаляю…' : 'Удалить' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.act.danger,
+.act.danger svg {
+  color: var(--bad);
+}
+.confirm {
+  padding: 6px var(--gutter) 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.confirm .btns {
+  display: flex;
+  gap: 10px;
+}
+.confirm .btn {
+  flex: 1;
+}
+.danger-btn {
+  background: color-mix(in srgb, var(--bad) 22%, transparent);
+  color: var(--bad);
+}
 .body {
   padding: 0 0 8px;
 }

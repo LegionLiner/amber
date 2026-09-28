@@ -6,6 +6,8 @@ import IconSearch from '~icons/solar/magnifer-linear'
 import IconClose from '~icons/solar/close-circle-bold'
 import IconHistory from '~icons/solar/history-linear'
 import IconFolder from '~icons/solar/folder-2-linear'
+import IconDownload from '~icons/solar/download-minimalistic-linear'
+import YoutubeSheet from './YoutubeSheet.vue'
 import CoverArt from '@/components/CoverArt.vue'
 import TrackRow from '@/components/TrackRow.vue'
 import TrackActionsSheet from '@/components/TrackActionsSheet.vue'
@@ -38,6 +40,12 @@ function engine(): LibrarySearch {
     indexedFor = library.tracks
   }
   return index
+}
+
+/** В поиск вставили ссылку на YouTube — предлагаем скачать */
+const ytLink = computed(() => /^\s*(https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\//i.test(query.value))
+function openYoutube(url?: string) {
+  ui.openSheet(YoutubeSheet, { url })
 }
 
 const trackResults = shallowRef<Track[]>([])
@@ -140,7 +148,15 @@ function go(to: Parameters<typeof router.push>[0]) {
           <IconClose />
         </button>
       </label>
+      <button v-if="!ytLink" type="button" class="yt-btn" @click="openYoutube()">
+        <IconDownload />Скачать с YouTube по ссылке
+      </button>
     </header>
+
+    <button v-if="ytLink" type="button" class="yt-card" @click="openYoutube(query.trim())">
+      <IconDownload />
+      <span><b>Ссылка на YouTube</b><small>Скачать звук этого ролика в медиатеку</small></span>
+    </button>
 
     <div v-if="!q.trim()" class="recent">
       <template v-if="settings.s.recentSearches.length">
@@ -234,6 +250,47 @@ function go(to: Parameters<typeof router.push>[0]) {
 </template>
 
 <style scoped>
+.yt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--ink-2);
+  font: 500 13px/1 var(--f-body);
+}
+.yt-btn svg,
+.yt-card svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.yt-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: calc(100% - 2 * var(--gutter));
+  margin: 4px var(--gutter) 10px;
+  padding: 14px 16px;
+  border-radius: var(--r-m);
+  background: rgba(var(--amber-rgb), 0.14);
+  color: var(--amber-ink);
+  text-align: left;
+}
+.yt-card span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.yt-card b {
+  font: 600 15px/1.2 var(--f-body);
+}
+.yt-card small {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
 .hdr {
   position: sticky;
   top: 0;

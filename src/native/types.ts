@@ -269,6 +269,21 @@ export interface OutputsEvent {
   current: string
 }
 
+/** Ролик YouTube: что про него известно до загрузки */
+export interface YoutubeInfo {
+  title: string
+  artist: string
+  uploader: string
+  durationMs: number
+  thumbnail: string | null
+}
+
+export interface YoutubeProgress {
+  stage: 'download' | 'save'
+  done: number
+  total: number
+}
+
 export interface AnalysisProgress {
   done: number
   total: number

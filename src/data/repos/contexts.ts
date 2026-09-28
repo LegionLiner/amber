@@ -102,6 +102,7 @@ export function contextWhere(c: ContextRow): { sql: string; params: SqlValue[] }
   }
   if (r.weekdays?.length) parts.push(`pe.weekday IN (${r.weekdays.map(Number).join(',')})`)
   if (r.outputs?.length) {
+    // LIKE в SQLite не различает регистр латиницы — как и сравнение «сейчас» выше
     parts.push(`(${r.outputs.map(() => `pe.output LIKE ?`).join(' OR ')})`)
     params.push(...r.outputs.map((o) => `${o}%`))
   }
@@ -131,23 +132,24 @@ export async function contextStats(c: ContextRow): Promise<ContextStats> {
   return { plays: tot[0]?.plays ?? 0, listenedMs: tot[0]?.listenedMs ?? 0, top }
 }
 
-/** Какой контекст сейчас: запущенный вручную, иначе первый, чьи правила подходят к текущему моменту */
-export function activeContext(list: ContextRow[], now: Date, output: string): ContextRow | null {
-  const running = list.find((c) => c.running != null)
-  if (running) return running
+/** Подходит ли контекст по своим правилам к текущему моменту и устройству вывода */
+export function matchesRules(c: ContextRow, now: Date, output: string): boolean {
+  const r = c.rules
+  if (!r.hours && !r.weekdays?.length && !r.outputs?.length) return false
   const hour = now.getHours()
   const wd = ((now.getDay() + 6) % 7) + 1
-  return (
-    list.find((c) => {
-      const r = c.rules
-      if (!r.hours && !r.weekdays?.length && !r.outputs?.length) return false
-      if (r.hours) {
-        const [a, b] = r.hours
-        if (a <= b ? !(hour >= a && hour < b) : !(hour >= a || hour < b)) return false
-      }
-      if (r.weekdays?.length && !r.weekdays.includes(wd)) return false
-      if (r.outputs?.length && !r.outputs.some((o) => output.startsWith(o))) return false
-      return true
-    }) ?? null
-  )
+  if (r.hours) {
+    const [a, b] = r.hours
+    if (a <= b ? !(hour >= a && hour < b) : !(hour >= a || hour < b)) return false
+  }
+  if (r.weekdays?.length && !r.weekdays.includes(wd)) return false
+  // Имя сравниваем без учёта регистра: система может отдать «JBL GO 4» вместо «JBL Go 4»
+  const out = output.toLowerCase()
+  if (r.outputs?.length && !r.outputs.some((o) => out.startsWith(o.toLowerCase()))) return false
+  return true
+}
+
+/** Какой контекст сейчас: запущенный вручную, иначе первый, чьи правила подходят к текущему моменту */
+export function activeContext(list: ContextRow[], now: Date, output: string): ContextRow | null {
+  return list.find((c) => c.running != null) ?? list.find((c) => matchesRules(c, now, output)) ?? null
 }

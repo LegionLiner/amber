@@ -1,10 +1,34 @@
 <script setup lang="ts">
-import { markRaw, nextTick, onDeactivated, onMounted, provide, ref, shallowReactive, watch, type Component } from 'vue'
+import {
+  markRaw,
+  nextTick,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  provide,
+  reactive,
+  ref,
+  shallowReactive,
+  watch,
+  type Component,
+} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import HomeView from '@/features/home/HomeView.vue'
 import LibraryView from '@/features/library/LibraryView.vue'
 import PageSlot from './PageSlot.vue'
-import { OWN_GESTURES, PAGES, PAGE_SWIPES, pageIndex, pageLocation, scrollsSideways, type PageName } from '@/app/paging'
+import SectionHead from './SectionHead.vue'
+import {
+  OWN_GESTURES,
+  PAGES,
+  PAGE_SWIPES,
+  SECTION_TABS,
+  TABBED,
+  pageIndex,
+  pageLocation,
+  scrollsSideways,
+  type PageName,
+  type TabbedSection,
+} from '@/app/paging'
 import { afterSlide, motionReduced } from '@/app/motion'
 import { haptic } from '@/native/haptics'
 
@@ -13,6 +37,11 @@ import { haptic } from '@/native/haptics'
  * один в один: видно следующий экран, можно долистать, а можно вернуть. Отпустил дальше 40 % ширины
  * (или смахнул) — лента доезжает, и только тогда меняется адрес. Вкладки, чипсы и «назад» двигают ту же
  * ленту. Недавно открытые экраны не выгружаются и помнят прокрутку.
+ *
+ * У разделов с подвкладками (медиатека, топ, хроника) заголовок и чипсы общие и лежат над лентой: пока
+ * листаются вкладки одного раздела, заголовок стоит, а подсветка чипса едет за пальцем. При переходе
+ * в соседний раздел заголовок уезжает вместе со своими экранами. Большое название прячется, когда экран
+ * прокручен вниз, чипсы остаются.
  */
 const route = useRoute()
 const router = useRouter()
@@ -48,7 +77,10 @@ function keep(...ids: number[]) {
 function keepSoon(...ids: number[]) {
   requestAnimationFrame(() => setTimeout(() => keep(...ids), 0))
 }
-onMounted(() => setTimeout(() => keep(), 250))
+onMounted(() => {
+  setTimeout(() => keep(), 250)
+  void nextTick(measureHeads)
+})
 
 /** Где экран стоит относительно текущего: −1, 0, 1 или null — спрятан */
 function slotOf(i: number): number | null {
@@ -72,12 +104,99 @@ let pendingSync: number | null = null
 
 const width = () => root.value?.clientWidth || window.innerWidth
 
+const EASE = 'cubic-bezier(0.22, 0.8, 0.24, 1)'
+
 function setX(v: number, ms = 0) {
   x = v
   const el = track.value
   if (!el) return
-  el.style.transition = ms ? `transform ${ms}ms cubic-bezier(0.22, 0.8, 0.24, 1)` : 'none'
+  el.style.transition = ms ? `transform ${ms}ms ${EASE}` : 'none'
   el.style.transform = v ? `translate3d(${v}px, 0, 0)` : ''
+  layoutHeads(ms)
+}
+
+/* ---------------- заголовки разделов ---------------- */
+
+const headEls: Partial<Record<TabbedSection, HTMLElement>> = {}
+const headPos = reactive<Record<TabbedSection, number>>({ library: 0, top: 0, chronicle: 0 })
+const headMs = ref(0)
+/** Высота заголовка раздела — такой отступ сверху у его экранов */
+const headH = reactive<Record<TabbedSection, number>>({ library: 0, top: 0, chronicle: 0 })
+/** Насколько может спрятаться большое название */
+const titleH: Record<TabbedSection, number> = { library: 0, top: 0, chronicle: 0 }
+/** Прокрутка экранов: от неё зависит, спрятано ли название */
+const tops: Record<number, number> = {}
+
+const sectionOf = (i: number) =>
+  (TABBED as readonly string[]).includes(PAGES[i]!.name) ? (PAGES[i]!.name as TabbedSection) : null
+const tabIndex = (i: number) => SECTION_TABS[PAGES[i]!.name as TabbedSection]?.indexOf(PAGES[i]!.tab ?? '') ?? 0
+
+function layoutHeads(ms = 0) {
+  const s = settled.value
+  const W = width()
+  const n = target.value ?? (x < 0 ? s + 1 : x > 0 ? s - 1 : null)
+  const t = n != null && PAGES[n] ? n : null
+  const p = t == null ? 0 : Math.min(1, Math.abs(x) / W)
+  const hide = (i: number, sec: TabbedSection) => Math.min(tops[i] ?? 0, titleH[sec])
+  headMs.value = ms
+  for (const sec of TABBED) {
+    const el = headEls[sec]
+    if (!el) continue
+    const inS = sectionOf(s) === sec
+    const inT = t != null && sectionOf(t) === sec
+    let hx: number | null = null
+    let y = 0
+    if (inS && inT) {
+      // листаем вкладки внутри раздела: заголовок стоит, подсветка едет
+      hx = 0
+      y = hide(s, sec) + (hide(t!, sec) - hide(s, sec)) * p
+      headPos[sec] = tabIndex(s) + (tabIndex(t!) - tabIndex(s)) * p
+    } else if (inS) {
+      hx = x
+      y = hide(s, sec)
+      headPos[sec] = tabIndex(s)
+    } else if (inT) {
+      hx = Math.sign(t! - s) * W + x
+      y = hide(t!, sec)
+      headPos[sec] = tabIndex(t!)
+    }
+    el.style.visibility = hx == null ? 'hidden' : ''
+    el.style.transition = ms ? `transform ${ms}ms ${EASE}` : 'none'
+    el.style.transform = `translate3d(${hx ?? 0}px, ${-y}px, 0)`
+    const title = el.querySelector<HTMLElement>('.hd-title')
+    if (title) {
+      title.style.transition = ms ? `opacity ${ms}ms ${EASE}` : 'none'
+      title.style.opacity = titleH[sec] ? String(Math.max(0, 1 - (y / titleH[sec]) * 1.3)) : ''
+    }
+  }
+}
+
+function measureHeads() {
+  for (const sec of TABBED) {
+    const el = headEls[sec]
+    const title = el?.querySelector<HTMLElement>('.hd-title')
+    if (!el || !title) continue
+    headH[sec] = el.offsetHeight
+    titleH[sec] = Math.max(0, title.offsetHeight - parseFloat(getComputedStyle(title).paddingTop))
+  }
+  if (phase !== 'drag' && target.value == null && !catchable) layoutHeads(0)
+}
+const headObserver = new ResizeObserver(measureHeads)
+function headRef(sec: TabbedSection, el: unknown) {
+  const node = (el as { $el?: HTMLElement } | null)?.$el
+  if (!node || headEls[sec] === node) return
+  headEls[sec] = node
+  headObserver.observe(node)
+}
+onBeforeUnmount(() => headObserver.disconnect())
+
+/** Прокрутили экран: название раздела прячется вслед за содержимым */
+function onScroll(e: Event) {
+  const el = e.target as HTMLElement
+  const pg = el.closest?.<HTMLElement>('.pg')
+  if (!pg || el.clientHeight < pg.clientHeight * 0.6) return
+  tops[Number(pg.dataset.page)] = el.scrollTop
+  if (phase !== 'drag' && target.value == null && !catchable) layoutHeads(0)
 }
 
 function currentX(): number {
@@ -128,12 +247,13 @@ function go(n: number) {
   target.value = n
   keep(n)
   // Цель появляется за краем в этом кадре, едет — со следующего
-  void nextTick(() =>
+  void nextTick(() => {
+    layoutHeads(0)
     requestAnimationFrame(() => {
       if (target.value !== n) return
       glide(-dir * width(), 320, () => arrive(false))
-    }),
-  )
+    })
+  })
 }
 
 function jump(n: number) {
@@ -292,14 +412,26 @@ function onClick(e: MouseEvent) {
     @pointerup.capture="onUp"
     @pointercancel.capture="onCancel"
     @click.capture="onClick"
+    @scroll.capture.passive="onScroll"
   >
+    <SectionHead
+      v-for="sec in TABBED"
+      :key="sec"
+      :ref="(el) => headRef(sec, el)"
+      :section="sec"
+      :pos="headPos[sec]"
+      :ms="headMs"
+    />
     <div ref="track" class="pg-track">
       <div
         v-for="i in alive"
         :key="i"
         class="pg"
         :class="{ off: slotOf(i) === null }"
-        :style="{ transform: `translateX(${(slotOf(i) ?? 0) * 100}%)` }"
+        :style="{
+          transform: `translateX(${(slotOf(i) ?? 0) * 100}%)`,
+          '--head-h': sectionOf(i) ? `${headH[sectionOf(i)!]}px` : undefined,
+        }"
         :inert="i !== settled || undefined"
         :data-page="i"
       >

@@ -4,7 +4,7 @@ import IconShuffle from '~icons/solar/shuffle-linear'
 import IconSort from '~icons/solar/sort-vertical-linear'
 import TrackList from '@/components/TrackList.vue'
 import SortSheet from '@/components/SortSheet.vue'
-import LibraryHeader from './LibraryHeader.vue'
+import HeadSpace from '@/components/HeadSpace.vue'
 import { metaFor } from './rowMeta'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
@@ -46,7 +46,7 @@ function openSort() {
 <template>
   <TrackList ref="list" :tracks="sorted" :source="source" :meta="meta">
     <template #header>
-      <LibraryHeader section="favorites" />
+      <HeadSpace />
       <div class="toolbar">
         <button
           type="button"

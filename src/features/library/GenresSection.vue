@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import IconTag from '~icons/solar/hashtag-linear'
-import LibraryHeader from './LibraryHeader.vue'
+import HeadSpace from '@/components/HeadSpace.vue'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { countLabel } from '@/domain/format'
@@ -20,7 +20,7 @@ watch(
 
 <template>
   <div ref="scrollEl" class="scroll screen">
-    <LibraryHeader section="genres" />
+    <HeadSpace />
     <button
       v-for="g in library.genres"
       :key="g.id"

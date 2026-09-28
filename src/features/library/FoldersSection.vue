@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import IconFolder from '~icons/solar/folder-2-linear'
-import LibraryHeader from './LibraryHeader.vue'
+import HeadSpace from '@/components/HeadSpace.vue'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { countLabel } from '@/domain/format'
@@ -32,7 +32,7 @@ watch(
 
 <template>
   <div ref="scrollEl" class="scroll screen">
-    <LibraryHeader section="folders" />
+    <HeadSpace />
     <button
       v-for="f in top"
       :key="f.path"

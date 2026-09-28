@@ -5,7 +5,7 @@ import IconSort from '~icons/solar/sort-vertical-linear'
 import CoverArt from '@/components/CoverArt.vue'
 import SortSheet from '@/components/SortSheet.vue'
 import AlphaScroller from '@/components/AlphaScroller.vue'
-import LibraryHeader from './LibraryHeader.vue'
+import HeadSpace from '@/components/HeadSpace.vue'
 import { useLibrary } from '@/stores/library'
 import { useSettings, type SortPref } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
@@ -53,7 +53,7 @@ function openSort() {
 
 <template>
   <div ref="scrollEl" class="scroll screen">
-    <LibraryHeader section="artists" />
+    <HeadSpace />
     <div class="toolbar">
       <span class="muted">{{ artists.length }} исп.</span>
       <button type="button" class="sort" @click="openSort">

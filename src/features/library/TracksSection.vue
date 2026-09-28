@@ -5,7 +5,7 @@ import IconSort from '~icons/solar/sort-vertical-linear'
 import TrackList from '@/components/TrackList.vue'
 import AlphaScroller from '@/components/AlphaScroller.vue'
 import SortSheet from '@/components/SortSheet.vue'
-import LibraryHeader from './LibraryHeader.vue'
+import HeadSpace from '@/components/HeadSpace.vue'
 import { metaFor } from './rowMeta'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
@@ -62,7 +62,7 @@ function shuffleAll() {
 <template>
   <TrackList ref="list" :tracks="sorted" :source="source" :meta="meta" :class="{ 'with-alpha': alphaNames }">
     <template #header>
-      <LibraryHeader section="tracks" />
+      <HeadSpace />
       <div class="toolbar">
         <button type="button" class="btn primary small" :disabled="!library.tracks.length" @click="shuffleAll">
           <IconShuffle />Перемешать

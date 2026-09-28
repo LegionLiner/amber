@@ -8,7 +8,7 @@ import IconMix from '~icons/solar/transfer-horizontal-linear'
 import IconStar from '~icons/solar/star-shine-linear'
 import NewPlaylistSheet from './NewPlaylistSheet.vue'
 import { useRadio } from '@/stores/radio'
-import LibraryHeader from './LibraryHeader.vue'
+import HeadSpace from '@/components/HeadSpace.vue'
 import { usePlaylists } from '@/stores/playlists'
 import { useUi } from '@/stores/ui'
 import { AUTO_PLAYLISTS } from '@/domain/auto'
@@ -48,7 +48,7 @@ async function highlights() {
 
 <template>
   <div ref="scrollEl" class="scroll screen">
-    <LibraryHeader section="playlists" />
+    <HeadSpace />
 
     <div class="section-title"><span>Мои плейлисты</span></div>
     <button type="button" class="row" @click="create">

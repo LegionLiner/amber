@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useViewRoute } from '@/app/view-route'
 import IconPlay from '~icons/solar/play-bold'
-import ChipTabs from '@/components/ChipTabs.vue'
+import HeadSpace from '@/components/HeadSpace.vue'
 import CoverArt from '@/components/CoverArt.vue'
 import RatingStars from '@/components/RatingStars.vue'
 import RankTab from './RankTab.vue'
@@ -16,12 +16,6 @@ import { displayArtist, type Track } from '@/domain/track'
 import { onPageShown } from '@/app/paging'
 
 type TopTab = 'rank' | 'rate' | 'charts' | 'duels'
-const TABS: { id: TopTab; label: string }[] = [
-  { id: 'rank', label: 'Мой рейтинг' },
-  { id: 'duels', label: 'Дуэли' },
-  { id: 'charts', label: 'Чарты' },
-  { id: 'rate', label: 'Оценить' },
-]
 
 const route = useViewRoute()
 const router = useRouter()
@@ -57,10 +51,7 @@ onPageShown(() => (justRated.value = new Set()))
 
 <template>
   <div ref="scrollEl" class="scroll screen">
-    <header class="hdr">
-      <h1 class="display title">Топ</h1>
-    </header>
-    <ChipTabs :items="TABS" :model-value="tab" @update:model-value="setTab" />
+    <HeadSpace />
 
     <RankTab v-if="tab === 'rank'" @rate="setTab('rate')" />
     <DuelsTab v-else-if="tab === 'duels'" />
@@ -95,16 +86,6 @@ onPageShown(() => (justRated.value = new Set()))
 </template>
 
 <style scoped>
-.hdr {
-  padding: calc(var(--safe-top) + 10px) var(--gutter) 6px;
-}
-.title {
-  font-size: 26px;
-  font-weight: 600;
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-}
 .lead {
   padding: 4px var(--gutter) 12px;
   font-size: 13.5px;

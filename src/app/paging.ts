@@ -9,6 +9,34 @@ export const LIB_SECTIONS = ['tracks', 'playlists', 'albums', 'artists', 'folder
 export const TOP_TABS = ['rank', 'duels', 'charts', 'rate'] as const
 export const CHRON_TABS = ['overview', 'diary', 'eras', 'contexts', 'recap'] as const
 
+/** Разделы с подвкладками: заголовок и чипсы у них общие и стоят на месте, листаются экраны под ними */
+export const TABBED = ['library', 'top', 'chronicle'] as const
+export type TabbedSection = (typeof TABBED)[number]
+export const SECTION_TITLES: Record<TabbedSection, string> = { library: 'Медиатека', top: 'Топ', chronicle: 'Хроника' }
+export const TAB_LABELS: Record<string, string> = {
+  tracks: 'Треки',
+  playlists: 'Плейлисты',
+  albums: 'Альбомы',
+  artists: 'Исполнители',
+  folders: 'Папки',
+  genres: 'Жанры',
+  favorites: 'Избранное',
+  rank: 'Мой рейтинг',
+  duels: 'Дуэли',
+  charts: 'Чарты',
+  rate: 'Оценить',
+  overview: 'Обзор',
+  diary: 'Дневник',
+  eras: 'Эпохи',
+  contexts: 'Контексты',
+  recap: 'Итоги',
+}
+export const SECTION_TABS: Record<TabbedSection, readonly string[]> = {
+  library: LIB_SECTIONS,
+  top: TOP_TABS,
+  chronicle: CHRON_TABS,
+}
+
 export type PageName = 'home' | 'library' | 'search' | 'top' | 'chronicle'
 export interface Page {
   name: PageName

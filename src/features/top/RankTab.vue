@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import IconPlay from '~icons/solar/play-bold'
 import IconSort from '~icons/solar/sort-vertical-linear'
 import IconUp from '~icons/solar/arrow-up-linear'
@@ -17,6 +17,7 @@ import { ratingSuggestions, starsLabel } from '@/domain/rating'
 import { weekKey } from '@/domain/weeks'
 import type { Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
+import { onPageShown } from '@/app/paging'
 
 /**
  * Мой рейтинг: все оценённые треки по местам. Стрелки — движение с начала недели.
@@ -44,7 +45,7 @@ async function load() {
   skip.value = await dismissedKeys('suggest')
 }
 onMounted(load)
-onActivated(load)
+onPageShown(load)
 
 function move(t: Track, i: number): number | 'new' | null {
   if (!baseline.value.size) return null

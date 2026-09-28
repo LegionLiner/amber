@@ -10,7 +10,7 @@ import type { RowMeta } from './TrackRow.vue'
 import type { Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
 import { usePlayer } from '@/stores/player'
-import { ambientColors } from '@/domain/palette'
+import { useCoverGlow } from '@/app/cover-colors'
 import { formatListen, countLabel } from '@/domain/format'
 import { flyCoverTo } from '@/app/motion'
 
@@ -36,9 +36,10 @@ const props = withDefaults(
 const router = useRouter()
 const player = usePlayer()
 
-const colors = computed(() => {
-  const withColor = props.tracks.find((t) => t.color1)
-  return ambientColors(withColor?.color1 ?? null, withColor?.color2 ?? null, props.seed || props.title)
+/** Цвет шапки — по обложке коллекции (или первой обложке среди треков) */
+const colors = useCoverGlow(() => {
+  const withArt = props.tracks.find((t) => t.art)
+  return { art: props.art || withArt?.art, seed: props.seed || props.title, color1: withArt?.color1, color2: withArt?.color2 }
 })
 /* Страницу открыли тапом по карточке: обложка прилетает из неё */
 const heroCover = ref<ComponentPublicInstance | null>(null)

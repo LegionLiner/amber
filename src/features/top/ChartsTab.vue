@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import IconLeft from '~icons/solar/alt-arrow-left-linear'
 import IconRight from '~icons/solar/alt-arrow-right-linear'
 import RankRow from './RankRow.vue'
@@ -8,6 +8,7 @@ import { usePlayer } from '@/stores/player'
 import { archivedWeek, archivedWeeks, chartHistory, liveWeekChart, type ChartEntry } from '@/data/repos/charts'
 import { prevWeek, weekKey, weekLabel } from '@/domain/weeks'
 import { displayArtist, type Track } from '@/domain/track'
+import { onPageShown } from '@/app/paging'
 
 /**
  * Чарты по прослушиваниям. Неделя — топ-20 с понедельника; закрытые недели хранятся в архиве,
@@ -37,7 +38,7 @@ async function loadWeek() {
   prev.value = new Map(p.map((r, i) => [r.key, i + 1]))
 }
 onMounted(load)
-onActivated(load)
+onPageShown(load)
 watch(week, loadWeek)
 
 const idx = computed(() => weeks.value.indexOf(week.value))

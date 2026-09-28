@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import CoverArt from '@/components/CoverArt.vue'
 import { useLibrary } from '@/stores/library'
@@ -8,6 +8,7 @@ import { todayKey } from '@/domain/streaks'
 import { dayLabel } from '@/domain/weeks'
 import { formatDate, formatListen } from '@/domain/format'
 import { moodOf } from './mood'
+import { onPageShown } from '@/app/paging'
 
 /**
  * Дневник: у каждого дня с музыкой своя запись — сколько слушал, трек дня, сколько нового.
@@ -31,7 +32,7 @@ async function load() {
   more.value = f.length === 20
 }
 onMounted(load)
-onActivated(load)
+onPageShown(load)
 
 async function loadMore() {
   if (loading.value || !more.value) return

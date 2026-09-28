@@ -644,6 +644,12 @@ class MusicCorePlugin : Plugin() {
         call.resolve()
     }
 
+    @PluginMethod
+    fun setEffects(call: PluginCall) = onMain(call) {
+        PlayerHub.setEffects(call.data.optJSONObject("effects") ?: JSONObject())
+        call.resolve()
+    }
+
     /* ---------------- вывод звука ---------------- */
 
     @PluginMethod

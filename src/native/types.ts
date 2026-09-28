@@ -168,6 +168,8 @@ export interface PlayerStateEvent {
   sleepEndOfTrack: boolean
   speed?: number
   pitch?: number
+  /** Включённые эффекты и их сила 0..1 (domain/effects) */
+  effects?: Partial<Record<string, number>>
   /** Куда идёт звук: bt:<имя>, wired, usb, speaker, web */
   output?: string
   /** Идёт переход между треками: сколько он ещё продлится, мс (0 — перехода нет) */

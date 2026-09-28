@@ -19,6 +19,7 @@ import { formatDuration } from '@/domain/format'
 import { outputLabel } from '@/domain/outputs'
 import LyricsSheet from './LyricsSheet.vue'
 import SpeedSheet from './SpeedSheet.vue'
+import { effectsLabel } from '@/domain/effects'
 import OutputSheet from './OutputSheet.vue'
 import SleepSheet from './SleepSheet.vue'
 import BookmarksSheet from './BookmarksSheet.vue'
@@ -39,11 +40,14 @@ const abText = computed(() => {
   if (ab.end == null) return `A ${formatDuration(ab.start)} · поставить B`
   return `${formatDuration(ab.start)}–${formatDuration(ab.end)} · выключить`
 })
-const speedText = computed(() =>
-  player.speed === 1 && player.pitch === 1
-    ? '1×'
-    : `${player.speed.toFixed(2)}×${player.pitch !== 1 && player.pitch === player.speed ? ' с тоном' : ''}`,
-)
+const speedText = computed(() => {
+  const s =
+    player.speed === 1 && player.pitch === 1
+      ? '1×'
+      : `${player.speed.toFixed(2)}×${player.pitch !== 1 && player.pitch === player.speed ? ' с тоном' : ''}`
+  const fx = effectsLabel(player.effects)
+  return fx ? `${s} · ${fx}` : s
+})
 
 function open(c: object, props?: Record<string, unknown>) {
   ui.openSheet(c as never, props)
@@ -77,8 +81,13 @@ function go(path: string) {
     <h3 class="sheet-head ellipsis">{{ item.title }}</h3>
     <div class="sheet-list">
       <button type="button" class="sheet-item" @click="open(LyricsSheet)"><IconText /><span>Текст песни</span></button>
-      <button type="button" class="sheet-item" :class="{ on: player.speed !== 1 }" @click="open(SpeedSheet)">
-        <IconSpeed /><span>Скорость и тон</span><span class="hint">{{ speedText }}</span>
+      <button
+        type="button"
+        class="sheet-item"
+        :class="{ on: player.speed !== 1 || !!effectsLabel(player.effects) }"
+        @click="open(SpeedSheet)"
+      >
+        <IconSpeed /><span>Скорость, тон, эффекты</span><span class="hint ellipsis">{{ speedText }}</span>
       </button>
       <button type="button" class="sheet-item" :class="{ on: !!player.ab }" @click="ab">
         <IconAb /><span>Повтор отрезка A–B</span><span class="hint">{{ abText }}</span>

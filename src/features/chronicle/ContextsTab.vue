@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import IconAdd from '~icons/solar/add-circle-linear'
 import IconPen from '~icons/solar/pen-linear'
@@ -12,6 +12,7 @@ import { useLongPress } from '@/composables/useLongPress'
 import { contextIcon } from './contextIcons'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
+import { onPageShown } from '@/app/paging'
 import {
   activeContext,
   deleteContext,
@@ -36,7 +37,7 @@ async function load() {
   list.value = await listContexts()
 }
 onMounted(load)
-onActivated(load)
+onPageShown(load)
 
 const active = computed(() => activeContext(list.value, new Date(), player.output))
 /** Минута меняется — правила по часам пересчитываются */

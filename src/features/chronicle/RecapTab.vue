@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onActivated, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import StoryViewer from './StoryViewer.vue'
 import { recapPeriods } from '@/data/repos/recap'
 import { MONTHS } from '@/domain/format'
 import { coverGradient } from '@/domain/palette'
+import { onPageShown } from '@/app/paging'
 
 /** Итоги: по месяцам и по годам, открываются историями на весь экран */
 const months = ref<string[]>([])
@@ -16,7 +17,7 @@ async function load() {
   years.value = p.years
 }
 onMounted(load)
-onActivated(load)
+onPageShown(load)
 
 function monthTitle(m: string) {
   return `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`

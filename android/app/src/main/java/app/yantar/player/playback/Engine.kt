@@ -106,11 +106,15 @@ class Engine(private val ctx: Context, private val events: Events) {
 
     private fun faderOf(p: ExoPlayer): Fader = faders[if (p === decks[0]) 0 else 1]
 
+    /** Эффекты (эхо, зал, 8D…): свой процессор в звуке каждой деки, настройки общие */
+    val soundFx = SoundEffects.Settings()
+    private val effectProcs = arrayOf(SoundEffects(soundFx), SoundEffects(soundFx))
+
     /** Часы идущего перехода: сколько уже прозвучал входящий трек */
     private var txClock: Fader.Clock? = null
 
     init {
-        decks = arrayOf(build(faders[0]), build(faders[1]))
+        decks = arrayOf(build(faders[0], effectProcs[0]), build(faders[1], effectProcs[1]))
         am.registerAudioDeviceCallback(object : android.media.AudioDeviceCallback() {
             override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) {
                 applyProfile()
@@ -129,14 +133,14 @@ class Engine(private val ctx: Context, private val events: Events) {
         rebuildFx()
     }
 
-    private fun build(fader: Fader): ExoPlayer {
+    private fun build(fader: Fader, effects: SoundEffects): ExoPlayer {
         val attrs = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build()
         val renderers = object : DefaultRenderersFactory(ctx) {
             override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
                 DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(arrayOf(fader))
+                    .setAudioProcessors(arrayOf(fader, effects))
                     .build()
         }
         val p = ExoPlayer.Builder(ctx, renderers)

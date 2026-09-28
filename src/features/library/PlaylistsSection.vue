@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onActivated, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import IconAdd from '~icons/solar/add-circle-linear'
 import IconList from '~icons/solar/playlist-linear'
@@ -17,6 +17,7 @@ import { countLabel } from '@/domain/format'
 import CoverArt from '@/components/CoverArt.vue'
 import { useLongPress } from '@/composables/useLongPress'
 import { openPlaylistMenu } from './playlistMenu'
+import { onPageShown } from '@/app/paging'
 
 const playlists = usePlaylists()
 const ui = useUi()
@@ -24,7 +25,7 @@ const router = useRouter()
 const scrollEl = ref<HTMLElement | null>(null)
 
 onMounted(() => void playlists.refresh())
-onActivated(() => void playlists.refresh())
+onPageShown(() => void playlists.refresh())
 watch(
   () => ui.reselect,
   (r) => r.tab === 'library' && scrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' }),

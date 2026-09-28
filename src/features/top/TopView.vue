@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useViewRoute } from '@/app/view-route'
 import IconPlay from '~icons/solar/play-bold'
@@ -13,7 +13,7 @@ import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
 import { displayArtist, type Track } from '@/domain/track'
-import { tabSlide } from '@/app/paging'
+import { onPageShown } from '@/app/paging'
 
 type TopTab = 'rank' | 'rate' | 'charts' | 'duels'
 const TABS: { id: TopTab; label: string }[] = [
@@ -30,20 +30,10 @@ const player = usePlayer()
 const ui = useUi()
 const scrollEl = ref<HTMLElement | null>(null)
 
-const tab = ref<TopTab>((route.query.tab as TopTab) || 'rank')
-watch(
-  () => route.query.tab,
-  (t) => t && (tab.value = t as TopTab),
-)
-/** Куда листается вкладка — для анимации: вправо по порядку чипсов или влево */
-watch(tab, (n, o) => {
-  const a = TABS.findIndex((x) => x.id === o)
-  const b = TABS.findIndex((x) => x.id === n)
-  if (a >= 0 && b >= 0 && a !== b) tabSlide.value = b > a ? 'next' : 'prev'
-})
+/** Вкладка — это место экрана в ленте: у каждой вкладки свой экран, соседние отрисованы заранее */
+const tab = computed(() => (route.query.tab as TopTab) || 'rank')
 function setTab(t: TopTab) {
-  tab.value = t
-  void router.replace({ query: { tab: t } })
+  void router.replace({ path: '/top', query: { tab: t } })
 }
 watch(
   () => ui.reselect,
@@ -62,7 +52,7 @@ function rateInline(t: Track, v: number | null) {
   justRated.value = new Set(justRated.value).add(t.key)
   void library.setRating(t.key, v)
 }
-onActivated(() => (justRated.value = new Set()))
+onPageShown(() => (justRated.value = new Set()))
 </script>
 
 <template>
@@ -72,37 +62,34 @@ onActivated(() => (justRated.value = new Set()))
     </header>
     <ChipTabs :items="TABS" :model-value="tab" @update:model-value="setTab" />
 
-    <!-- Новая вкладка въезжает с той стороны, куда листали (чипсы или свайп) -->
-    <Transition :name="`tab-${tabSlide}`">
-      <RankTab v-if="tab === 'rank'" @rate="setTab('rate')" />
-      <DuelsTab v-else-if="tab === 'duels'" />
-      <ChartsTab v-else-if="tab === 'charts'" />
-      <section v-else>
-        <p class="lead muted">Сначала треки, которые ты слушаешь чаще всего. Проведи пальцем по звёздам.</p>
-        <div v-for="t in toRate" :key="t.key" class="rate-row" :class="{ done: t.rating != null }">
-          <CoverArt :art="t.art" :seed="t.title" :label="t.title" size="s" class="cv" />
-          <span class="text">
-            <span class="t ellipsis">{{ t.title }}</span>
-            <span class="s ellipsis"
-              >{{ displayArtist(t) }}<template v-if="t.plays"> · {{ t.plays }}×</template></span
-            >
-            <RatingStars :model-value="t.rating" :size="24" @update:model-value="(v) => rateInline(t, v)" />
-          </span>
-          <button
-            type="button"
-            class="icon-btn"
-            aria-label="Послушать"
-            @click="player.playTracks([t], 0, { type: 'track', title: t.title }, { shuffle: false })"
+    <RankTab v-if="tab === 'rank'" @rate="setTab('rate')" />
+    <DuelsTab v-else-if="tab === 'duels'" />
+    <ChartsTab v-else-if="tab === 'charts'" />
+    <section v-else>
+      <p class="lead muted">Сначала треки, которые ты слушаешь чаще всего. Проведи пальцем по звёздам.</p>
+      <div v-for="t in toRate" :key="t.key" class="rate-row" :class="{ done: t.rating != null }">
+        <CoverArt :art="t.art" :seed="t.title" :label="t.title" size="s" class="cv" />
+        <span class="text">
+          <span class="t ellipsis">{{ t.title }}</span>
+          <span class="s ellipsis"
+            >{{ displayArtist(t) }}<template v-if="t.plays"> · {{ t.plays }}×</template></span
           >
-            <IconPlay />
-          </button>
-        </div>
-        <div v-if="!toRate.length" class="empty">
-          <h3>Всё оценено</h3>
-          <p>Каждый трек в библиотеке уже со звёздами.</p>
-        </div>
-      </section>
-    </Transition>
+          <RatingStars :model-value="t.rating" :size="24" @update:model-value="(v) => rateInline(t, v)" />
+        </span>
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label="Послушать"
+          @click="player.playTracks([t], 0, { type: 'track', title: t.title }, { shuffle: false })"
+        >
+          <IconPlay />
+        </button>
+      </div>
+      <div v-if="!toRate.length" class="empty">
+        <h3>Всё оценено</h3>
+        <p>Каждый трек в библиотеке уже со звёздами.</p>
+      </div>
+    </section>
     <div class="bottom-space" />
   </div>
 </template>

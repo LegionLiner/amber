@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import ChipTabs from '@/components/ChipTabs.vue'
 import CoverArt from '@/components/CoverArt.vue'
 import { useLibrary } from '@/stores/library'
@@ -8,6 +8,7 @@ import { activeDays, byHour, daily, periodTotals, topTracks, type PeriodTotals }
 import { computeStreaks, todayKey } from '@/domain/streaks'
 import { countLabel, formatListen, MONTHS } from '@/domain/format'
 import { displayArtist, type Track } from '@/domain/track'
+import { onPageShown } from '@/app/paging'
 
 /** Обзор: время, прослушивания, серия, календарь на 18 недель, часы, топ треков и исполнителей */
 type Period = '7' | '30' | '365' | 'all'
@@ -58,7 +59,7 @@ async function load() {
 }
 
 onMounted(load)
-onActivated(load)
+onPageShown(load)
 watch(period, load)
 watch(
   () => library.tracks,

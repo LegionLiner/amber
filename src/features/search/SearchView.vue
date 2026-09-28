@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, ref, shallowRef, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { refDebounced } from '@vueuse/core'
 import IconSearch from '~icons/solar/magnifer-linear'
@@ -19,6 +19,7 @@ import { LibrarySearch, latToRu, normalize, ruToLat, swapLayout } from '@/domain
 import type { Track } from '@/domain/track'
 import { albumIdOf } from '@/domain/groups'
 import type { PlaySource } from '@/native/types'
+import { onPageShown } from '@/app/paging'
 
 const library = useLibrary()
 const player = usePlayer()
@@ -96,7 +97,7 @@ function play(i: number) {
 }
 
 let focusedOnce = false
-onActivated(() => {
+onPageShown(() => {
   if (!focusedOnce) {
     focusedOnce = true
     setTimeout(() => input.value?.focus(), 250)

@@ -25,11 +25,7 @@
 .rt-morph-enter-active,
 .rt-morph-leave-active,
 .rt-fade-enter-active,
-.rt-fade-leave-active,
-.rt-slide-next-enter-active,
-.rt-slide-next-leave-active,
-.rt-slide-prev-enter-active,
-.rt-slide-prev-leave-active {
+.rt-fade-leave-active {
   position: absolute;
   inset: 0;
   background: var(--bg);
@@ -127,61 +123,9 @@
   opacity: 0;
 }
 
-/* листание разделов: экраны едут лентой; уходящий стартует оттуда, где его отпустил палец (--drag) */
-.rt-slide-next-enter-active,
-.rt-slide-next-leave-active,
-.rt-slide-prev-enter-active,
-.rt-slide-prev-leave-active {
-  transition:
-    transform 320ms var(--ease-out),
-    opacity 320ms var(--ease-out);
-}
-.rt-slide-next-leave-from,
-.rt-slide-prev-leave-from {
-  transform: translateX(var(--drag, 0px));
-}
-.rt-slide-next-enter-from {
-  transform: translateX(100%);
-}
-.rt-slide-next-leave-to {
-  transform: translateX(-35%);
-  opacity: 0.4;
-}
-.rt-slide-prev-enter-from {
-  transform: translateX(-100%);
-}
-.rt-slide-prev-leave-to {
-  transform: translateX(35%);
-  opacity: 0.4;
-}
-.rt-slide-next-enter-active,
-.rt-slide-prev-enter-active {
-  z-index: 2;
-}
-
-/* вкладки внутри экрана (топ, хроника): новое содержимое въезжает с той стороны, куда листали */
-.tab-next-enter-active,
-.tab-prev-enter-active {
-  transition:
-    transform 300ms var(--ease-out),
-    opacity 240ms var(--ease);
-}
-.tab-next-enter-from {
-  transform: translateX(40px);
-  opacity: 0;
-}
-.tab-prev-enter-from {
-  transform: translateX(-40px);
-  opacity: 0;
-}
-.tab-next-leave-active,
-.tab-prev-leave-active {
-  display: none;
-}
-
-/* экраны листаются вбок сами (app/paging.ts), браузеру отдаём только вертикальную прокрутку */
-.pages .screen,
-.pages .scroll {
+/* лента экранов листается вбок сама (PageStrip), браузеру отдаём только вертикальную прокрутку */
+.pager .screen,
+.pager .scroll {
   touch-action: pan-y;
 }
 

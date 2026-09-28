@@ -7,6 +7,7 @@ import { displayArtist, type Track } from '@/domain/track'
 import { orderFor, shuffle, type ShuffleKind } from '@/domain/shuffle'
 import { useLibrary } from './library'
 import { useSettings } from './settings'
+import { cleanEffects, type Effects } from '@/domain/effects'
 
 let qidSeq = 0
 export function newQid(): string {
@@ -57,6 +58,7 @@ export const usePlayer = defineStore('player', () => {
   const sleepEndOfTrack = ref(false)
   const speed = ref(1)
   const pitch = ref(1)
+  const effects = ref<Effects>({})
   /** Идёт переход между треками: сколько он ещё продлится (для анимации смены обложки) */
   const transitionMs = ref(0)
   /** Куда идёт звук: bt:<имя>, wired, usb, speaker, web */
@@ -115,6 +117,7 @@ export const usePlayer = defineStore('player', () => {
     sleepEndOfTrack.value = !!e.sleepEndOfTrack
     speed.value = e.speed ?? 1
     pitch.value = e.pitch ?? 1
+    if (e.effects) effects.value = cleanEffects(e.effects as Effects)
     transitionMs.value = e.transitionMs ?? 0
     if (e.output) output.value = e.output
     now.value = Date.now()
@@ -357,6 +360,12 @@ export const usePlayer = defineStore('player', () => {
     await MusicCore.setPlaybackParams({ speed: s, pitch: p })
   }
 
+  async function setEffects(fx: Effects) {
+    const clean = cleanEffects(fx)
+    effects.value = clean
+    await MusicCore.setEffects({ effects: clean })
+  }
+
   /** Первое нажатие ставит A, второе — B и включает повтор отрезка */
   async function markAb() {
     const pos = Math.round(position.value)
@@ -417,6 +426,7 @@ export const usePlayer = defineStore('player', () => {
     sleepEndOfTrack,
     speed,
     pitch,
+    effects,
     transitionMs,
     output,
     outputs,
@@ -450,6 +460,7 @@ export const usePlayer = defineStore('player', () => {
     neighborIndex,
     cycleRepeat,
     setPlaybackParams,
+    setEffects,
     markAb,
     setAb,
     clearAb,

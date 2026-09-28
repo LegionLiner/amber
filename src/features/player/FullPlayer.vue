@@ -31,7 +31,7 @@ import SeekBar from './SeekBar.vue'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
-import { ambientColors, vivid } from '@/domain/palette'
+import { coverGlow, useCoverGlow } from '@/app/cover-colors'
 import { sourceLabel } from '@/domain/sources'
 import { haptic } from '@/native/haptics'
 import { afterSlide, motionReduced } from '@/app/motion'
@@ -43,12 +43,22 @@ const ui = useUi()
 
 const item = computed(() => player.current)
 const track = computed(() => player.currentTrack)
-const colors = computed(() => {
-  const t = track.value
-  const [c1, c2] = ambientColors(t?.color1 ?? null, t?.color2 ?? null, item.value?.title ?? '')
-  // Фон должен быть заметен и на тёмной, и на светлой теме: цвета обложки ярче и насыщеннее
-  return [vivid(c1), vivid(c2, 0.55, 0.7)] as const
-})
+/** Фон — цвета, которых на обложке больше всего по площади (app/cover-colors) */
+const colors = useCoverGlow(() => ({
+  art: track.value?.art,
+  seed: item.value?.title ?? '',
+  color1: track.value?.color1,
+  color2: track.value?.color2,
+}))
+// Обложку следующего трека разбираем заранее: при смене трека фон готов сразу
+watch(
+  () => player.upcoming[0]?.key,
+  (k) => {
+    const art = k ? library.byKey.get(k)?.art : null
+    if (art) void coverGlow(art)
+  },
+  { immediate: true },
+)
 const source = computed(() => (item.value ? sourceLabel(item.value.source) : ''))
 
 /* ---- метки текущего трека: засечки на полосе перемотки ---- */

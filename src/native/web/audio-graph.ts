@@ -1,6 +1,8 @@
+import { WebEffects } from './audio-effects'
+
 /**
  * Звуковой граф веб-версии: у каждой деки свой GainNode (кривые переходов и нормализация),
- * дальше общие предусилитель → 10 полос эквалайзера → лимитер. Так же устроено на телефоне
+ * дальше общие предусилитель → 10 полос эквалайзера → эффекты (эхо, зал…) → лимитер. Так же устроено на телефоне
  * (там это DynamicsProcessing на общей аудиосессии).
  */
 export const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
@@ -10,6 +12,7 @@ export class AudioGraph {
   private readonly preamp: GainNode
   private readonly bands: BiquadFilterNode[]
   private readonly limiter: DynamicsCompressorNode
+  private readonly effects: WebEffects
 
   constructor() {
     this.ctx = new AudioContext()
@@ -33,7 +36,9 @@ export class AudioGraph {
       node.connect(b)
       node = b
     }
-    node.connect(this.limiter).connect(this.ctx.destination)
+    this.effects = new WebEffects(this.ctx)
+    node.connect(this.effects.input)
+    this.effects.output.connect(this.limiter).connect(this.ctx.destination)
   }
 
   connect(el: HTMLMediaElement): GainNode {
@@ -46,6 +51,10 @@ export class AudioGraph {
 
   async resume() {
     if (this.ctx.state !== 'running') await this.ctx.resume().catch(() => undefined)
+  }
+
+  setEffects(fx: Partial<Record<string, number>>) {
+    this.effects.set(fx)
   }
 
   /** boostDb — общий предусилитель нормализации, eqPreampDb — предусилитель эквалайзера */

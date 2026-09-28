@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="T extends string">
-import { nextTick, onActivated, onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
+import { onPageShown } from '@/app/paging'
 
 /**
  * Подвкладки чипсами. Прокручиваются вбок, если не влезают.
@@ -26,7 +27,7 @@ onMounted(() => {
   measure()
   requestAnimationFrame(() => (animate.value = true))
 })
-onActivated(measure)
+onPageShown(measure)
 watch(
   () => [props.modelValue, props.items.length],
   () => void nextTick(measure),

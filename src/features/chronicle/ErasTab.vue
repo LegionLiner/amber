@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onMounted, shallowRef } from 'vue'
+import { computed, onMounted, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import IconAdd from '~icons/solar/add-circle-linear'
 import IconPen from '~icons/solar/pen-linear'
@@ -13,6 +13,7 @@ import { seasonOf, seasonsBetween, type Season } from '@/domain/seasons'
 import { dayLabel, parseDay } from '@/domain/weeks'
 import { formatListen } from '@/domain/format'
 import { todayKey } from '@/domain/streaks'
+import { onPageShown } from '@/app/paging'
 
 /**
  * Эпохи: сезоны собираются сами из истории, свои эпохи задаются датами.
@@ -31,7 +32,7 @@ async function load() {
   bounds.value = b
 }
 onMounted(load)
-onActivated(load)
+onPageShown(load)
 
 function sum(from: string, to: string) {
   let plays = 0

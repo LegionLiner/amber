@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, ref, shallowRef, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import IconSettings from '~icons/solar/settings-linear'
 import IconShuffle from '~icons/solar/shuffle-linear'
@@ -27,6 +27,7 @@ import type { Track } from '@/domain/track'
 import { countLabel, greeting } from '@/domain/format'
 import { seasonOf } from '@/domain/seasons'
 import type { PlaySource } from '@/native/types'
+import { onPageShown } from '@/app/paging'
 
 const library = useLibrary()
 const player = usePlayer()
@@ -55,7 +56,8 @@ async function refresh() {
   })
 }
 
-onActivated(refresh)
+// Главная — сосед первого раздела медиатеки: данные нужны ещё до того, как до неё долистают
+onPageShown(refresh, { preload: true })
 watch(() => library.tracks, refresh)
 watch(
   () => ui.reselect,

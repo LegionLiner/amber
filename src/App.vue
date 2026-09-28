@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, provide } from 'vue'
+import { computed } from 'vue'
 import { useRoute, type RouteLocationNormalizedLoaded } from 'vue-router'
 import BottomNav from '@/components/BottomNav.vue'
 import SheetHost from '@/components/SheetHost.vue'
@@ -13,21 +13,20 @@ import { useUi } from '@/stores/ui'
 import { usePlayer } from '@/stores/player'
 import { isNative } from '@/native/paths'
 import { rememberScroll, restoreScroll, routeAnim } from '@/app/motion'
-import { PAGE_SWIPES, pagingFor, usePageSwipe } from '@/app/paging'
-import { useRouter } from 'vue-router'
+import { pageIndex } from '@/app/paging'
+import PageStrip from '@/components/PageStrip.vue'
 
 const route = useRoute()
 const ui = useUi()
 const player = usePlayer()
 const bare = computed(() => !!route.meta.bare)
 
-/* Главные экраны листаются свайпом вбок; строки треков там свои свайпы не забирают */
-const pageSwipe = usePageSwipe(useRouter(), route)
-provide(PAGE_SWIPES, pagingFor(route))
-
-/** Экраны вкладок живут в KeepAlive под своим адресом, поэтому помнят прокрутку */
+/**
+ * Экраны живут в KeepAlive под своим адресом, поэтому помнят прокрутку. Главные экраны — одна лента
+ * (PageStrip): листаются свайпом вбок и в KeepAlive лежат одним целым.
+ */
 function viewKey(r: RouteLocationNormalizedLoaded): string {
-  return r.path
+  return pageIndex(r) >= 0 ? 'pager' : r.path
 }
 </script>
 
@@ -37,7 +36,7 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
       <h3>Не удалось запустить</h3>
       <p>{{ bootState.error }}</p>
     </div>
-    <div class="pages" v-bind="pageSwipe">
+    <div class="pages">
       <RouterView v-slot="{ Component, route: r }">
         <Transition
           :name="routeAnim === 'none' ? undefined : `rt-${routeAnim}`"
@@ -46,7 +45,7 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
           @enter="restoreScroll"
         >
           <KeepAlive :max="8">
-            <component :is="Component" :key="viewKey(r)" />
+            <component :is="pageIndex(r) >= 0 ? PageStrip : Component" :key="viewKey(r)" />
           </KeepAlive>
         </Transition>
       </RouterView>

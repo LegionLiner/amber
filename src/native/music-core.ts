@@ -93,6 +93,8 @@ export interface MusicCorePlugin {
   /** Повтор отрезка A–B; без параметров выключает */
   setAbLoop(options: { startMs?: number; endMs?: number }): Promise<void>
   setPlaybackParams(options: { speed: number; pitch: number }): Promise<void>
+  /** Эффекты звука: сила каждого 0..1, отсутствующий — выключен */
+  setEffects(options: { effects: Partial<Record<string, number>> }): Promise<void>
 
   // вывод звука
   getOutputs(): Promise<OutputsEvent>

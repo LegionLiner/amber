@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, shallowRef } from 'vue'
+import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import IconPlay from '~icons/solar/play-bold'
 import IconStop from '~icons/solar/stop-bold'
 import CoverArt from '@/components/CoverArt.vue'
@@ -12,6 +12,7 @@ import { applyDuel, pickPair, type DuelPair } from '@/domain/duels'
 import { starsLabel } from '@/domain/rating'
 import { displayArtist, type Track } from '@/domain/track'
 import { haptic } from '@/native/haptics'
+import { onPageShown, onPageHidden } from '@/app/paging'
 
 /**
  * Дуэли: два трека с одинаковыми звёздами, выбираешь тот, что лучше. Можно послушать по 15 секунд
@@ -35,8 +36,8 @@ async function load() {
   if (!pair.value) next()
 }
 onMounted(load)
-onActivated(load)
-onDeactivated(stop)
+onPageShown(load)
+onPageHidden(stop)
 onBeforeUnmount(stop)
 
 function next() {

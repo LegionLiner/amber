@@ -173,6 +173,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private abEnd = -1
   private speed = 1
   private pitch = 1
+  private effects: Partial<Record<string, number>> = {}
   private readonly monitor: ReturnType<typeof setInterval>
 
   private analysisQueue: string[] = []
@@ -878,6 +879,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
         for (const d of this.decks) d.gain = this.graph.connect(d.el)
         this.applyEq()
         this.applyVolumes()
+        this.graph.setEffects(this.effects)
       } catch (e) {
         console.warn('Web Audio недоступен: играем без эквалайзера', e)
         this.graph = null
@@ -1652,6 +1654,14 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     this.notifyListeners('playLogged', e)
   }
 
+  async setEffects(o: { effects: Partial<Record<string, number>> }): Promise<void> {
+    this.effects = { ...o.effects }
+    // Эффекты живут в Web Audio: граф нужен, даже если эквалайзер выключен
+    if (Object.keys(this.effects).length) await this.ensureGraph()
+    this.graph?.setEffects(this.effects)
+    this.emitState()
+  }
+
   private stateEvent(): PlayerStateEvent {
     const el = this.active.el
     const item = this.queue[this.index]
@@ -1668,6 +1678,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       sleepEndOfTrack: this.sleepEndOfTrack,
       speed: this.speed,
       pitch: this.pitch,
+      effects: this.effects,
       output: 'web',
       transitionMs: this.tail ? (this.txPending ? this.txDur : Math.max(0, this.txDur - (performance.now() - this.txStart))) : 0,
     }

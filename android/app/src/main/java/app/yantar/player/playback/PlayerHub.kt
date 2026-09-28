@@ -285,6 +285,7 @@ object PlayerHub {
             .put("sleepEndOfTrack", sleepEndOfTrack)
             .put("speed", p?.playbackParameters?.speed ?: 1f)
             .put("pitch", p?.playbackParameters?.pitch ?: 1f)
+            .put("effects", engine?.soundFx?.json() ?: JSONObject())
             .put("output", engine?.outputName() ?: "speaker")
             .put("transitionMs", engine?.transitionLeftMs ?: 0L)
     }
@@ -448,6 +449,12 @@ object PlayerHub {
 
     fun setPlaybackParams(speed: Float, pitch: Float) {
         engine().setPlaybackParams(speed, pitch)
+        emitState()
+    }
+
+    /** Эффекты: сила каждого 0..1, отсутствующий или 0 — выключен */
+    fun setEffects(fx: JSONObject) {
+        engine().soundFx.set(fx)
         emitState()
     }
 

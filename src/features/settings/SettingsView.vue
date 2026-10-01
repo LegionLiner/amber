@@ -403,14 +403,7 @@ async function backupNow() {
     </section>
 
     <section class="group">
-      <h2 class="gtitle">Жесты и оценки</h2>
-      <label class="row">
-        <span><b>Свайп влево по треку</b></span>
-        <select id="opt-swipe" v-model="s.swipeLeft" class="select">
-          <option value="favorite">в избранное</option>
-          <option value="queue">в очередь</option>
-        </select>
-      </label>
+      <h2 class="gtitle">Оценки</h2>
       <label class="row">
         <span><b>Просить оценить</b><small>Когда трек без оценки прозвучал столько раз</small></span>
         <select id="opt-ask" v-model.number="s.askRatingAfterPlays" class="select">
@@ -518,6 +511,20 @@ async function backupNow() {
   display: flex;
   gap: 8px;
   margin-top: 4px;
+}
+.add .field {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+.add .btn {
+  flex: none;
+}
+.folder .ellipsis {
+  min-width: 0;
+}
+.folder .x {
+  flex: none;
 }
 .about {
   text-align: center;

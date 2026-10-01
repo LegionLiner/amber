@@ -17,6 +17,8 @@ import IconBt from '~icons/solar/bluetooth-linear'
 import IconHeadphones from '~icons/solar/headphones-round-linear'
 import IconText from '~icons/solar/document-text-linear'
 import IconSleep from '~icons/solar/moon-sleep-linear'
+import IconTune from '~icons/solar/tuning-2-linear'
+import { plainSound } from '@/domain/effects'
 import SleepSheet from './SleepSheet.vue'
 import PlayerMenuSheet from './PlayerMenuSheet.vue'
 import OutputSheet from './OutputSheet.vue'
@@ -93,6 +95,7 @@ watch(
 )
 
 const sleepOn = computed(() => player.sleepAt > 0 || player.sleepEndOfTrack)
+const soundOn = computed(() => !plainSound(player.sound))
 
 function close() {
   ui.fullPlayer = false
@@ -306,7 +309,10 @@ const shufflePop = ref(0)
 const repeatPop = ref(false)
 watch(
   () => item.value?.qid,
-  () => (heartPop.value = false),
+  () => {
+    heartPop.value = false
+    burst.value = 0
+  },
 )
 
 async function favorite(fromDoubleTap = false) {
@@ -446,7 +452,8 @@ function togglePlay() {
               </template>
             </div>
           </div>
-          <IconHeartOn v-if="burst" :key="burst" class="burst" aria-hidden="true" />
+          <!-- Убираем после анимации: оставшийся элемент проигрывал её заново при каждом открытии плеера -->
+          <IconHeartOn v-if="burst" :key="burst" class="burst" aria-hidden="true" @animationend="burst = 0" />
         </div>
 
         <div class="info">
@@ -520,11 +527,16 @@ function togglePlay() {
             <component :is="outIcon" /><span class="ellipsis">{{ outputLabel(player.output) }}</span>
           </button>
           <span class="tools">
-            <Transition name="names">
-              <button v-if="player.speed !== 1" type="button" class="speed num" @click="ui.openSheet(SpeedSheet)">
-                {{ player.speed.toFixed(2).replace(/0$/, '') }}×
-              </button>
-            </Transition>
+            <!-- Звук: свои пресеты, скорость, тон, эффекты. Всегда на виду; подсвечена, когда звук изменён -->
+            <button
+              type="button"
+              class="icon-btn"
+              :class="{ on: soundOn }"
+              aria-label="Звук: пресеты, скорость и эффекты"
+              @click="ui.openSheet(SpeedSheet)"
+            >
+              <IconTune />
+            </button>
             <button type="button" class="icon-btn" aria-label="Текст песни" @click="ui.openSheet(LyricsSheet)">
               <IconText />
             </button>
@@ -899,14 +911,6 @@ function togglePlay() {
 .tools {
   display: flex;
   gap: 2px;
-}
-.speed {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(var(--amber-rgb), 0.16);
-  color: var(--amber-ink);
-  font: 600 12.5px/1 var(--f-body);
-  align-self: center;
 }
 .out {
   max-width: 48%;

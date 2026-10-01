@@ -21,7 +21,6 @@ const props = defineProps<{
   number?: number | null
   /** Подпись вместо исполнителя */
   subtitle?: string
-  leftAction?: 'favorite' | 'queue'
 }>()
 
 const emit = defineEmits<{ tap: []; more: []; swipeLeft: []; swipeRight: [] }>()
@@ -49,8 +48,8 @@ const starText = computed(() => {
   <div class="wrap">
     <div class="under right" :class="{ on: dx > 0 }" aria-hidden="true"><IconNext /><span>Следующим</span></div>
     <div class="under left" :class="{ on: dx < 0 }" aria-hidden="true">
-      <span>{{ leftAction === 'queue' ? 'В очередь' : track.favoriteAt ? 'Убрать' : 'В избранное' }}</span>
-      <IconHeart v-if="leftAction !== 'queue'" /><IconNext v-else />
+      <span>{{ track.favoriteAt ? 'Убрать' : 'В избранное' }}</span>
+      <IconHeart />
     </div>
     <div
       class="row"

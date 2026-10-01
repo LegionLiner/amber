@@ -8,7 +8,6 @@ import type { Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
-import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { haptic } from '@/native/haptics'
 
@@ -34,7 +33,6 @@ const ROW_H = 64
 
 const player = usePlayer()
 const library = useLibrary()
-const settings = useSettings()
 const ui = useUi()
 
 const scrollEl = ref<HTMLElement | null>(null)
@@ -72,11 +70,6 @@ async function swipeRight(t: Track) {
 }
 
 async function swipeLeft(t: Track) {
-  if (settings.s.swipeLeft === 'queue') {
-    await player.addToQueue([t], props.source)
-    ui.toast(`«${t.title}» в очереди`)
-    return
-  }
   const on = await library.toggleFavorite(t.key)
   haptic.success()
   ui.toast(on ? 'Добавлено в избранное' : 'Убрано из избранного')
@@ -111,7 +104,6 @@ defineExpose({ scrollToTop, scrollToIndex, scrollEl })
           :meta="meta?.(tracks[r.index]!)"
           :number="numbered ? (tracks[r.index]!.trackNo ?? r.index + 1) : null"
           :subtitle="subtitle?.(tracks[r.index]!)"
-          :left-action="settings.s.swipeLeft"
           @tap="playAt(r.index)"
           @more="more(tracks[r.index]!)"
           @swipe-right="swipeRight(tracks[r.index]!)"

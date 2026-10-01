@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { coverTones, glow, hexToLch } from '@/domain/cover-colors'
-import { cleanEffects, effectsLabel } from '@/domain/effects'
+import { cleanEffects, effectsLabel, plainSound, sameSound, soundName } from '@/domain/effects'
 
 /** Картинка из долей: [rgb, доля площади] */
 function image(parts: [[number, number, number], number][], size = 1600): number[] {
@@ -92,5 +92,17 @@ describe('эффекты', () => {
     expect(cleanEffects({ echo: 0.456, reverb: 0, bass: 1.4 })).toEqual({ echo: 0.46, bass: 1 })
     expect(effectsLabel({ reverb: 0.5, echo: 0.2 })).toBe('Эхо, Зал')
     expect(effectsLabel({})).toBe('')
+  })
+
+  it('пресет звука: сравнение и название по умолчанию', () => {
+    const a = { speed: 0.85, pitch: 0.85, effects: { reverb: 0.6 } }
+    expect(sameSound(a, { speed: 0.85, pitch: 0.85, effects: { reverb: 0.6, echo: 0 } })).toBe(true)
+    expect(sameSound(a, { speed: 0.85, pitch: 0.85, effects: { reverb: 0.5 } })).toBe(false)
+    expect(sameSound(a, { speed: 0.85, pitch: 1, effects: { reverb: 0.6 } })).toBe(false)
+    expect(plainSound({ speed: 1, pitch: 1, effects: {} })).toBe(true)
+    expect(plainSound({ speed: 1, pitch: 1, effects: { bass: 0.3 } })).toBe(false)
+    expect(soundName(a)).toBe('0.85× с тоном · Зал')
+    expect(soundName({ speed: 1.2, pitch: 1, effects: {} })).toBe('1.2×')
+    expect(soundName({ speed: 1, pitch: 1, effects: { echo: 0.5, orbit: 0.8 } })).toBe('Эхо, 8D')
   })
 })

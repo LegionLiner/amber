@@ -175,7 +175,9 @@ function measureHeads() {
   for (const sec of TABBED) {
     const el = headEls[sec]
     const title = el?.querySelector<HTMLElement>('.hd-title')
-    if (!el || !title) continue
+    // Лента спрятана (открыт альбом, настройки): размеры нулевые. Отступ экранов не трогаем, иначе после
+    // возврата прокрутка восстанавливалась при нулевом отступе и список уезжал на высоту заголовка
+    if (!el || !title || !el.isConnected || !el.offsetHeight) continue
     headH[sec] = el.offsetHeight
     titleH[sec] = Math.max(0, title.offsetHeight - parseFloat(getComputedStyle(title).paddingTop))
   }

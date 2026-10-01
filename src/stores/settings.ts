@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { reactive, watch } from 'vue'
 import { db } from '@/data/db'
 import { DEFAULT_COUNTING } from '@/domain/counting'
-import type { AudioSettings, CountingRule } from '@/native/types'
+import type { AudioSettings, CountingRule, RepeatMode } from '@/native/types'
+import type { SoundPreset } from '@/domain/effects'
 import type { ShuffleKind } from '@/domain/shuffle'
 
 export type ThemeMode = 'dark' | 'light' | 'amoled' | 'system'
@@ -46,14 +47,17 @@ export interface AppSettings {
   albumFromFolder: boolean
   /** Сортировка для каждого экрана отдельно */
   sorts: Record<string, SortPref>
-  /** Что делает свайп влево по треку */
-  swipeLeft: 'favorite' | 'queue'
   /** После скольких прослушиваний без оценки попросить оценить (0 = не просить) */
   askRatingAfterPlays: number
   recentSearches: string[]
   audio: AudioSettings
   backup: BackupSettings
   shuffleKind: ShuffleKind
+  /** Перемешивание и повтор переживают перезапуск: 'off' или вид перемешивания; повтор null — ещё не сохраняли */
+  shuffle: 'off' | ShuffleKind
+  repeat: RepeatMode | null
+  /** Свои пресеты звука: скорость, тон и эффекты одной кнопкой */
+  soundPresets: SoundPreset[]
   radio: RadioDials
   /** Правки тегов записывать в сами файлы (если нельзя — остаются в приложении) */
   writeTagsToFiles: boolean
@@ -100,12 +104,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   albumFromFolder: true,
   sorts: {},
-  swipeLeft: 'favorite',
   askRatingAfterPlays: 5,
   recentSearches: [],
   audio: DEFAULT_AUDIO,
   backup: { enabled: false, folderUri: null, keep: 14, lastAt: null },
   shuffleKind: 'smart',
+  shuffle: 'off',
+  repeat: null,
+  soundPresets: [],
   radio: { adventure: 0.35, freshness: 0.4 },
   writeTagsToFiles: true,
   showLyrics: true,
@@ -136,6 +142,9 @@ export const useSettings = defineStore('settings', () => {
         }
         s.backup = { ...DEFAULT_SETTINGS.backup, ...saved.backup }
         s.radio = { ...DEFAULT_SETTINGS.radio, ...saved.radio }
+        s.soundPresets = Array.isArray(saved.soundPresets) ? saved.soundPresets : []
+        // Настройки свайпа влево больше нет
+        delete (s as unknown as Record<string, unknown>).swipeLeft
       } catch {
         /* повреждённые настройки: остаются значения по умолчанию */
       }
@@ -152,15 +161,29 @@ export const useSettings = defineStore('settings', () => {
       .execute()
   }
 
+  let dirty = false
   watch(
     s,
     () => {
       if (!loaded) return
+      dirty = true
       clearTimeout(timer)
-      timer = setTimeout(() => void save(), 400)
+      timer = setTimeout(() => {
+        dirty = false
+        void save()
+      }, 400)
     },
     { deep: true },
   )
+  // Приложение уходит в фон (его могут выгрузить): несохранённое пишем сразу, не дожидаясь паузы
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'hidden' || !dirty) return
+      clearTimeout(timer)
+      dirty = false
+      void save()
+    })
+  }
 
   function sortFor(screen: string, fallback: SortPref): SortPref {
     return s.sorts[screen] ?? fallback

@@ -34,4 +34,3 @@ watch(
     <div class="bottom-space" />
   </div>
 </template>
-

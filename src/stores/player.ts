@@ -7,7 +7,7 @@ import { displayArtist, type Track } from '@/domain/track'
 import { orderFor, shuffle, type ShuffleKind } from '@/domain/shuffle'
 import { useLibrary } from './library'
 import { useSettings } from './settings'
-import { cleanEffects, type Effects } from '@/domain/effects'
+import { cleanEffects, type Effects, type Sound } from '@/domain/effects'
 
 let qidSeq = 0
 export function newQid(): string {
@@ -155,6 +155,15 @@ export const usePlayer = defineStore('player', () => {
       if (document.visibilityState === 'visible') void resync()
     })
     await resync()
+    // Перемешивание и повтор — как были перед закрытием приложения
+    shuffleMode.value = settings.s.shuffle
+    const saved = settings.s.repeat
+    if (saved == null) settings.s.repeat = repeat.value
+    else if (saved !== repeat.value) {
+      repeat.value = saved
+      await MusicCore.setRepeat({ mode: saved })
+    }
+    watch(shuffleMode, (m) => (settings.s.shuffle = m))
   }
 
   // Отрезок A–B относится к одному треку: при смене трека сбрасываем
@@ -349,6 +358,7 @@ export const usePlayer = defineStore('player', () => {
     const order: RepeatMode[] = ['off', 'all', 'one']
     const mode = order[(order.indexOf(repeat.value) + 1) % order.length]!
     repeat.value = mode
+    settings.s.repeat = mode
     await MusicCore.setRepeat({ mode })
   }
 
@@ -358,6 +368,13 @@ export const usePlayer = defineStore('player', () => {
     speed.value = s
     pitch.value = p
     await MusicCore.setPlaybackParams({ speed: s, pitch: p })
+  }
+
+  /** Весь звук разом (свой пресет): скорость, тон и эффекты */
+  const sound = computed<Sound>(() => ({ speed: speed.value, pitch: pitch.value, effects: effects.value }))
+  async function applySound(s: Sound) {
+    await setPlaybackParams(s.speed, s.pitch)
+    await setEffects(s.effects)
   }
 
   async function setEffects(fx: Effects) {
@@ -427,6 +444,7 @@ export const usePlayer = defineStore('player', () => {
     speed,
     pitch,
     effects,
+    sound,
     transitionMs,
     output,
     outputs,
@@ -461,6 +479,7 @@ export const usePlayer = defineStore('player', () => {
     cycleRepeat,
     setPlaybackParams,
     setEffects,
+    applySound,
     markAb,
     setAb,
     clearAb,

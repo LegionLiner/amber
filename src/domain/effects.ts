@@ -39,3 +39,42 @@ export function effectsLabel(fx: Effects): string {
     .map((d) => d.label)
     .join(', ')
 }
+
+/** Свой пресет звука: скорость, тон и эффекты одной кнопкой */
+export interface SoundPreset {
+  id: string
+  name: string
+  speed: number
+  pitch: number
+  effects: Effects
+}
+
+export interface Sound {
+  speed: number
+  pitch: number
+  effects: Effects
+}
+
+const near = (a: number, b: number) => Math.abs(a - b) < 0.006
+
+export function sameSound(a: Sound, b: Sound): boolean {
+  if (!near(a.speed, b.speed) || !near(a.pitch, b.pitch)) return false
+  return EFFECTS.every((d) => near(a.effects[d.id] ?? 0, b.effects[d.id] ?? 0))
+}
+
+/** Звук без изменений: обычная скорость, тон и ни одного эффекта */
+export function plainSound(s: Sound): boolean {
+  return sameSound(s, { speed: 1, pitch: 1, effects: {} })
+}
+
+/** Название по умолчанию для нового пресета: «0.85× с тоном · Зал» */
+export function soundName(s: Sound): string {
+  const parts: string[] = []
+  if (!near(s.speed, 1) || !near(s.pitch, 1)) {
+    const x = `${Number(s.speed.toFixed(2))}×`
+    parts.push(near(s.pitch, s.speed) && !near(s.speed, 1) ? `${x} с тоном` : x)
+  }
+  const fx = effectsLabel(s.effects)
+  if (fx) parts.push(fx)
+  return parts.join(' · ') || 'Как есть'
+}

@@ -366,6 +366,8 @@ class Engine(private val ctx: Context, private val events: Events) {
 
     /** Увести звук в ноль за outMs, выполнить action, подождать holdMs и вернуть за inMs */
     private fun fadeThen(outMs: Long, holdMs: Long, inMs: Long, action: () -> Unit) {
+        // Новое затухание (пропуск трека) вытесняет прошлое действие: смену скорости при этом не теряем
+        if (fadeAction != null) applyPendingParams()
         fadeAction = action
         // Новое затухание посреди прошлого начинается с текущей громкости, без скачка вверх
         fadeFrom = manualFade
@@ -391,12 +393,32 @@ class Engine(private val ctx: Context, private val events: Events) {
      */
     fun setPlaybackParams(speed: Float, pitch: Float) {
         val params = PlaybackParameters(speed.coerceIn(0.25f, 3f), pitch.coerceIn(0.25f, 3f))
-        if (params == active.playbackParameters) return
-        val apply = { decks.forEach { it.playbackParameters = params } }
-        if (active.isPlaying && fadeAction == null) fadeThen(60, 300, 160, apply) else apply()
+        if (params == playbackParams) return
+        // Провал громкости под прошлую смену ещё идёт: применится последнее значение, а не первое
+        // (иначе два быстрых нажатия — пресет и сразу другой — оставляли скорость первого)
+        if (pendingParams != null) {
+            pendingParams = params
+            return
+        }
+        if (active.isPlaying && fadeAction == null) {
+            pendingParams = params
+            fadeThen(60, 300, 160) { applyPendingParams() }
+        } else {
+            decks.forEach { it.playbackParameters = params }
+        }
     }
 
-    val playbackParams: PlaybackParameters get() = active.playbackParameters
+    /** Скорость и тон, которые ждут тишины посреди провала громкости */
+    private var pendingParams: PlaybackParameters? = null
+
+    private fun applyPendingParams() {
+        val p = pendingParams ?: return
+        pendingParams = null
+        decks.forEach { it.playbackParameters = p }
+    }
+
+    /** То, что выбрано: если смена ещё не применена — уже новое значение, интерфейс не откатывается назад */
+    val playbackParams: PlaybackParameters get() = pendingParams ?: active.playbackParameters
 
     /** Сколько ещё идёт переход между треками (для анимации в интерфейсе), 0 — перехода нет */
     val transitionLeftMs: Long

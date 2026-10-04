@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { PluginListenerHandle } from '@capacitor/core'
 import { MusicCore } from '@/native/music-core'
 import { isNative } from '@/native/paths'
+import { isDesktop } from '@/native/desktop/bridge'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
@@ -24,7 +25,7 @@ const link = ref(props.url ?? '')
 const info = ref<YoutubeInfo | null>(null)
 const title = ref('')
 const artist = ref('')
-const stage = ref<'idle' | 'looking' | 'ready' | 'download' | 'save' | 'done'>('idle')
+const stage = ref<'idle' | 'looking' | 'ready' | 'prepare' | 'download' | 'save' | 'done'>('idle')
 const progress = ref(0)
 const error = ref('')
 const savedPath = ref('')
@@ -35,7 +36,7 @@ let handle: PluginListenerHandle | null = null
 onMounted(async () => {
   handle = await MusicCore.addListener('youtubeProgress', (e) => {
     stage.value = e.stage
-    if (e.stage === 'download' && e.total > 0) progress.value = e.done / e.total
+    if ((e.stage === 'download' || e.stage === 'prepare') && e.total > 0) progress.value = e.done / e.total
   })
   if (link.value && looksLikeYoutube.value) void look()
 })
@@ -73,6 +74,14 @@ async function download() {
   }
 }
 
+const progressText = computed(() => {
+  if (stage.value === 'save') return 'Сохраняю в «Музыку»…'
+  const pct = `${Math.round(progress.value * 100)}%`
+  // Компьютер в первый раз скачивает загрузчик yt-dlp (около 18 МБ)
+  if (stage.value === 'prepare') return `Готовлю загрузчик, это один раз… ${pct}`
+  return `Скачиваю… ${pct}`
+})
+
 /** Только что скачанный трек: ищем по имени файла среди свежих */
 function play() {
   const name = savedPath.value.split('/').pop()
@@ -87,7 +96,9 @@ function play() {
 <template>
   <div class="sheet-body form">
     <h3 class="sheet-head">Скачать с YouTube</h3>
-    <p v-if="!isNative" class="note">Загрузка работает в приложении на телефоне: браузер не пускает к YouTube напрямую.</p>
+    <p v-if="!isNative && !isDesktop" class="note">
+      Загрузка работает в приложении на телефоне и на компьютере: браузер не пускает к YouTube напрямую.
+    </p>
     <template v-else>
       <label class="fl"
         ><span>Ссылка на видео</span
@@ -99,7 +110,7 @@ function play() {
           inputmode="url"
           placeholder="https://youtu.be/…"
           autocomplete="off"
-          :disabled="stage === 'download' || stage === 'save'"
+          :disabled="stage === 'prepare' || stage === 'download' || stage === 'save'"
           @keydown.enter="look"
       /></label>
       <button
@@ -124,9 +135,9 @@ function play() {
         <label class="fl"><span>Исполнитель</span><input id="yt-artist" v-model="artist" class="field" /></label>
         <label class="fl"><span>Название</span><input id="yt-title" v-model="title" class="field" /></label>
 
-        <div v-if="stage === 'download' || stage === 'save'" class="progress">
+        <div v-if="stage === 'prepare' || stage === 'download' || stage === 'save'" class="progress">
           <div class="bar"><i :style="{ transform: `scaleX(${stage === 'save' ? 1 : progress})` }" /></div>
-          <small>{{ stage === 'save' ? 'Сохраняю в «Музыку»…' : `Скачиваю… ${Math.round(progress * 100)}%` }}</small>
+          <small>{{ progressText }}</small>
         </div>
         <template v-else-if="stage === 'done'">
           <p class="done">Готово: трек в медиатеке, папка «Музыка/Amber». Играет без интернета.</p>

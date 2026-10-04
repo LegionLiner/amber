@@ -1,8 +1,8 @@
 {
   "name": "yantar",
   "private": true,
-  "version": "0.2.0",
-  "description": "Amber — личный офлайн-плеер для Android",
+  "version": "0.3.0",
+  "description": "Amber — личный офлайн-плеер для Android и компьютера",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,12 @@
     "apk": "npm run sync && cd android && gradlew.bat assembleDebug",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write src tests"
+    "format": "prettier --write src tests",
+    "desktop:build": "npm run build && node desktop/build.mjs",
+    "desktop": "npm run desktop:build && electron desktop/app",
+    "desktop:start": "electron desktop/app",
+    "desktop:pack": "npm run desktop:build && electron-builder --win --config desktop/electron-builder.json",
+    "typecheck:desktop": "tsc -p desktop/tsconfig.json"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -45,6 +50,8 @@
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.9.0",
     "@vue/tsconfig": "^0.9.1",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
     "eslint": "^10.11.0",
     "eslint-plugin-vue": "^10.11.1",
     "globals": "^17.12.0",

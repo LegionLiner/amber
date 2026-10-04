@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import ChipTabs from '@/components/ChipTabs.vue'
 import CoverArt from '@/components/CoverArt.vue'
 import { useLibrary } from '@/stores/library'
@@ -32,6 +32,15 @@ const hours = shallowRef<number[]>(Array(24).fill(0))
 const top = shallowRef<{ track: Track; plays: number; listenedMs: number }[]>([])
 const selectedDay = ref<string | null>(null)
 const selectedHour = ref<number | null>(null)
+
+/** Нажатие мимо дня или часа снимает выделение (и подсказка возвращается к «нажми на день») */
+function clearOnOutside(e: PointerEvent) {
+  const t = e.target as Element | null
+  if (selectedDay.value && !t?.closest('.heat .cell, .caption .open')) selectedDay.value = null
+  if (selectedHour.value != null && !t?.closest('.hours .hbar')) selectedHour.value = null
+}
+onMounted(() => document.addEventListener('pointerdown', clearOnOutside, true))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', clearOnOutside, true))
 
 async function load() {
   const now = Date.now()

@@ -7,12 +7,42 @@ import { WebEffects } from './audio-effects'
  */
 export const EQ_FREQS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
+let live: AudioGraph | null = null
+let freq = new Uint8Array(1024)
+
+/** Граф, чьи уровни показывает подсветка (движок регистрирует его при создании) */
+export function showLevelsOf(g: AudioGraph | null) {
+  live = g
+}
+
+/**
+ * Что сейчас звучит: басы (до 150 Гц) и общий уровень, 0…1. null — звук ещё не шёл через граф.
+ * Читается каждый кадр подсветкой на компьютере, поэтому без выделения памяти.
+ */
+export function audioLevels(): { bass: number; level: number } | null {
+  const g = live
+  if (!g || g.ctx.state !== 'running') return null
+  const a = g.analyser
+  if (freq.length !== a.frequencyBinCount) freq = new Uint8Array(a.frequencyBinCount)
+  a.getByteFrequencyData(freq)
+  const hz = g.ctx.sampleRate / a.fftSize
+  const bassTo = Math.max(2, Math.round(150 / hz))
+  let bass = 0
+  for (let i = 1; i <= bassTo; i++) bass += freq[i]!
+  const allTo = Math.min(freq.length - 1, Math.round(8000 / hz))
+  let all = 0
+  for (let i = 1; i <= allTo; i++) all += freq[i]!
+  return { bass: bass / (bassTo * 255), level: all / (allTo * 255) }
+}
+
 export class AudioGraph {
   readonly ctx: AudioContext
   private readonly preamp: GainNode
   private readonly bands: BiquadFilterNode[]
   private readonly limiter: DynamicsCompressorNode
   private readonly effects: WebEffects
+  /** Уровни звука после эффектов — для подсветки в такт музыке на компьютере (audioLevels) */
+  readonly analyser: AnalyserNode
 
   constructor() {
     this.ctx = new AudioContext()
@@ -39,6 +69,10 @@ export class AudioGraph {
     this.effects = new WebEffects(this.ctx)
     node.connect(this.effects.input)
     this.effects.output.connect(this.limiter).connect(this.ctx.destination)
+    this.analyser = this.ctx.createAnalyser()
+    this.analyser.fftSize = 2048
+    this.analyser.smoothingTimeConstant = 0.55
+    this.limiter.connect(this.analyser)
   }
 
   connect(el: HTMLMediaElement): GainNode {

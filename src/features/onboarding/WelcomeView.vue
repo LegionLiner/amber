@@ -7,6 +7,7 @@ import IconBattery from '~icons/solar/bolt-linear'
 import IconFolder from '~icons/solar/folder-open-linear'
 import { MusicCore, MusicCoreWeb } from '@/native/music-core'
 import { isNative } from '@/native/paths'
+import { isDesktop } from '@/native/desktop/bridge'
 import { useLibrary } from '@/stores/library'
 import { useSettings } from '@/stores/settings'
 import { countLabel } from '@/domain/format'
@@ -85,10 +86,14 @@ function finish() {
       <template v-if="step === 'intro'">
         <ul class="points">
           <li>
-            <IconMusic /><span><b>Доступ к музыке</b>Чтобы найти mp3 на телефоне. Файлы не покидают устройство.</span>
+            <IconMusic /><span v-if="isDesktop"
+              ><b>Папка с музыкой</b>Amber читает файлы прямо с диска и сам замечает новые. Ничего не загружается в сеть.</span
+            ><span v-else><b>Доступ к музыке</b>Чтобы найти mp3 на телефоне. Файлы не покидают устройство.</span>
           </li>
           <li>
-            <IconBell /><span><b>Уведомления</b>Плеер в шторке, на экране блокировки и на часах.</span>
+            <IconBell /><span v-if="isDesktop"
+              ><b>Трей и клавиши</b>Крестик прячет окно в трей — музыка играет. Клавиши мультимедиа и пробел работают.</span
+            ><span v-else><b>Уведомления</b>Плеер в шторке, на экране блокировки и на часах.</span>
           </li>
           <li v-if="isNative">
             <IconBattery /><span
@@ -103,10 +108,18 @@ function finish() {
         </template>
         <template v-else>
           <button type="button" class="btn primary block" @click="pickFolder"><IconFolder />Открыть папку с музыкой</button>
-          <button type="button" class="btn block demo" @click="grant">Попробовать на демо-треках</button>
-          <p class="muted small">
-            Это веб-версия для проверки на компьютере. Файлы читаются прямо в браузере и никуда не отправляются.
-          </p>
+          <template v-if="isDesktop">
+            <p class="muted small">
+              Выбери папку, где лежит музыка, например «Музыка». Потом в настройках можно добавить ещё папки. Файлы не покидают
+              компьютер.
+            </p>
+          </template>
+          <template v-else>
+            <button type="button" class="btn block demo" @click="grant">Попробовать на демо-треках</button>
+            <p class="muted small">
+              Это веб-версия для проверки на компьютере. Файлы читаются прямо в браузере и никуда не отправляются.
+            </p>
+          </template>
         </template>
       </template>
 

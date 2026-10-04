@@ -12,6 +12,7 @@ import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { MusicCore } from '@/native/music-core'
 import { isNative } from '@/native/paths'
+import { isDesktop } from '@/native/desktop/bridge'
 import { outputLabel } from '@/domain/outputs'
 import type { OutputDevice } from '@/native/types'
 
@@ -43,16 +44,23 @@ function icon(d: OutputDevice) {
           : IconSpeaker
 }
 
+/** Ключ устройства для профилей эквалайзера: как его называет движок */
+function keyOf(d: OutputDevice): string {
+  if (isDesktop) return `pc:${d.name}`
+  return d.kind === 'bluetooth' ? `bt:${d.name}` : d.kind
+}
+
 function isCurrent(d: OutputDevice): boolean {
   if (player.outputs?.preferred != null) return player.outputs.preferred === d.id
   const c = current.value
+  if (isDesktop) return false
   if (d.kind === 'bluetooth') return c === `bt:${d.name}`
   return c === d.kind
 }
 
 async function choose(d: OutputDevice | null) {
   await player.setOutput(d?.id ?? null)
-  ui.toast(d ? `Звук: ${d.name}` : 'Звук: как решит система')
+  ui.toast(d ? `Звук: ${d.name}` : isDesktop ? 'Звук: как в настройках Windows' : 'Звук: как решит система')
 }
 
 function saveProfile() {
@@ -76,10 +84,16 @@ function openEq() {
       <button v-for="d in devices" :key="d.id" type="button" class="sheet-item" :class="{ on: isCurrent(d) }" @click="choose(d)">
         <component :is="icon(d)" />
         <span class="ellipsis">{{ d.name }}</span>
-        <span v-if="settings.s.audio.profiles[d.kind === 'bluetooth' ? `bt:${d.name}` : d.kind]" class="hint">свой звук</span>
+        <span v-if="settings.s.audio.profiles[keyOf(d)]" class="hint">свой звук</span>
       </button>
-      <button v-if="isNative" type="button" class="sheet-item" @click="choose(null)">
-        <IconSpeaker /><span>Автоматически</span><span class="hint">как решит система</span>
+      <button
+        v-if="isNative || isDesktop"
+        type="button"
+        class="sheet-item"
+        :class="{ on: isDesktop && player.outputs?.preferred == null }"
+        @click="choose(null)"
+      >
+        <IconSpeaker /><span>Автоматически</span><span class="hint">{{ isDesktop ? 'как в Windows' : 'как решит система' }}</span>
       </button>
       <button v-if="isNative" type="button" class="sheet-item" @click="MusicCore.openSystemOutputSwitcher()">
         <IconSwitch /><span>Системный переключатель</span>

@@ -63,6 +63,8 @@ export interface AppSettings {
   writeTagsToFiles: boolean
   /** Показывать текст песни в плеере, если он есть */
   showLyrics: boolean
+  /** Компьютер: фон и свечение снизу дышат в такт басам */
+  desktopPulse: boolean
 }
 
 export const EQ_PRESETS: Record<string, { label: string; bands: number[]; preampDb: number }> = {
@@ -115,6 +117,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   radio: { adventure: 0.35, freshness: 0.4 },
   writeTagsToFiles: true,
   showLyrics: true,
+  desktopPulse: true,
 }
 
 const KEY = 'app'

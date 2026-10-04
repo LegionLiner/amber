@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { haptic } from '@/native/haptics'
 import { touchStoppedScroll } from './tapGuard'
+import { isDesktop } from '@/native/desktop/bridge'
 
 export interface RowGestureOptions {
   onTap: () => void
@@ -28,6 +29,8 @@ export function useRowGesture(opts: RowGestureOptions) {
   let timer: ReturnType<typeof setTimeout> | undefined
   let longFired = false
   let armed = false
+  /** Мышью на компьютере строку не тянут: свайпы — для пальца, меню — по правому клику */
+  let mouse = false
 
   const reset = () => {
     clearTimeout(timer)
@@ -40,6 +43,7 @@ export function useRowGesture(opts: RowGestureOptions) {
 
   function onPointerdown(e: PointerEvent) {
     if (e.button !== 0) return
+    mouse = isDesktop && e.pointerType === 'mouse'
     active = true
     sx = e.clientX
     sy = e.clientY
@@ -66,7 +70,7 @@ export function useRowGesture(opts: RowGestureOptions) {
     const my = e.clientY - sy
     if (!lock && Math.hypot(mx, my) > 8) {
       clearTimeout(timer)
-      const canSwipe = (opts.swipes?.() ?? true) && ((mx > 0 && opts.onSwipeRight) || (mx < 0 && opts.onSwipeLeft))
+      const canSwipe = !mouse && (opts.swipes?.() ?? true) && ((mx > 0 && opts.onSwipeRight) || (mx < 0 && opts.onSwipeLeft))
       lock = Math.abs(mx) > Math.abs(my) * 1.3 && canSwipe ? 'x' : 'y'
       if (lock === 'x') (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     }
@@ -101,8 +105,11 @@ export function useRowGesture(opts: RowGestureOptions) {
   }
 
   function onContextmenu(e: Event) {
-    // Долгое нажатие мышью на компьютере
+    // Правый клик — то же меню, что долгое нажатие; системное меню не нужно
     e.preventDefault()
+    if (longFired) return
+    reset()
+    opts.onLongPress?.()
   }
 
   return { dx, dragging, handlers: { onPointerdown, onPointermove, onPointerup, onPointercancel, onContextmenu } }

@@ -15,6 +15,10 @@ import { isNative } from '@/native/paths'
 import { rememberScroll, restoreScroll, routeAnim } from '@/app/motion'
 import { pageIndex } from '@/app/paging'
 import PageStrip from '@/components/PageStrip.vue'
+import DesktopSidebar from '@/components/desktop/DesktopSidebar.vue'
+import DesktopPlayerBar from '@/components/desktop/DesktopPlayerBar.vue'
+import DesktopAmbient from '@/components/desktop/DesktopAmbient.vue'
+import { isDesktop } from '@/native/desktop/bridge'
 
 const route = useRoute()
 const ui = useUi()
@@ -31,7 +35,12 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
 </script>
 
 <template>
-  <div class="shell" :class="{ 'has-mini': player.hasTrack && !bare }">
+  <div class="shell" :class="{ 'has-mini': player.hasTrack && !bare, wide: isDesktop && !bare }">
+    <!-- Компьютер: окно без системной рамки, за эту полосу его таскают; кнопки окна рисует Windows -->
+    <div v-if="isDesktop" class="drag-strip" aria-hidden="true" />
+    <!-- Компьютер: живой фон в цветах обложки, через него видно стекло меню и панелей -->
+    <DesktopAmbient v-if="isDesktop" />
+    <DesktopSidebar v-if="isDesktop && !bare" />
     <div v-if="bootState.error" class="boot-error">
       <h3>Не удалось запустить</h3>
       <p>{{ bootState.error }}</p>
@@ -50,7 +59,8 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
         </Transition>
       </RouterView>
     </div>
-    <template v-if="!bare">
+    <DesktopPlayerBar v-if="isDesktop && !bare" />
+    <template v-else-if="!bare">
       <MiniPlayer />
       <BottomNav @reselect="ui.tabReselected" />
     </template>
@@ -58,7 +68,7 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
     <QueuePanel />
     <SheetHost />
     <ToastHost />
-    <WebFolderBanner v-if="!isNative && bootState.ready && !bare" />
+    <WebFolderBanner v-if="!isNative && !isDesktop && bootState.ready && !bare" />
   </div>
 </template>
 
@@ -72,6 +82,31 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
   position: relative;
   height: 100%;
   overflow: hidden;
+}
+/* Компьютер: меню слева, экраны справа, панель плеера на всю ширину внизу */
+.shell.wide {
+  display: grid;
+  grid-template-columns: var(--side-w) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--bar-h);
+}
+/* Экраны уходят под панель плеера: она стеклянная, под ней видно прокручиваемое */
+.shell.wide .pages {
+  grid-row: 1 / -1;
+  grid-column: 2;
+  height: auto;
+  min-height: 0;
+  container-type: inline-size;
+  z-index: 1;
+}
+.drag-strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  z-index: 90;
+  -webkit-app-region: drag;
+  pointer-events: none;
 }
 .boot-error {
   position: fixed;

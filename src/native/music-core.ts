@@ -127,7 +127,8 @@ export interface MusicCorePlugin {
 }
 
 export interface WebFolderInfo {
-  source: 'demo' | 'folder'
+  /** desktop — приложение для компьютера: папки на диске */
+  source: 'demo' | 'folder' | 'desktop'
   /** Chrome и Edge: папку можно запомнить и писать в неё теги */
   canPickDirectory: boolean
   savedName: string | null
@@ -135,6 +136,8 @@ export interface WebFolderInfo {
   /** Папка выбрана раньше, но после перезагрузки страницы браузер ждёт клика */
   needsAccess: boolean
   writable: boolean
+  /** Компьютер: все выбранные папки с музыкой */
+  folders?: string[]
 }
 
 /** Возможности только браузерной версии: своя папка с mp3 вместо демо-библиотеки */
@@ -143,6 +146,10 @@ export interface MusicCoreWebExtras {
   pickFolder(): Promise<{ count: number }>
   restoreFolder(): Promise<{ count: number }>
   useDemo(): Promise<void>
+  /** Компьютер: общая громкость приложения 0…1 */
+  setVolume(o: { volume: number }): Promise<void>
+  /** Компьютер: убрать папку из библиотеки */
+  removeFolder(o: { path: string }): Promise<{ folders: string[] }>
 }
 
 // Capacitor может вызвать загрузчик несколько раз, если первые вызовы пришли одновременно:

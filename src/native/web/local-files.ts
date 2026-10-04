@@ -1,5 +1,7 @@
 import { mp3Frame, parseV1, parseV2, sha1Hex, tagSize, trackKey, type Id3Tags } from './id3'
-import { mp4KeyFromFile, readMoov, readMoovFromFile, sniff, type AudioKind } from './mp4'
+import { mp4KeyFromFile, readMoov, readMoovFromFile, sniff, type AudioKind, type ByteSource } from './mp4'
+import { DesktopFile } from '../desktop/desktop-file'
+import { mediaUrl } from '../desktop/bridge'
 
 /**
  * Папка с настоящими mp3 в браузере (веб-версия и Docker).
@@ -7,8 +9,16 @@ import { mp4KeyFromFile, readMoov, readMoovFromFile, sniff, type AudioKind } fro
  * в остальных браузерах работает выбор папки через <input webkitdirectory>.
  */
 
+/** Браузерный File или файл на диске компьютера (DesktopFile) */
+export interface FileLike extends ByteSource {
+  readonly name: string
+  readonly lastModified: number
+  readonly type: string
+  arrayBuffer(): Promise<ArrayBuffer>
+}
+
 export interface LocalEntry {
-  file: File
+  file: FileLike
   relPath: string
 }
 
@@ -108,12 +118,12 @@ function mp3Duration(sample: Uint8Array, audioBytes: number): { ms: number; samp
   return { ms: Math.round(((audioBytes * 8) / fr.bitrate) * 1000), sampleRate: fr.sampleRate, bitrate: fr.bitrate }
 }
 
-function probeDuration(file: File): Promise<number> {
+function probeDuration(file: FileLike): Promise<number> {
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(file)
+    const url = file instanceof DesktopFile ? mediaUrl(file.path) : URL.createObjectURL(file as File)
     const a = new Audio()
     const done = (ms: number) => {
-      URL.revokeObjectURL(url)
+      if (url.startsWith('blob:')) URL.revokeObjectURL(url)
       resolve(ms)
     }
     const t = setTimeout(() => done(0), 6000)

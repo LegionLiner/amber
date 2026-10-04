@@ -31,6 +31,7 @@ import {
 } from '@/app/paging'
 import { afterSlide, motionReduced } from '@/app/motion'
 import { haptic } from '@/native/haptics'
+import { isDesktop } from '@/native/desktop/bridge'
 
 /**
  * Лента главных экранов. Текущий экран и оба соседа уже отрисованы и лежат рядом, лента едет за пальцем
@@ -301,6 +302,8 @@ function onDown(e: PointerEvent) {
   phase = 'idle'
   // Касание, остановившее прокрутку, тоже может стать свайпом: палец сам решает, куда вести
   if (e.button !== 0 || !e.isPrimary) return
+  // На компьютере мышью ленту не тянут: разделы — в боковом меню, вкладки — чипсами
+  if (isDesktop && e.pointerType === 'mouse') return
   const t = e.target as Element
   if (t.closest(OWN_GESTURES) || scrollsSideways(t, root.value!)) return
   base = 0

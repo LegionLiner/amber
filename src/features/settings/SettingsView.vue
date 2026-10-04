@@ -9,6 +9,9 @@ import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { MusicCore, MusicCoreWeb, type WebFolderInfo } from '@/native/music-core'
 import { isNative } from '@/native/paths'
+import { desktop, isDesktop } from '@/native/desktop/bridge'
+import IconFolder from '~icons/solar/folder-with-files-linear'
+import IconRemove from '~icons/solar/trash-bin-minimalistic-linear'
 import { recountAll, unhideAll } from '@/data/repos/library'
 import { totalEvents } from '@/data/repos/stats'
 import { backupFileName, buildBackup, importBackup, parseBackup } from '@/data/backup'
@@ -127,6 +130,33 @@ async function useDemo() {
   await MusicCoreWeb.useDemo()
   await rescan(false)
   await loadWeb()
+}
+
+/* ---------------- папки на компьютере ---------------- */
+
+const folders = computed(() => web.value?.folders ?? [])
+async function addDesktopFolder() {
+  try {
+    await MusicCoreWeb.pickFolder()
+    await loadWeb()
+    await rescan(false)
+  } catch (e) {
+    if (!/cancel/i.test(String(e))) ui.toast(`Не получилось: ${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+async function removeDesktopFolder(p: string) {
+  await MusicCoreWeb.removeFolder({ path: p })
+  await loadWeb()
+  // Треки из убранной папки станут «пропавшими»: история и оценки остаются, вернутся с папкой
+  await rescan(false)
+}
+
+/** Крестик окна: спрятать в трей (музыка играет) или выйти */
+const closeToTray = ref(true)
+if (desktop) void desktop.info().then((i) => (closeToTray.value = i.closeToTray))
+function setCloseToTray(v: boolean) {
+  closeToTray.value = v
+  void desktop?.setCloseToTray(v)
 }
 
 /* ---------------- данные ---------------- */
@@ -337,7 +367,29 @@ async function backupNow() {
         {{ countLabel(library.tracks.length, ['трек', 'трека', 'треков'])
         }}<template v-if="library.lastScan">, последнее сканирование {{ library.lastScan.tookMs }} мс</template>.
       </p>
-      <template v-if="web">
+      <template v-if="isDesktop">
+        <div class="dfolders">
+          <div v-for="p in folders" :key="p" class="dfolder">
+            <IconFolder />
+            <span class="ellipsis" :title="p">{{ p }}</span>
+            <button
+              type="button"
+              class="icon-btn"
+              :aria-label="`Убрать папку ${p}`"
+              title="Убрать из библиотеки"
+              @click="removeDesktopFolder(p)"
+            >
+              <IconRemove />
+            </button>
+          </div>
+          <p v-if="!folders.length" class="note">Папок с музыкой пока нет.</p>
+        </div>
+        <p class="note">Изменения в папках приложение замечает само: новые файлы появятся в медиатеке через пару секунд.</p>
+        <div class="btns">
+          <button type="button" class="btn primary" @click="addDesktopFolder">Добавить папку</button>
+        </div>
+      </template>
+      <template v-else-if="web">
         <p class="note">
           <template v-if="web.source === 'demo'"
             >Сейчас демо-библиотека. Можно открыть папку со своими mp3 — файлы не покидают компьютер.</template
@@ -417,7 +469,10 @@ async function backupNow() {
 
     <section class="group">
       <h2 class="gtitle">Данные</h2>
-      <p class="note">Все оценки, история и настройки живут только на этом телефоне. Бэкап — один JSON со всем сразу.</p>
+      <p class="note">
+        Все оценки, история и настройки живут только на этом {{ isDesktop ? 'компьютере' : 'телефоне' }}. Бэкап — один JSON со
+        всем сразу{{ isDesktop ? ': так же можно перенести историю с телефона' : '' }}.
+      </p>
       <button type="button" class="btn primary block" :disabled="busy" @click="exportData">Экспорт в JSON</button>
       <div class="seg">
         <button type="button" :class="{ on: importMode === 'merge' }" @click="importMode = 'merge'">Объединить</button>
@@ -429,10 +484,10 @@ async function backupNow() {
       <label class="row">
         <span>
           <b>Автобэкап раз в день</b>
-          <small v-if="s.backup.folderUri && isNative"
+          <small v-if="s.backup.folderUri && (isNative || isDesktop)"
             >Последний: {{ s.backup.lastAt ? formatDate(s.backup.lastAt) : 'ещё не было' }}, хранится {{ s.backup.keep }}</small
           >
-          <small v-else-if="!isNative">В браузере копия скачивается файлом при первом открытии за день</small>
+          <small v-else-if="!isNative && !isDesktop">В браузере копия скачивается файлом при первом открытии за день</small>
           <small v-else>Выбери папку, например в «Документах» или синхронизируемую с облаком</small>
         </span>
         <input
@@ -454,10 +509,39 @@ async function backupNow() {
           </select>
         </label>
         <div class="btns">
-          <button v-if="isNative" type="button" class="btn" @click="chooseBackupFolder">Другая папка</button>
+          <button v-if="isNative || isDesktop" type="button" class="btn" @click="chooseBackupFolder">Другая папка</button>
           <button type="button" class="btn" :disabled="busy" @click="backupNow">Сделать сейчас</button>
         </div>
       </template>
+    </section>
+
+    <section v-if="isDesktop" class="group">
+      <h2 class="gtitle">Окно</h2>
+      <label class="row">
+        <span
+          ><b>Крестик сворачивает в трей</b
+          ><small>Музыка играет дальше, значок Amber — рядом с часами. Выйти — из его меню или Ctrl+Q</small></span
+        >
+        <input
+          id="opt-tray"
+          type="checkbox"
+          class="switch"
+          :checked="closeToTray"
+          @change="setCloseToTray(($event.target as HTMLInputElement).checked)"
+        />
+      </label>
+      <label class="row">
+        <span
+          ><b>Подсветка в такт музыке</b
+          ><small>Фон в цветах обложки и свечение снизу дышат по басам. Выключи, если отвлекает</small></span
+        >
+        <input id="opt-pulse" v-model="s.desktopPulse" type="checkbox" class="switch" />
+      </label>
+      <p class="note">
+        Клавиши: пробел — пауза, Ctrl+→ и Ctrl+← — следующий и предыдущий, Shift+→ и Shift+← — перемотка на 10 секунд, Ctrl+↑ и
+        Ctrl+↓ — громкость, Ctrl+F — поиск, Ctrl+L — в избранное, Esc — закрыть шторку или плеер. Клавиши мультимедиа на
+        клавиатуре и наушниках тоже работают.
+      </p>
     </section>
 
     <section v-if="isNative" class="group">
@@ -475,6 +559,26 @@ async function backupNow() {
 </template>
 
 <style scoped>
+.dfolders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dfolder {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13.5px;
+}
+.dfolder > svg {
+  width: 20px;
+  height: 20px;
+  color: var(--amber-ink);
+}
 .custom {
   display: flex;
   flex-direction: column;

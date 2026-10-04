@@ -12,6 +12,7 @@ import { router } from './router'
 import { setupDeepLinks } from './deeplinks'
 import { runAutoBackup } from './auto-backup'
 import { weeklyHousekeeping } from './housekeeping'
+import { setupDesktop } from './desktop'
 
 /**
  * Запуск приложения:
@@ -59,6 +60,7 @@ export async function boot(): Promise<void> {
   await player.attach()
 
   setupBackButton()
+  setupDesktop()
   // Ярлыки на значке работают и в первый запуск, сразу после приветствия
   await setupDeepLinks()
 

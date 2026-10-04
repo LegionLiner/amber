@@ -328,6 +328,299 @@ function shiftChunkOffsets(moov: Uint8Array, moovStart: number, delta: number) {
   walk(0, moov.length)
 }
 
+/* ------------------------------ обычный M4A из сэмплов ------------------------------ */
+
+/** Кусок звука для сборки M4A: подряд идущие сэмплы, их байты лежат в data одним блоком */
+export interface Mp4Chunk {
+  count: number
+  data: Uint8Array
+}
+
+/** Звуковая дорожка в moov (hdlr = soun); если подписи нет — первая */
+function soundTrak(moov: Uint8Array, kids: Box[]): Box | undefined {
+  const traks = kids.filter((x) => x.type === 'trak')
+  return (
+    traks.find((t) => {
+      const mdia = child(moov, t, 'mdia')
+      const hdlr = mdia && child(moov, mdia, 'hdlr')
+      return hdlr ? ascii(moov, hdlr.start + hdlr.header + 8, 4) === 'soun' : false
+    }) ?? traks[0]
+  )
+}
+
+/**
+ * Обычный M4A (ftyp, moov, mdat) по образцу moov: описание звука (stsd) берётся из него, таблицы сэмплов
+ * строятся заново из durations, sizes и chunks. Остальные дорожки (обложка-видео) отбрасываются.
+ * На этом стоят пересборка фрагментированного файла с YouTube и нарезка длинных треков для анализа.
+ */
+export function flatMp4(
+  moov: Uint8Array,
+  durations: ArrayLike<number>,
+  sizes: ArrayLike<number>,
+  chunks: Mp4Chunk[],
+): Uint8Array {
+  const moovKids = boxes(moov, 8, moov.length)
+  const trak = soundTrak(moov, moovKids)
+  if (!trak) throw new Error('В MP4 нет звуковой дорожки')
+  const n = sizes.length
+  let total = 0
+  for (let i = 0; i < n; i++) total += durations[i]!
+
+  // Таблицы сэмплов
+  const stts: number[] = []
+  let runs = 0
+  for (let i = 0; i < n;) {
+    let j = i
+    while (j < n && durations[j] === durations[i]) j++
+    stts.push(...be32(j - i), ...be32(durations[i]!))
+    runs++
+    i = j
+  }
+  const stsc: number[] = []
+  let stscN = 0
+  chunks.forEach((c, i) => {
+    if (i > 0 && chunks[i - 1]!.count === c.count) return
+    stsc.push(...be32(i + 1), ...be32(c.count), ...be32(1))
+    stscN++
+  })
+  const stszPayload = new Uint8Array(12 + 4 * n)
+  stszPayload.set(be32(n), 8)
+  for (let i = 0; i < n; i++) stszPayload.set(be32(sizes[i]!), 12 + 4 * i)
+  const stszBox = makeBox('stsz', stszPayload)
+  const sttsBox = makeBox('stts', [0, 0, 0, 0, ...be32(runs), ...stts])
+  const stscBox = makeBox('stsc', [0, 0, 0, 0, ...be32(stscN), ...stsc])
+  const stcoBox = (offsets: number[]) => makeBox('stco', [0, 0, 0, 0, ...be32(offsets.length), ...offsets.flatMap(be32)])
+
+  // Длительности в mvhd, tkhd, mdhd: в образце они другие (или ноль у фрагментированного)
+  const patchDuration = (box: Box, value: number, at0: number, at1: number) => {
+    const b = moov.slice(box.start, box.end)
+    const v = b[box.header]!
+    const at = (v === 1 ? at1 : at0) + box.header
+    if (v === 1) {
+      b.set(be32(Math.floor(value / 2 ** 32)), at)
+      b.set(be32(value >>> 0), at + 4)
+    } else b.set(be32(Math.min(0xffffffff, value)), at)
+    return b
+  }
+  const scaleOf = (box: Box) => u32(moov, box.start + box.header + (moov[box.start + box.header] === 1 ? 20 : 12))
+  const mvhd = moovKids.find((x) => x.type === 'mvhd')!
+  const trakKids = boxes(moov, trak.start + trak.header, trak.end)
+  const mdia = trakKids.find((x) => x.type === 'mdia')!
+  const mdiaKids = boxes(moov, mdia.start + mdia.header, mdia.end)
+  const mdhd = mdiaKids.find((x) => x.type === 'mdhd')!
+  const inMovie = Math.round((total / scaleOf(mdhd)) * scaleOf(mvhd))
+  const minf = mdiaKids.find((x) => x.type === 'minf')!
+  const minfKids = boxes(moov, minf.start + minf.header, minf.end)
+  const stbl = minfKids.find((x) => x.type === 'stbl')!
+  const stsd = boxes(moov, stbl.start + stbl.header, stbl.end).find((x) => x.type === 'stsd')!
+  const raw = (b: Box) => moov.subarray(b.start, b.end)
+
+  const build = (offsets: number[]) => {
+    const newStbl = makeBox('stbl', concat([raw(stsd), sttsBox, stscBox, stszBox, stcoBox(offsets)]))
+    const newMinf = makeBox('minf', concat(minfKids.map((k) => (k.type === 'stbl' ? newStbl : raw(k)))))
+    const newMdia = makeBox(
+      'mdia',
+      concat(mdiaKids.map((k) => (k.type === 'mdhd' ? patchDuration(k, total, 16, 24) : k.type === 'minf' ? newMinf : raw(k)))),
+    )
+    // Список правок (edts) относится ко всей старой дорожке — в новом файле он только мешал бы
+    const newTrak = makeBox(
+      'trak',
+      concat(
+        trakKids
+          .filter((k) => k.type !== 'edts')
+          .map((k) => (k.type === 'tkhd' ? patchDuration(k, inMovie, 20, 28) : k.type === 'mdia' ? newMdia : raw(k))),
+      ),
+    )
+    return makeBox(
+      'moov',
+      concat(
+        moovKids
+          .filter((k) => k.type !== 'mvex' && (k.type !== 'trak' || k.start === trak.start))
+          .map((k) => (k.type === 'mvhd' ? patchDuration(k, inMovie, 16, 24) : k.type === 'trak' ? newTrak : raw(k))),
+      ),
+    )
+  }
+
+  // ftyp обычного M4A
+  const ftyp = makeBox(
+    'ftyp',
+    [...'M4A ']
+      .map((c) => c.charCodeAt(0))
+      .concat([0, 0, 2, 0], ...['M4A ', 'mp42', 'isom'].map((s) => [...s].map((c) => c.charCodeAt(0)))),
+  )
+  const dataStart = ftyp.length + build(chunks.map(() => 0)).length + 8
+  const offsets: number[] = []
+  let o = dataStart
+  for (const c of chunks) {
+    offsets.push(o)
+    o += c.data.length
+  }
+  if (o > 0xffffffff) throw new Error('MP4 больше 4 ГБ')
+  const mdatHead = new Uint8Array(8)
+  mdatHead.set(be32(o - dataStart + 8), 0)
+  mdatHead.set([0x6d, 0x64, 0x61, 0x74], 4)
+  return concat([ftyp, build(offsets), mdatHead, ...chunks.map((c) => c.data)])
+}
+
+/** Таблица сэмплов звуковой дорожки обычного MP4: где лежит каждый сэмпл, сколько весит и длится */
+export interface Mp4SampleTable {
+  sizes: Uint32Array
+  offsets: Float64Array
+  durations: Uint32Array
+  timescale: number
+}
+
+export function mp4SampleTable(moov: Uint8Array): Mp4SampleTable | null {
+  const trak = soundTrak(moov, boxes(moov, 8, moov.length))
+  const mdia = trak && child(moov, trak, 'mdia')
+  const mdhd = mdia && child(moov, mdia, 'mdhd')
+  const minf = mdia && child(moov, mdia, 'minf')
+  const stbl = minf && child(moov, minf, 'stbl')
+  if (!stbl || !mdhd) return null
+  const kids = boxes(moov, stbl.start + stbl.header, stbl.end)
+  const get = (t: string) => kids.find((x) => x.type === t)
+  const stsz = get('stsz')
+  const stsc = get('stsc')
+  const stts = get('stts')
+  const stco = get('stco') ?? get('co64')
+  if (!stsz || !stsc || !stts || !stco) return null
+  const timescale = u32(moov, mdhd.start + mdhd.header + (moov[mdhd.start + mdhd.header] === 1 ? 20 : 12))
+
+  let p = stsz.start + stsz.header + 4
+  const fixed = u32(moov, p)
+  const n = u32(moov, p + 4)
+  if (!n) return null
+  const sizes = new Uint32Array(n)
+  for (let i = 0; i < n; i++) sizes[i] = fixed || u32(moov, p + 8 + 4 * i)
+
+  p = stts.start + stts.header + 4
+  const durations = new Uint32Array(n)
+  let k = 0
+  for (let e = 0, entries = u32(moov, p); e < entries && k < n; e++) {
+    const count = u32(moov, p + 4 + 8 * e)
+    const delta = u32(moov, p + 8 + 8 * e)
+    for (let i = 0; i < count && k < n; i++) durations[k++] = delta
+  }
+
+  // Своя переменная, а не p: p ниже переиспользуется для stsc, а смещения читаются позже
+  const co = stco.start + stco.header + 4
+  const wide = stco.type === 'co64'
+  const chunkCount = u32(moov, co)
+  const chunkOffset = (c: number) => (wide ? u64(moov, co + 4 + 8 * c) : u32(moov, co + 4 + 4 * c))
+  p = stsc.start + stsc.header + 4
+  const runs = u32(moov, p)
+  const offsets = new Float64Array(n)
+  let s = 0
+  for (let r = 0; r < runs && s < n; r++) {
+    const first = u32(moov, p + 4 + 12 * r) - 1
+    const per = u32(moov, p + 8 + 12 * r)
+    const last = r + 1 < runs ? u32(moov, p + 4 + 12 * (r + 1)) - 1 : chunkCount
+    for (let c = first; c < last && s < n; c++) {
+      let off = chunkOffset(c)
+      for (let i = 0; i < per && s < n; i++) {
+        offsets[s] = off
+        off += sizes[s]!
+        s++
+      }
+    }
+  }
+  return { sizes, offsets, durations, timescale }
+}
+
+/* ------------------------------ фрагментированный MP4 ------------------------------ */
+
+export function isFragmentedMp4(file: Uint8Array): boolean {
+  return boxes(file, 0, file.length).some((x) => x.type === 'moof')
+}
+
+/**
+ * Фрагментированный MP4 (так YouTube отдаёт звук: пустые таблицы в moov и куски moof+mdat)
+ * → обычный M4A. Звук не перекодируется, байты сэмплов те же. Такой файл читают все плееры,
+ * и в него можно записать теги. На телефоне это делает MediaMuxer.
+ */
+export function defragmentMp4(file: Uint8Array): Uint8Array {
+  const top = boxes(file, 0, file.length)
+  const moovBox = top.find((x) => x.type === 'moov')
+  if (!moovBox) throw new Error('В MP4 нет moov')
+  const moov = file.subarray(moovBox.start, moovBox.end)
+  const moovKids = boxes(moov, 8, moov.length)
+  if (moovKids.filter((x) => x.type === 'trak').length !== 1) throw new Error('Пересобрать можно только файл с одной дорожкой')
+
+  // Значения по умолчанию из mvex/trex
+  let defDuration = 0
+  let defSize = 0
+  const mvex = moovKids.find((x) => x.type === 'mvex')
+  const trex = mvex && child(moov, mvex, 'trex')
+  if (trex) {
+    const p = trex.start + trex.header + 4
+    defDuration = u32(moov, p + 8)
+    defSize = u32(moov, p + 12)
+  }
+
+  // Сэмплы всех фрагментов: длительность, размер и где лежат байты
+  const durations: number[] = []
+  const sizes: number[] = []
+  const chunks: Mp4Chunk[] = []
+  for (const moof of top.filter((x) => x.type === 'moof')) {
+    for (const traf of boxes(file, moof.start + moof.header, moof.end).filter((x) => x.type === 'traf')) {
+      const kids = boxes(file, traf.start + traf.header, traf.end)
+      const tfhd = kids.find((x) => x.type === 'tfhd')
+      if (!tfhd) continue
+      let p = tfhd.start + tfhd.header
+      const tf = u32(file, p) & 0xffffff
+      p += 8 // версия и флаги, track_ID
+      let base = moof.start
+      if (tf & 0x1) {
+        base = u64(file, p)
+        p += 8
+      }
+      if (tf & 0x2) p += 4
+      let tDur = defDuration
+      let tSize = defSize
+      if (tf & 0x8) {
+        tDur = u32(file, p)
+        p += 4
+      }
+      if (tf & 0x10) tSize = u32(file, p)
+      let cursor = base
+      for (const trun of kids.filter((x) => x.type === 'trun')) {
+        let q = trun.start + trun.header
+        const rf = u32(file, q) & 0xffffff
+        const n = u32(file, q + 4)
+        q += 8
+        if (rf & 0x1) {
+          cursor = base + (u32(file, q) | 0)
+          q += 4
+        }
+        if (rf & 0x4) q += 4
+        let bytes = 0
+        for (let i = 0; i < n; i++) {
+          let d = tDur
+          let s = tSize
+          if (rf & 0x100) {
+            d = u32(file, q)
+            q += 4
+          }
+          if (rf & 0x200) {
+            s = u32(file, q)
+            q += 4
+          }
+          if (rf & 0x400) q += 4
+          if (rf & 0x800) q += 4
+          durations.push(d)
+          sizes.push(s)
+          bytes += s
+        }
+        if (cursor + bytes > file.length) throw new Error('MP4: фрагмент указывает за конец файла')
+        chunks.push({ count: n, data: file.subarray(cursor, cursor + bytes) })
+        cursor += bytes
+      }
+    }
+  }
+  if (!sizes.length) throw new Error('Во фрагментах нет звука')
+  return flatMp4(moov, durations, sizes, chunks)
+}
+
 /* ------------------------------ починка ------------------------------ */
 
 /**
@@ -352,7 +645,13 @@ export function unwrapId3Mp4(file: Uint8Array): { mp4: Uint8Array; edit: Mp4Edit
 }
 
 /** Байты коробки moov из файла: в браузере по кусочкам, не читая весь файл */
-export async function readMoovFromFile(f: Blob): Promise<Uint8Array | null> {
+/** Источник байтов: браузерный File или файл на диске компьютера (desktop/DesktopFile) */
+export interface ByteSource {
+  readonly size: number
+  slice(start?: number, end?: number): { arrayBuffer(): Promise<ArrayBuffer> }
+}
+
+export async function readMoovFromFile(f: ByteSource): Promise<Uint8Array | null> {
   let p = 0
   for (let guard = 0; guard < 64 && p + 8 <= f.size; guard++) {
     const h = new Uint8Array(await f.slice(p, p + 16).arrayBuffer())
@@ -373,7 +672,7 @@ export async function readMoovFromFile(f: Blob): Promise<Uint8Array | null> {
  * Отпечаток MP4 по аудиоданным (коробка mdat): правка тегов меняет moov, но не mdat.
  * Совпадает с TrackKey.mp4 в Kotlin.
  */
-export async function mp4KeyFromFile(f: Blob): Promise<string | null> {
+export async function mp4KeyFromFile(f: ByteSource): Promise<string | null> {
   let p = 0
   for (let guard = 0; guard < 64 && p + 8 <= f.size; guard++) {
     const h = new Uint8Array(await f.slice(p, p + 16).arrayBuffer())

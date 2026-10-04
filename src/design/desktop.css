@@ -1,0 +1,193 @@
+/*
+ * Amber на компьютере (класс .desktop на <html>, ставит app/desktop.ts).
+ * Экраны те же, что на телефоне; здесь только то, что меняется в широком окне с мышью:
+ * размеры каркаса, колонка содержимого, полосы прокрутки, наведение, шторки диалогами, очередь справа.
+ */
+:root.desktop {
+  /* Полоса заголовка окна: её можно таскать, справа кнопки Windows */
+  --safe-top: 36px;
+  --safe-bottom: 0px;
+  --side-w: 236px;
+  --bar-h: 80px;
+  --nav-h: 0px;
+  --mini-h: 0px;
+}
+
+/*
+ * Колонка содержимого: на широком окне экран не растягивается на всю ширину, а встаёт по центру.
+ * Отступ считается от ширины области экранов (.pages — контейнер), поэтому одинаков у всех вложенных блоков
+ */
+:root.desktop .pages {
+  --gutter: max(28px, calc((100cqw - 1080px) / 2));
+}
+/* Панель плеера лежит поверх экранов: в конце списка место под неё */
+:root.desktop .bottom-space {
+  height: calc(var(--bar-h) + 32px);
+}
+
+/* Полосы прокрутки видны, но тонкие: колесо и перетаскивание мышью */
+:root.desktop .scroll,
+:root.desktop .sheet-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* ---- наведение мышью ---- */
+:root.desktop .vrow .row {
+  padding-right: max(4px, calc(var(--gutter) - 12px));
+}
+:root.desktop .icon-btn:hover:not(:disabled) {
+  background: var(--chip);
+}
+:root.desktop .chip:not(.on):hover,
+:root.desktop .pill:not(.on):hover {
+  background: var(--chip-strong);
+}
+:root.desktop .btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+:root.desktop [data-morph-card]:hover .cover {
+  filter: brightness(1.08);
+}
+:root.desktop .sheet-item:hover {
+  background: var(--chip);
+}
+
+/* ---- слои поверх экранов ---- */
+
+/* Шторки — диалогом по центру снизу, а не на всю ширину */
+:root.desktop .sheet {
+  left: 50%;
+  right: auto;
+  width: min(560px, calc(100vw - 48px));
+  translate: -50% 0;
+  bottom: 24px;
+  max-height: calc(100vh - 96px);
+  border-radius: var(--r-xl);
+  padding-bottom: 10px;
+}
+
+/* Очередь — панель справа над экранами, плеер внизу остаётся виден */
+:root.desktop .queue {
+  left: auto;
+  width: 400px;
+  bottom: var(--bar-h);
+  border-left: 1px solid var(--line);
+  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.28);
+}
+:root.desktop .queue.queue-enter-from,
+:root.desktop .queue.queue-leave-to {
+  transform: translateX(100%);
+}
+
+/*
+ * Большой плеер: верхняя и нижняя полосы — на всю ширину окна, кнопки по краям, как в программах для ПК;
+ * обложка, название и управление — колонкой по центру
+ */
+:root.desktop .full .content {
+  padding: calc(var(--safe-top) + 6px) 28px 20px;
+}
+:root.desktop .full .content > :not(.top):not(.bottom) {
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+}
+:root.desktop .full .top {
+  grid-template-columns: 44px 1fr 44px;
+}
+:root.desktop .full .bottom {
+  margin-top: 18px;
+}
+
+/* Сообщения — над панелью плеера, по центру */
+:root.desktop .toasts {
+  bottom: calc(var(--bar-h) + 16px) !important;
+  left: 50%;
+  right: auto;
+  width: min(480px, calc(100vw - 48px));
+  translate: -50% 0;
+}
+
+/* Подборки в «Плейлистах» — столько колонок, сколько влезает */
+:root.desktop .autos {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+/* Приветствие — колонкой по центру, а не на всю ширину окна */
+:root.desktop .welcome .content {
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+/*
+ * Стекло. На телефоне фон сплошной, на компьютере за окном живые пятна в цветах обложки (DesktopAmbient),
+ * и всё, что лежит поверх экранов, — матовое: меню, панель плеера, заголовки разделов, шторки, очередь.
+ * «Стекло: меньше» в оформлении — без размытия и плотнее.
+ */
+:root.desktop {
+  --glass-pane: color-mix(in srgb, var(--surface) 52%, transparent);
+  --glass-head: color-mix(in srgb, var(--bg) 42%, transparent);
+  --glass-sheet: color-mix(in srgb, var(--surface) 74%, transparent);
+  --glass-blur: blur(28px) saturate(175%);
+  --glass-edge: color-mix(in srgb, var(--ink) 9%, transparent);
+}
+:root.desktop[data-theme='light'] {
+  --glass-pane: color-mix(in srgb, var(--surface) 58%, transparent);
+  --glass-head: color-mix(in srgb, var(--bg) 52%, transparent);
+  --glass-sheet: color-mix(in srgb, var(--surface) 80%, transparent);
+  --glass-edge: rgba(255, 255, 255, 0.7);
+}
+:root.desktop .side,
+:root.desktop .pbar,
+:root.desktop .queue,
+:root.desktop .sheet {
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+:root.desktop .side {
+  background: var(--glass-pane);
+  border-right-color: var(--glass-edge);
+}
+:root.desktop .pbar {
+  background: var(--glass-pane);
+  border-top-color: var(--glass-edge);
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.12);
+}
+:root.desktop .queue {
+  background: var(--glass-sheet);
+  border-left-color: var(--glass-edge);
+}
+:root.desktop .sheet {
+  background: var(--glass-sheet);
+  border: 1px solid var(--glass-edge);
+}
+/* Заголовки разделов и шапка поиска: содержимое уходит под них размытым */
+:root.desktop .sec-head,
+:root.desktop .pages .hdr {
+  background: var(--glass-head);
+  border-bottom: 1px solid var(--glass-edge);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+:root.desktop .toast {
+  background: var(--glass-sheet) !important;
+  color: var(--ink) !important;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+}
+/* Строки списков без своей заливки — через них виден фон окна */
+:root.desktop .vrow .row,
+:root.desktop .queue .row {
+  background: transparent;
+}
+:root.desktop .vrow .row:hover,
+:root.desktop .queue .row:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+:root.desktop[data-glass='low'] {
+  --glass-pane: var(--surface);
+  --glass-head: var(--bg);
+  --glass-sheet: var(--surface);
+  --glass-blur: none;
+}

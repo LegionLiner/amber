@@ -281,7 +281,8 @@ export interface YoutubeInfo {
 }
 
 export interface YoutubeProgress {
-  stage: 'download' | 'save'
+  /** prepare — компьютер скачивает загрузчик (один раз) */
+  stage: 'prepare' | 'download' | 'save'
   done: number
   total: number
 }

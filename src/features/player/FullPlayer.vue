@@ -13,11 +13,17 @@ import IconHeart from '~icons/solar/heart-linear'
 import IconHeartOn from '~icons/solar/heart-bold'
 import IconQueue from '~icons/solar/playlist-linear'
 import IconPhone from '~icons/solar/smartphone-linear'
+import IconSpeaker from '~icons/solar/speaker-minimalistic-linear'
 import IconBt from '~icons/solar/bluetooth-linear'
 import IconHeadphones from '~icons/solar/headphones-round-linear'
 import IconText from '~icons/solar/document-text-linear'
 import IconSleep from '~icons/solar/moon-sleep-linear'
 import IconTune from '~icons/solar/tuning-2-linear'
+import IconVolume from '~icons/solar/volume-loud-linear'
+import IconMute from '~icons/solar/volume-cross-linear'
+import BarSlider from '@/components/desktop/BarSlider.vue'
+import { isDesktop } from '@/native/desktop/bridge'
+import { setVolume, toggleMute, volume } from '@/app/desktop'
 import { plainSound } from '@/domain/effects'
 import SleepSheet from './SleepSheet.vue'
 import PlayerMenuSheet from './PlayerMenuSheet.vue'
@@ -83,6 +89,8 @@ watch(
 )
 const outIcon = computed(() => {
   const o = player.output
+  // Компьютер: устройство Windows по имени — наушники узнаём по названию, остальное — колонки
+  if (o.startsWith('pc:')) return /headset|headphone|наушник|гарнитур|airpods|buds/i.test(o) ? IconHeadphones : IconSpeaker
   return o.startsWith('bt:') ? IconBt : o === 'wired' || o === 'usb' ? IconHeadphones : IconPhone
 })
 
@@ -550,6 +558,18 @@ function togglePlay() {
               <IconSleep />
             </button>
             <button type="button" class="icon-btn" aria-label="Очередь" @click="ui.queueOpen = true"><IconQueue /></button>
+            <!-- Компьютер: большой плеер закрывает панель с громкостью, поэтому громкость и здесь -->
+            <span v-if="isDesktop" class="vol">
+              <button
+                type="button"
+                class="icon-btn"
+                :aria-label="volume > 0 ? 'Выключить звук' : 'Включить звук'"
+                @click="toggleMute"
+              >
+                <IconMute v-if="volume === 0" /><IconVolume v-else />
+              </button>
+              <BarSlider class="volbar" :value="volume" label="Громкость" @input="setVolume" @change="setVolume" />
+            </span>
           </span>
         </div>
       </div>
@@ -911,6 +931,15 @@ function togglePlay() {
 .tools {
   display: flex;
   gap: 2px;
+}
+.vol {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 10px;
+}
+.volbar {
+  width: 110px;
 }
 .out {
   max-width: 48%;

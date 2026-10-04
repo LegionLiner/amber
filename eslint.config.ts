@@ -9,7 +9,7 @@ import globals from 'globals'
  */
 export default defineConfigWithVueTs(
   { name: 'app/files', files: ['**/*.{ts,mts,vue}'] },
-  { name: 'app/ignores', ignores: ['dist/**', 'android/**', 'node_modules/**', 'coverage/**'] },
+  { name: 'app/ignores', ignores: ['dist/**', 'android/**', 'node_modules/**', 'coverage/**', 'desktop/app/**', 'release/**'] },
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
   {

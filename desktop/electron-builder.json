@@ -1,0 +1,24 @@
+{
+  "appId": "app.yantar.player.desktop",
+  "productName": "Amber",
+  "copyright": "Dmitry Korolev",
+  "directories": { "app": "desktop/app", "output": "release" },
+  "electronDist": "node_modules/electron/dist",
+  "electronVersion": "44.5.1",
+  "asar": true,
+  "npmRebuild": false,
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "icon": "desktop/icon.png",
+    "artifactName": "Amber-Setup-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Amber",
+    "runAfterFinish": true
+  }
+}

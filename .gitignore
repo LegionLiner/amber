@@ -22,3 +22,7 @@ android/captures
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# компьютерная версия: сборка и установщики
+desktop/app/
+release/

@@ -34,10 +34,21 @@ let lastMoveAt = 0
 let mode: 'idle' | 'pending' | 'drag' = 'idle'
 let pointerId = -1
 
+/**
+ * Оценка в точке: по самим звёздам, а не по ширине блока. Блок в колонке flex растягивался на всю строку,
+ * и клик по третьей звезде ставил одну. Левая половина звезды — половинка, правая — целая
+ */
 function valueAt(clientX: number): number {
-  const r = el.value!.getBoundingClientRect()
-  const f = (clientX - r.left) / r.width
-  return Math.min(10, Math.max(1, Math.ceil(f * 10)))
+  const stars = [...el.value!.querySelectorAll<HTMLElement>('.star')].map((s) => s.getBoundingClientRect())
+  if (!stars.length) return 1
+  for (let i = 0; i < stars.length; i++) {
+    const r = stars[i]!
+    const next = stars[i + 1]
+    // Промежуток между звёздами делится пополам между соседями
+    const right = next ? (r.right + next.left) / 2 : Infinity
+    if (clientX <= right) return Math.min(10, Math.max(1, i * 2 + (clientX < r.left + r.width / 2 ? 1 : 2)))
+  }
+  return 10
 }
 
 function down(e: PointerEvent) {
@@ -202,6 +213,9 @@ function key(e: KeyboardEvent) {
 <style scoped>
 .stars {
   display: inline-flex;
+  /* В колонке flex не растягиваться на всю строку: кликают по звёздам, а не по пустому месту справа */
+  align-self: flex-start;
+  width: max-content;
   gap: calc(var(--s) * 0.12);
   touch-action: pan-y;
   cursor: pointer;

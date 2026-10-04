@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends string">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onPageShown } from '@/app/paging'
 
 /**
@@ -47,10 +47,27 @@ function measure() {
     r.scrollTo({ left: el.offsetLeft - 16, behavior: animate.value ? 'smooth' : 'auto' })
   }
 }
+/**
+ * Окно поменяло размер (на компьютере его разворачивают, колонка встаёт по центру): чипсы сдвинулись,
+ * а подсветка оставалась на старом месте и торчала слева от первой вкладки. Перемеряем без анимации
+ */
+let resizeObs: ResizeObserver | null = null
 onMounted(() => {
   measure()
   requestAnimationFrame(() => (animate.value = true))
+  let lastW = root.value?.clientWidth ?? 0
+  resizeObs = new ResizeObserver(() => {
+    const w = root.value?.clientWidth ?? 0
+    if (w === lastW || !w) return
+    lastW = w
+    const was = animate.value
+    animate.value = false
+    measure()
+    requestAnimationFrame(() => (animate.value = was))
+  })
+  if (root.value) resizeObs.observe(root.value)
 })
+onBeforeUnmount(() => resizeObs?.disconnect())
 onPageShown(measure)
 watch(
   () => [props.modelValue, props.items.length],

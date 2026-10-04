@@ -32,18 +32,31 @@ import type {
   WriteTagsItem,
   WriteTagsResult,
   YoutubeInfo,
+  OutputDevice,
 } from '../types'
 import { WebDb } from './web-db'
 import { buildDemoLibrary, type DemoTrack } from './demo-library'
 import { synthWav } from './tone'
-import { AudioGraph } from './audio-graph'
-import { analyzeBuffer, type AnalysisResult } from './analysis'
-import type { AnalysisJob, AnalysisJobInput, AnalysisReply } from './analysis.worker'
+import { AudioGraph, showLevelsOf } from './audio-graph'
+import type { AnalysisResult } from './analysis'
+import type { AnalysisJob, AnalysisMsg, AnalysisReply } from './analysis.worker'
+import { pcmSegments } from './pcm-segments'
 import { parseV2, sha1Hex, tagSize } from './id3'
-import { canPickDirectory, pickFolder, readLocal, reopenFolder, type DirHandle, type LocalEntry } from './local-files'
+import {
+  canPickDirectory,
+  pickFolder,
+  readLocal,
+  reopenFolder,
+  type DirHandle,
+  type FileLike,
+  type LocalEntry,
+} from './local-files'
+import { desktop, isDesktop, mediaUrl } from '../desktop/bridge'
+import { DesktopFile } from '../desktop/desktop-file'
+import { splitYoutubeTitle } from '@/domain/youtube'
 import { fromBase64, isPng, writeId3 } from './id3-writer'
-import { sniff, unwrapId3Mp4, writeMp4Tags } from './mp4'
-import { loadCovers, saveCover } from './web-covers'
+import { defragmentMp4, isFragmentedMp4, sniff, unwrapId3Mp4, writeMp4Tags } from './mp4'
+import { loadCovers, saveCover, webCoverUrl } from './web-covers'
 import { DEFAULT_COUNTING, isCounted, localParts } from '@/domain/counting'
 import { rekeyFixupSql } from '@/data/rekey'
 
@@ -74,7 +87,8 @@ interface Loud {
   rg: number | null
 }
 
-type Source = 'demo' | 'folder'
+/** Откуда музыка: демо, папка в браузере или папки на диске компьютера */
+type Source = 'demo' | 'folder' | 'desktop'
 
 const DEFAULT_AUDIO: AudioSettings = {
   crossfade: { mode: 'off', durationMs: 5000, curve: 'equalPower', duckDb: -9, smart: true, skipFadeMs: 250 },
@@ -87,6 +101,7 @@ const DEFAULT_AUDIO: AudioSettings = {
 const SOURCE_KEY = 'yantar-web-source'
 
 function readSource(): Source {
+  if (isDesktop) return 'desktop'
   try {
     return localStorage.getItem(SOURCE_KEY) === 'folder' ? 'folder' : 'demo'
   } catch {
@@ -101,6 +116,50 @@ function idbFolder(): Promise<IDBDatabase> {
     r.onsuccess = () => resolve(r.result)
     r.onerror = () => reject(r.error)
   })
+}
+
+/** Папка «Amber», куда ложится скачанное с YouTube: короткие ролики не отсекаются по длительности (как на телефоне) */
+const youtubeFolder = (folder: string) => /(^|\/)Amber\/$/i.test(folder)
+
+const SINK_KEY = 'amber.sink'
+function readSink(): string {
+  try {
+    return localStorage.getItem(SINK_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/** «Динамики (Wireless Stereo Headset) (054c:0d5e)» → «Динамики (Wireless Stereo Headset)» */
+function outputName(label: string): string {
+  return label
+    .replace(/^(Default|По умолчанию) - /i, '')
+    .replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '')
+    .trim()
+}
+function outputKind(label: string): OutputDevice['kind'] {
+  if (/bluetooth|airpods|buds|hands-free|jbl/i.test(label)) return 'bluetooth'
+  if (/headset|headphone|наушник|гарнитур/i.test(label)) return 'wired'
+  if (/usb/i.test(label)) return 'usb'
+  return 'speaker'
+}
+
+/** Какой трек сейчас анализируется — переживает падение страницы (см. skipCrashedAnalysis) */
+const ANALYZING_KEY = 'amber.analyzing'
+function markAnalyzing(key: string | null) {
+  try {
+    if (key) localStorage.setItem(ANALYZING_KEY, key)
+    else localStorage.removeItem(ANALYZING_KEY)
+  } catch {
+    /* без защиты */
+  }
+}
+function analyzingKey(): string | null {
+  try {
+    return localStorage.getItem(ANALYZING_KEY)
+  } catch {
+    return null
+  }
 }
 
 /** Формат по байтам файла целиком */
@@ -138,7 +197,21 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   // своя папка
   private source: Source = readSource()
-  private readonly files = new Map<string, { file: File; rel: string }>()
+  private readonly files = new Map<string, { file: FileLike; rel: string }>()
+  /** Что последним ушло в трей и заголовок окна (компьютер) */
+  private shownNow = ''
+  /**
+   * Компьютер: очередь и место в треке переживают перезапуск, как на телефоне (PlayerHub.Saved).
+   * После запуска трек не загружен, пока не нажмут «играть»: restorePos — откуда продолжить
+   */
+  private restorePos: number | null = null
+  /** Компьютер: выбранное устройство вывода ('' — как в Windows) и как оно называется для профилей и контекстов */
+  private sinkId = readSink()
+  private sinkIds: string[] = []
+  private outputId = 'web'
+  private restoreChecked = false
+  private queueSaveTimer: ReturnType<typeof setTimeout> | undefined
+  private queueSavedAt = 0
   private folder: DirHandle | null = null
   private folderWritable = false
   private pending: LocalEntry[] | null = null
@@ -163,6 +236,8 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private fadeOutStart = 0
   private fadeOutDur = 0
   private manualFade = 1
+  /** Общая громкость приложения (компьютер: ползунок в панели плеера), уже по кривой слуха */
+  private master = 1
   private sleepFactor = 1
   private ending = false
 
@@ -196,6 +271,20 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     void this.loadLoudness()
     void this.loadFolderHandle()
     this.setupMediaSession()
+    // Кнопки в трее и в миниатюре окна на панели задач
+    desktop?.onCommand((cmd) => void this.control({ action: cmd }))
+    desktop?.onYtProgress((p) => this.notifyListeners('youtubeProgress', p))
+    if (desktop) addEventListener('pagehide', () => this.persistQueue(true))
+    if (desktop) {
+      // Подключили наушники или выключили колонку — список и подпись обновляются
+      navigator.mediaDevices?.addEventListener('devicechange', () => {
+        void this.getOutputs().then((o) => {
+          this.notifyListeners('outputs', o)
+          this.emitState()
+        })
+      })
+      void this.getOutputs().then(() => this.emitState())
+    }
   }
 
   private get active(): Deck {
@@ -209,6 +298,8 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private makeDeck(): Deck {
     const el = new Audio()
     el.preload = 'auto'
+    // На компьютере файлы идут по схеме app://; при запуске из vite (localhost) это другой источник
+    if (isDesktop) el.crossOrigin = 'anonymous'
     const deck: Deck = { el, gain: null, url: null, qid: null, pendingStart: false }
     el.addEventListener('playing', () => {
       if (deck !== this.active) return
@@ -346,6 +437,18 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   async folderInfo(): Promise<WebFolderInfo> {
+    if (desktop) {
+      const folders = await desktop.folders()
+      return {
+        source: 'desktop',
+        canPickDirectory: true,
+        savedName: folders[0] ?? null,
+        loaded: this.files.size,
+        needsAccess: false,
+        writable: true,
+        folders,
+      }
+    }
     return {
       source: this.source,
       canPickDirectory: canPickDirectory(),
@@ -357,6 +460,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   async pickFolder(): Promise<{ count: number }> {
+    if (desktop) {
+      const folders = await desktop.addFolder()
+      if (!folders) throw new Error('cancel')
+      return { count: folders.length }
+    }
     const { entries, handle } = await pickFolder()
     this.pending = entries
     this.folder = handle
@@ -372,6 +480,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     if (!entries) return { count: 0 }
     this.pending = entries
     return { count: entries.length }
+  }
+
+  /** Компьютер: убрать папку из библиотеки (файлы не трогаются) */
+  async removeFolder(o: { path: string }): Promise<{ folders: string[] }> {
+    return { folders: desktop ? await desktop.removeFolder(o.path) : [] }
   }
 
   async useDemo(): Promise<void> {
@@ -414,7 +527,83 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
     const excluded = (folder: string) => o.excludeFolders.some((x) => x && folder.toLowerCase().includes(x.toLowerCase()))
 
-    if (this.source === 'folder') {
+    if (this.source === 'desktop' && desktop) {
+      // Неизменённые файлы (тот же путь, размер и время) не перечитываем: повторный запуск занимает секунды
+      const prev = new Map<string, { key: string; size: number; mtime: number; dur: number; folder: string; missing: boolean }>()
+      for (const r of db.query(
+        "SELECT key, path, size, mtime, duration_ms, folder, missing_since FROM tracks WHERE uri LIKE 'local://%'",
+      ).values) {
+        prev.set(String(r[1]), {
+          key: String(r[0]),
+          size: Number(r[2]),
+          mtime: Number(r[3]),
+          dur: Number(r[4]),
+          folder: String(r[5] ?? ''),
+          missing: r[6] != null,
+        })
+      }
+      this.notifyListeners('scanProgress', { phase: 'list', done: 0, total: 0 })
+      const list = await desktop.walk()
+      this.files.clear()
+      const revived: string[] = []
+      let i = 0
+      for (const e of list) {
+        i++
+        if (i % 25 === 0) this.notifyListeners('scanProgress', { phase: 'tags', done: i, total: list.length })
+        const name = e.rel.slice(e.rel.lastIndexOf('/') + 1)
+        const file = new DesktopFile(e.path, name, e.size, e.mtime)
+        const p = o.full ? undefined : prev.get(e.rel)
+        if (p && p.size === e.size && p.mtime === Math.round(e.mtime / 1000)) {
+          if ((p.dur < o.minDurationMs && !youtubeFolder(p.folder)) || excluded(p.folder) || seen.has(p.key)) continue
+          seen.add(p.key)
+          this.files.set(p.key, { file, rel: e.rel })
+          if (p.missing) revived.push(p.key)
+          continue
+        }
+        const t = await readLocal({ file, relPath: e.rel }).catch(() => null)
+        if (t?.kind === 'id3+mp4') {
+          this.files.set(t.key, { file, rel: e.rel })
+          damaged.push({ key: t.key, uri: `local://${t.key}`, path: t.path, name: t.fileName })
+          continue
+        }
+        if (!t || (t.durationMs < o.minDurationMs && !youtubeFolder(t.folder)) || excluded(t.folder) || seen.has(t.key)) continue
+        seen.add(t.key)
+        if (t.legacyKey) renamed.set(t.legacyKey, t.key)
+        this.files.set(t.key, { file, rel: e.rel })
+        if (t.art) await saveCover(t.art.hash, t.art.blob)
+        if (!existing.has(t.key)) added++
+        const g = t.tags
+        upsert([
+          t.key,
+          `local://${t.key}`,
+          t.path,
+          t.folder,
+          t.fileName,
+          t.size,
+          t.mtime,
+          g.title ?? null,
+          g.artist ?? null,
+          g.album ?? null,
+          g.albumArtist ?? null,
+          g.genre ?? null,
+          g.year ?? null,
+          g.trackNo ?? null,
+          g.discNo ?? null,
+          t.durationMs,
+          t.bitrate,
+          t.sampleRate,
+          t.mime,
+          t.art?.hash ?? null,
+          g.lyrics || g.synced?.length ? 1 : 0,
+          g.rgTrackDb ?? null,
+          g.rgAlbumDb ?? null,
+          g.popm ?? null,
+          now,
+          now,
+        ])
+      }
+      for (const k of revived) statements.push({ sql: 'UPDATE tracks SET missing_since = NULL WHERE key = ?', params: [k] })
+    } else if (this.source === 'folder') {
       const entries = this.pending
       if (!entries) {
         // Доступ к папке ещё не вернули (после перезагрузки страницы нужен клик): ничего не трогаем
@@ -545,7 +734,15 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     return uri.replace(/^(local|demo):\/\//, '')
   }
 
-  private async blobFor(uri: string): Promise<Blob | null> {
+  /** Адрес для <audio>: файл с диска — по своей схеме (кусками, с перемоткой), остальное — через blob */
+  private async srcFor(uri: string): Promise<string | null> {
+    const f = uri.startsWith('local://') ? this.files.get(this.keyOf(uri))?.file : null
+    if (f instanceof DesktopFile) return mediaUrl(f.path)
+    const blob = await this.blobFor(uri)
+    return blob ? URL.createObjectURL(blob as Blob) : null
+  }
+
+  private async blobFor(uri: string): Promise<Blob | FileLike | null> {
     const key = this.keyOf(uri)
     if (uri.startsWith('local://')) return this.files.get(key)?.file ?? null
     const d = this.demoMap().get(key)
@@ -567,44 +764,77 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     void this.runAnalysis()
   }
 
-  private runJob(job: AnalysisJobInput, transfer: Transferable[] = []): Promise<AnalysisResult> {
+  /** Сообщение воркеру анализа и его ответ; id задачи общий для всех кусков одного трека */
+  private ask(id: number, msg: AnalysisMsg, transfer: Transferable[] = []): Promise<AnalysisReply> {
     if (!this.worker) {
       this.worker = new Worker(new URL('./analysis.worker.ts', import.meta.url), { type: 'module' })
       this.worker.onmessage = (e: MessageEvent<AnalysisReply>) => {
         this.jobs.get(e.data.id)?.(e.data)
-        this.jobs.delete(e.data.id)
       }
     }
-    const id = ++this.jobSeq
     return new Promise((resolve, reject) => {
-      this.jobs.set(id, (r) => (r.result ? resolve(r.result) : reject(new Error(r.error ?? 'analysis failed'))))
-      this.worker!.postMessage({ ...job, id } as AnalysisJob, transfer)
+      this.jobs.set(id, (r) => {
+        this.jobs.delete(id)
+        if (r.error) reject(new Error(r.error))
+        else resolve(r)
+      })
+      this.worker!.postMessage({ ...msg, id } as AnalysisJob, transfer)
     })
   }
 
-  /** Отсчёты трека: демо синтезирует воркер, настоящие файлы декодирует браузер (в 22 кГц — вдвое меньше работы) */
+  /**
+   * Анализ трека: демо синтезирует воркер, настоящий файл декодируется кусками (pcm-segments.ts) в 22 кГц
+   * и уходит в воркер частями по 30 секунд. В памяти не больше одного куска, сколько бы трек ни длился
+   */
   private async analyzeKey(key: string, uri: string): Promise<AnalysisResult | null> {
+    const id = ++this.jobSeq
     if (!uri.startsWith('local://')) {
       const d = this.demoMap().get(key)
-      return d ? this.runJob({ kind: 'demo', seed: d.seed, durationMs: d.durationMs }) : null
+      return d ? ((await this.ask(id, { kind: 'demo', seed: d.seed, durationMs: d.durationMs })).result ?? null) : null
     }
     const f = this.files.get(key)?.file
     if (!f) return null
+    const decode = (bytes: ArrayBuffer) => new OfflineAudioContext(1, 1, 22050).decodeAudioData(bytes)
+    let started = false
+    for await (const buf of pcmSegments(f, decode)) {
+      const chans = Math.min(2, buf.numberOfChannels)
+      if (!started) {
+        await this.ask(id, { kind: 'start', sampleRate: buf.sampleRate, channels: chans })
+        started = true
+      }
+      const step = buf.sampleRate * 30
+      for (let p = 0; p < buf.length; p += step) {
+        const channels = Array.from({ length: chans }, (_, c) => buf.getChannelData(c).slice(p, Math.min(buf.length, p + step)))
+        await this.ask(
+          id,
+          { kind: 'push', channels },
+          channels.map((c) => c.buffer),
+        )
+      }
+    }
+    // Ничего не декодировалось (огромный файл без таблиц, странный формат): пустой итог, чтобы не браться снова
+    if (!started) await this.ask(id, { kind: 'start', sampleRate: 22050, channels: 1 })
+    return (await this.ask(id, { kind: 'finish' })).result ?? null
+  }
+
+  /**
+   * Если в прошлый раз страница упала посреди анализа (так было с десятичасовым треком), этот трек
+   * получает пустую запись анализа: без громкости и волны, зато больше не роняет приложение при каждом запуске
+   */
+  private skipCrashedAnalysis(db: WebDb) {
+    const key = analyzingKey()
+    if (!key) return
+    markAnalyzing(null)
+    this.analysisQueue = this.analysisQueue.filter((k) => k !== key)
     try {
-      const ctx = new OfflineAudioContext(1, 1, 22050)
-      const buf = await ctx.decodeAudioData(await f.arrayBuffer())
-      const channels = Array.from(
-        { length: Math.min(2, buf.numberOfChannels) },
-        (_, c) => new Float32Array(buf.getChannelData(c)),
+      db.execute(
+        `INSERT OR IGNORE INTO analysis (key, lufs, true_peak_db, intro_silence_ms, outro_silence_ms, waveform, energy, bpm, analyzed_at)
+         VALUES (?, NULL, 0, 0, 0, NULL, 0.5, NULL, ?)`,
+        [key, Date.now()],
       )
-      return await this.runJob(
-        { kind: 'pcm', channels, sampleRate: buf.sampleRate },
-        channels.map((c) => c.buffer),
-      )
+      console.warn('Анализ пропущен: на этом треке приложение упало в прошлый раз', key)
     } catch {
-      // Воркеры недоступны или файл не декодировался в 22 кГц — считаем по-простому
-      const ctx = new OfflineAudioContext(2, 44100, 44100)
-      return analyzeBuffer(await ctx.decodeAudioData(await f.arrayBuffer()))
+      /* таблицы ещё нет */
     }
   }
 
@@ -613,10 +843,12 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     this.analysisBusy = true
     try {
       const db = await this.dbReady
+      this.skipCrashedAnalysis(db)
       while (this.analysisQueue.length) {
         const key = this.analysisQueue.shift()!
         const row = db.query('SELECT uri FROM tracks WHERE key = ?', [key]).values[0]
         if (row) {
+          markAnalyzing(key)
           try {
             const r = await this.analyzeKey(key, String(row[0]))
             if (!r) throw new Error('нет файла')
@@ -638,6 +870,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
           } catch (e) {
             console.warn('Анализ не удался', key, e)
           }
+          markAnalyzing(null)
         }
         this.analysisDone++
         const p: AnalysisProgress = { done: this.analysisDone, total: this.analysisDone + this.analysisQueue.length, key }
@@ -717,12 +950,33 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     })
   }
 
-  async youtubeInfo(): Promise<YoutubeInfo> {
-    throw new Error('Загрузка с YouTube работает в приложении на телефоне')
+  async youtubeInfo(o: { url: string }): Promise<YoutubeInfo> {
+    if (!desktop) throw new Error('Загрузка с YouTube работает в приложении на телефоне и на компьютере')
+    const i = await desktop.ytInfo(o.url)
+    const [artist, title] = splitYoutubeTitle(i.title, i.uploader)
+    return { title, artist, uploader: i.uploader, durationMs: i.durationMs, thumbnail: i.thumbnail }
   }
 
-  async youtubeDownload(): Promise<{ uri: string; path: string; name: string }> {
-    throw new Error('Загрузка с YouTube работает в приложении на телефоне')
+  /** Компьютер: файл качает yt-dlp в «Музыка/Amber», теги и обложку пишем здесь, как при правке тегов */
+  async youtubeDownload(o: {
+    url: string
+    title?: string
+    artist?: string
+  }): Promise<{ uri: string; path: string; name: string }> {
+    if (!desktop) throw new Error('Загрузка с YouTube работает в приложении на телефоне и на компьютере')
+    const title = o.title?.trim() || 'Без названия'
+    const artist = o.artist?.trim() || 'YouTube'
+    const r = await desktop.ytDownload(o.url, { title, artist })
+    let bytes = await desktop.read(r.path, 0, Number.MAX_SAFE_INTEGER)
+    if (sniffBytes(bytes) === 'mp4') {
+      // YouTube отдаёт звук фрагментированным MP4: пересобираем в обычный M4A, иначе теги некуда записать
+      if (isFragmentedMp4(bytes)) bytes = defragmentMp4(bytes)
+      // Альбом = название: иначе трек попадёт в «альбом» по имени папки
+      const tagged = writeMp4Tags(bytes, { title, artist, album: title, picture: r.cover ?? undefined })
+      await desktop.write(r.path, tagged)
+    }
+    const name = r.path.split(/[\\/]/).pop() ?? r.path
+    return { uri: '', path: r.path, name }
   }
 
   /** Как deleteFiles на телефоне: файл удаляется из выбранной папки, трек помечается пропавшим */
@@ -739,7 +993,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     let deleted = 0
     for (const it of o.items) {
       const f = this.files.get(it.key)
-      if (folderMode && f) {
+      if (f?.file instanceof DesktopFile) {
+        // На компьютере — в корзину: случайное удаление можно отменить
+        await desktop!.trash(f.file.path)
+        this.files.delete(it.key)
+      } else if (folderMode && f) {
         const parts = f.rel.split('/')
         let dir = this.folder as FileSystemDirectoryHandle
         for (const p of parts.slice(1, -1)) dir = await dir.getDirectoryHandle(p)
@@ -779,6 +1037,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     change: (bytes: Uint8Array, it: WriteTagsItem) => Uint8Array,
   ): Promise<WriteTagsResult> {
     const failed: WriteTagsResult['failed'] = []
+    if (this.source === 'desktop' && desktop) return this.onDiskFiles(items, change)
     if (this.source !== 'folder' || !this.folder) {
       return {
         written: 0,
@@ -846,6 +1105,57 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     return { written, failed }
   }
 
+  /** То же для файлов на диске компьютера: запись через главный процесс, без запросов разрешений */
+  private async onDiskFiles(
+    items: (WriteTagsItem | { key: string; uri: string; path: string })[],
+    change: (bytes: Uint8Array, it: WriteTagsItem) => Uint8Array,
+  ): Promise<WriteTagsResult> {
+    const failed: WriteTagsResult['failed'] = []
+    let written = 0
+    const db = await this.dbReady
+    for (const raw of items) {
+      const it = raw as WriteTagsItem
+      const f = this.files.get(it.key)
+      if (!(f?.file instanceof DesktopFile)) {
+        failed.push({ key: it.key, reason: 'Файл не найден в папках с музыкой' })
+        continue
+      }
+      try {
+        const bytes = new Uint8Array(await f.file.arrayBuffer())
+        const out = change(bytes, it)
+        this.tagBackupsMem.set(it.key, bytes)
+        const st = await desktop!.write(f.file.path, out)
+        this.files.set(it.key, { file: new DesktopFile(f.file.path, f.file.name, st.size, st.mtime), rel: f.rel })
+        db.execute(
+          `UPDATE tracks SET title = COALESCE(?, title), artist = COALESCE(?, artist), album = COALESCE(?, album),
+             genre = COALESCE(?, genre), year = COALESCE(?, year), track_no = COALESCE(?, track_no),
+             size = ?, mtime = ?, missing_since = NULL, updated_at = ? WHERE key = ?`,
+          [
+            it.title ?? null,
+            it.artist ?? null,
+            it.album ?? null,
+            it.genre ?? null,
+            it.year ?? null,
+            it.trackNo ?? null,
+            st.size,
+            Math.round(st.mtime / 1000),
+            Date.now(),
+            it.key,
+          ],
+        )
+        if (it.picture) {
+          const { art } = await this.saveCover({ data: it.picture })
+          db.execute('UPDATE tracks SET art = ? WHERE key = ?', [art, it.key])
+          db.execute('UPDATE track_user SET custom_art = NULL WHERE key = ?', [it.key])
+        }
+        written++
+      } catch (e) {
+        failed.push({ key: it.key, reason: e instanceof Error ? e.message : String(e) })
+      }
+    }
+    return { written, failed }
+  }
+
   private async fileHandle(rel: string): Promise<FileSystemFileHandle> {
     const parts = rel.split('/')
     // Первая часть пути — имя самой выбранной папки
@@ -868,7 +1178,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   private applyEq() {
     if (!this.graph) return
-    const eq = this.audio.profiles['web']?.eq ?? this.audio.eq
+    const eq = this.audio.profiles[desktop ? this.outputId : 'web']?.eq ?? this.audio.eq
     this.graph.setEq(eq.enabled, eq.bands, eq.preampDb, this.audio.normalization.mode !== 'off' ? 6 : 0)
   }
 
@@ -876,7 +1186,9 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     if (!this.graph) {
       try {
         this.graph = new AudioGraph()
+        showLevelsOf(this.graph)
         for (const d of this.decks) d.gain = this.graph.connect(d.el)
+        if (this.sinkId) await this.applySink(this.sinkId)
         this.applyEq()
         this.applyVolumes()
         this.graph.setEffects(this.effects)
@@ -931,8 +1243,15 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     }
   }
 
+  /** Ползунок 0…1 → громкость по кривой слуха: середина ползунка звучит как «вдвое тише», а не почти как максимум */
+  async setVolume(o: { volume: number }): Promise<void> {
+    const v = Math.max(0, Math.min(1, o.volume))
+    this.master = v * v
+    this.applyVolumes()
+  }
+
   private applyVolumes() {
-    const common = this.sleepFactor * this.manualFade
+    const common = this.sleepFactor * this.manualFade * this.master
     const a = this.active
     const t = this.tail
     if (!t) {
@@ -992,6 +1311,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   /** Раз в 40 мс, как монитор в Engine.kt */
   private tick() {
     this.accumulate()
+    if (desktop && !this.active.el.paused && performance.now() - this.queueSavedAt > 10_000) this.persistQueue(true)
     if (this.tail) {
       const now = performance.now()
       if (this.txPending) {
@@ -1127,13 +1447,13 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private async load(d: Deck, item: QueueItem) {
     if (d.url) URL.revokeObjectURL(d.url)
     d.url = null
-    const blob = await this.blobFor(item.uri)
-    if (!blob) {
+    const src = await this.srcFor(item.uri)
+    if (!src) {
       d.el.removeAttribute('src')
       if (item.uri.startsWith('local://')) this.notifyListeners('folderAccess', {})
       return
     }
-    d.url = URL.createObjectURL(blob)
+    d.url = src
     d.el.src = d.url
     this.applyRate(d)
   }
@@ -1141,6 +1461,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   /* ---------------- очередь и управление ---------------- */
 
   async setQueue(o: { items: QueueItem[]; index: number; positionMs?: number; play?: boolean }) {
+    this.restorePos = null
     this.settle()
     await this.finishEvent('replaced')
     this.queue = o.items.slice()
@@ -1202,7 +1523,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     switch (o.action) {
       case 'play':
         await this.ensureGraph()
-        if (this.index < 0 && this.queue.length) await this.open(0, true, 0)
+        if (this.restorePos != null && this.index >= 0 && !this.active.qid) {
+          const pos = this.restorePos
+          this.restorePos = null
+          await this.open(this.index, true, pos)
+        } else if (this.index < 0 && this.queue.length) await this.open(0, true, 0)
         else if (this.active.qid) {
           if (this.active.el.ended) this.active.el.currentTime = (this.queue[this.index]?.trimStartMs ?? 0) / 1000
           this.applyRate(this.active)
@@ -1277,6 +1602,12 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   async seekTo(o: { positionMs: number }): Promise<void> {
+    // Трек после перезапуска ещё не загружен: запоминаем, откуда начать
+    if (this.restorePos != null && !this.active.qid) {
+      this.restorePos = o.positionMs
+      this.emitState()
+      return
+    }
     this.settle()
     this.active.el.currentTime = o.positionMs / 1000
   }
@@ -1287,7 +1618,46 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   async getState(): Promise<PlayerSnapshot> {
+    if (!this.restoreChecked) this.restoreQueue()
     return { ...this.stateEvent(), queue: this.queue.slice() }
+  }
+
+  private static readonly QUEUE_KEY = 'amber.queue'
+
+  private restoreQueue() {
+    this.restoreChecked = true
+    if (!desktop || this.queue.length) return
+    try {
+      const saved = JSON.parse(localStorage.getItem(MusicCoreWeb.QUEUE_KEY) ?? 'null') as {
+        items: QueueItem[]
+        index: number
+        positionMs: number
+      } | null
+      if (!saved?.items?.length) return
+      this.queue = saved.items
+      this.index = Math.max(0, Math.min(saved.items.length - 1, saved.index))
+      this.restorePos = Math.max(0, saved.positionMs || 0)
+      this.rev++
+    } catch {
+      /* испорченная запись — начинаем с пустой очереди */
+    }
+  }
+
+  /** Очередь и позиция на диск: при каждом изменении (с задержкой) и раз в 10 секунд во время игры */
+  private persistQueue(now = false) {
+    if (!desktop || !this.restoreChecked) return
+    clearTimeout(this.queueSaveTimer)
+    const write = () => {
+      this.queueSavedAt = performance.now()
+      try {
+        const positionMs = this.restorePos ?? Math.round(this.active.el.currentTime * 1000)
+        localStorage.setItem(MusicCoreWeb.QUEUE_KEY, JSON.stringify({ items: this.queue, index: this.index, positionMs }))
+      } catch {
+        /* переполнено — не страшно, просто не продолжим с этого места */
+      }
+    }
+    if (now) write()
+    else this.queueSaveTimer = setTimeout(write, 800)
   }
 
   async setFavoriteState(): Promise<void> {}
@@ -1348,10 +1718,56 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   /* ---------------- вывод ---------------- */
 
   async getOutputs(): Promise<OutputsEvent> {
-    return { devices: [{ id: 0, name: 'Браузер', kind: 'speaker' }], preferred: null, current: 'web' }
+    if (!desktop || !navigator.mediaDevices) {
+      return { devices: [{ id: 0, name: 'Браузер', kind: 'speaker' }], preferred: null, current: 'web' }
+    }
+    const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput')
+    const def = all.find((d) => d.deviceId === 'default')
+    // Windows показывает одно устройство несколько раз (по умолчанию, связь, само устройство)
+    const seen = new Set<string>()
+    const list = all.filter((d) => {
+      if (d.deviceId === 'default' || d.deviceId === 'communications') return false
+      const name = outputName(d.label)
+      if (!name || seen.has(name)) return false
+      seen.add(name)
+      return true
+    })
+    this.sinkIds = list.map((d) => d.deviceId)
+    let preferred: number | null = this.sinkId ? this.sinkIds.indexOf(this.sinkId) : null
+    if (preferred === -1) {
+      // Выбранное устройство отключили: звук идёт туда, куда решит Windows
+      preferred = null
+      await this.applySink('')
+    }
+    const name = preferred != null ? outputName(list[preferred]!.label) : outputName(def?.label ?? '')
+    this.outputId = `pc:${name}`
+    this.applyEq()
+    return {
+      devices: list.map((d, i) => ({ id: i, name: outputName(d.label), kind: outputKind(d.label) })),
+      preferred,
+      current: this.outputId,
+    }
   }
 
-  async setOutput(): Promise<void> {}
+  private async applySink(id: string) {
+    this.sinkId = id
+    try {
+      localStorage.setItem(SINK_KEY, id)
+    } catch {
+      /* не запомним — не страшно */
+    }
+    type Sinkable = { setSinkId?(id: string): Promise<void> }
+    for (const d of this.decks) await (d.el as unknown as Sinkable).setSinkId?.(id).catch(() => undefined)
+    if (this.graph) await (this.graph.ctx as unknown as Sinkable).setSinkId?.(id).catch(() => undefined)
+  }
+
+  async setOutput(o: { deviceId: number | null }): Promise<void> {
+    if (!desktop) return
+    await this.applySink(o.deviceId == null ? '' : (this.sinkIds[o.deviceId] ?? ''))
+    const outs = await this.getOutputs()
+    this.notifyListeners('outputs', outs)
+    this.emitState()
+  }
 
   async openSystemOutputSwitcher(): Promise<void> {}
 
@@ -1366,9 +1782,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   private async previewEl(uri: string): Promise<HTMLAudioElement | null> {
-    const blob = await this.blobFor(uri)
-    if (!blob) return null
-    const el = new Audio(URL.createObjectURL(blob))
+    const src = await this.srcFor(uri)
+    if (!src) return null
+    const el = new Audio()
+    if (isDesktop) el.crossOrigin = 'anonymous'
+    el.src = src
     this.previewEls.push(el)
     await new Promise<void>((resolve) => {
       if (el.readyState >= 1) return resolve()
@@ -1481,11 +1899,21 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   async exportFile(o: { name: string; data: string; mime?: string; base64?: boolean }): Promise<FileResult> {
     const bytes = o.base64 ? Uint8Array.from(atob(o.data), (c) => c.charCodeAt(0)) : new TextEncoder().encode(o.data)
+    if (desktop) {
+      const path = await desktop.saveFile(o.name, bytes)
+      if (!path) throw new Error('cancel')
+      return { uri: path }
+    }
     this.download(o.name, new Blob([bytes], { type: o.mime ?? 'application/json' }))
     return { uri: `download://${o.name}` }
   }
 
   async importFile(): Promise<ImportedFile> {
+    if (desktop) {
+      const f = await desktop.openFile(['json'])
+      if (!f) throw new Error('cancel')
+      return { name: f.name, data: new TextDecoder().decode(f.data) }
+    }
     return new Promise((resolve, reject) => {
       const input = document.createElement('input')
       input.type = 'file'
@@ -1501,13 +1929,22 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   /** В браузере нет постоянной папки: копия скачивается файлом */
   async chooseBackupFolder(): Promise<{ uri: string }> {
+    if (desktop) {
+      const folder = await desktop.chooseFolder('Папка для бэкапов')
+      if (!folder) throw new Error('cancel')
+      return { uri: folder }
+    }
     return { uri: 'download' }
   }
 
-  async writeBackup(o: { json: string }): Promise<{ uri: string }> {
+  async writeBackup(o: { folderUri?: string; json: string; keep?: number }): Promise<{ uri: string }> {
     const d = new Date()
     const p = (n: number) => String(n).padStart(2, '0')
     const name = `amber-backup-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.json`
+    // Компьютер: настоящая папка, как на телефоне; хранятся последние keep копий
+    if (desktop && o.folderUri && o.folderUri !== 'download') {
+      return { uri: await desktop.writeBackup(o.folderUri, name, o.json, o.keep ?? 14) }
+    }
     this.download(name, new Blob([o.json], { type: 'application/json' }))
     return { uri: `download://${name}` }
   }
@@ -1670,7 +2107,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       index: this.index,
       playing: !el.paused,
       buffering: !el.paused && el.readyState < 3,
-      positionMs: Math.round(el.currentTime * 1000),
+      positionMs: this.restorePos != null && !this.active.qid ? this.restorePos : Math.round(el.currentTime * 1000),
       positionAt: Date.now(),
       durationMs: Number.isFinite(el.duration) ? Math.round(el.duration * 1000) : (item?.durationMs ?? 0),
       repeat: this.repeat,
@@ -1679,7 +2116,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       speed: this.speed,
       pitch: this.pitch,
       effects: this.effects,
-      output: 'web',
+      output: desktop ? this.outputId : 'web',
       transitionMs: this.tail ? (this.txPending ? this.txDur : Math.max(0, this.txDur - (performance.now() - this.txStart))) : 0,
     }
   }
@@ -1687,6 +2124,16 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private emitState() {
     this.notifyListeners('state', this.stateEvent())
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = this.active.el.paused ? 'paused' : 'playing'
+    if (desktop) {
+      this.persistQueue()
+      const item = this.queue[this.index]
+      const now = { playing: !this.active.el.paused, title: item?.title ?? '', artist: item?.artist ?? '' }
+      const sig = JSON.stringify(now)
+      if (sig !== this.shownNow) {
+        this.shownNow = sig
+        desktop.nowPlaying(now)
+      }
+    }
   }
 
   private setupMediaSession() {
@@ -1702,6 +2149,15 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     if (!('mediaSession' in navigator)) return
     const item = this.queue[this.index]
     if (!item) return
+    // Обложка для плитки «Сейчас играет» Windows (громкость, клавиши мультимедиа, экран блокировки)
+    let artwork: MediaImage[] | undefined
+    void this.dbReady.then((db) => {
+      const art = db.query('SELECT art FROM tracks WHERE key = ?', [item.key]).values[0]?.[0]
+      const src = art ? webCoverUrl(String(art)) : null
+      if (src) artwork = [{ src, sizes: '512x512' }]
+      if (this.queue[this.index]?.qid !== item.qid) return
+      navigator.mediaSession.metadata = new MediaMetadata({ title: item.title, artist: item.artist, album: item.album, artwork })
+    })
     navigator.mediaSession.metadata = new MediaMetadata({ title: item.title, artist: item.artist, album: item.album })
   }
 

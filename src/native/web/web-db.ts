@@ -1,10 +1,12 @@
 import initSqlJs, { type Database } from 'sql.js'
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import type { ExecResult, QueryResult, SqlStatement, SqlValue } from '../types'
+import { desktop } from '../desktop/bridge'
 
 /**
- * SQLite в браузере (sql.js) для разработки без телефона.
- * База сохраняется в IndexedDB через секунду после последней записи.
+ * SQLite в браузере (sql.js) для разработки без телефона и для приложения на компьютере.
+ * База сохраняется через секунду после последней записи: в браузере — в IndexedDB,
+ * на компьютере — файлом amber.sqlite в папке данных приложения.
  */
 
 const IDB_NAME = 'yantar-web'
@@ -43,8 +45,15 @@ export class WebDb {
   private saveTimer: ReturnType<typeof setTimeout> | undefined
   /** С какого момента есть несохранённые изменения (0 — всё сохранено) */
   private dirtySince = 0
+  /** Последняя запись на диск (компьютер): перед выходом её дожидаемся */
+  private writing: Promise<void> = Promise.resolve()
 
   private constructor(private readonly db: Database) {
+    // Окно закрывается: главный процесс ждёт, пока база допишется
+    desktop?.onFlush(async () => {
+      this.flush()
+      await this.writing
+    })
     // Уходя со страницы, сохраняем сразу: иначе последние секунды истории пропадут
     addEventListener('pagehide', () => this.flush())
     document.addEventListener('visibilitychange', () => {
@@ -56,7 +65,7 @@ export class WebDb {
     const SQL = await initSqlJs({ locateFile: () => wasmUrl })
     let saved: Uint8Array | undefined
     try {
-      saved = await idbGet(IDB_KEY)
+      saved = desktop ? ((await desktop.readDb()) ?? undefined) : await idbGet(IDB_KEY)
     } catch {
       saved = undefined
     }
@@ -118,6 +127,8 @@ export class WebDb {
     if (!this.dirtySince) return
     clearTimeout(this.saveTimer)
     this.dirtySince = 0
-    idbSet(IDB_KEY, this.db.export()).catch((e) => console.warn('web-db: не удалось сохранить', e))
+    const bytes = this.db.export()
+    const save = desktop ? desktop.writeDb(bytes) : idbSet(IDB_KEY, bytes)
+    this.writing = save.catch((e) => console.warn('web-db: не удалось сохранить', e))
   }
 }

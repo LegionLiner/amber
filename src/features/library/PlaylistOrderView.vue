@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { useViewRoute } from '@/app/view-route'
 import IconDrag from '~icons/solar/hamburger-menu-linear'
 import IconRemove from '~icons/solar/minus-circle-linear'
@@ -23,10 +23,16 @@ const items = shallowRef<PlaylistItemRow[]>([])
 const scrollEl = ref<HTMLElement | null>(null)
 const ROW_H = 60
 
-onMounted(async () => {
-  if (!playlists.loaded) await playlists.refresh()
-  items.value = await playlistItems(id.value)
-})
+// Экран живёт в KeepAlive: треки, добавленные в плейлист после первого открытия, тоже должны здесь появиться
+watch(
+  [id, () => playlists.version],
+  async () => {
+    if (!Number.isFinite(id.value)) return
+    if (!playlists.loaded) await playlists.refresh()
+    items.value = await playlistItems(id.value)
+  },
+  { immediate: true },
+)
 
 const drag = useDragList({
   rowH: ROW_H,
@@ -108,7 +114,6 @@ async function remove(i: PlaylistItemRow) {
   gap: 12px;
   align-items: center;
   padding: 0 6px 0 var(--gutter);
-  background: var(--bg);
   transition: transform 180ms var(--ease-out);
 }
 .item.dragging {

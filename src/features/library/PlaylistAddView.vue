@@ -134,7 +134,7 @@ function done() {
 
 <template>
   <div class="screen add">
-    <header class="hdr">
+    <header class="hdr glass-hdr">
       <div class="bar">
         <button type="button" class="icon-btn" aria-label="Назад" @click="router.back()"><IconBack /></button>
         <div class="ttl">

@@ -54,8 +54,9 @@ export function useDragList(opts: {
     raf = requestAnimationFrame(autoScroll)
   }
 
-  function start(e: PointerEvent, i: number) {
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  /** Начать с нажатия на ручку или с точки, где палец взял строку (тогда указатель уже захвачен строкой) */
+  function start(e: PointerEvent | { clientY: number }, i: number) {
+    if ('pointerId' in e) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     from.value = i
     to.value = i
     dy.value = 0

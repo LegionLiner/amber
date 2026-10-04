@@ -6,7 +6,7 @@ import IconPlay from '~icons/solar/play-bold'
 import IconShuffle from '~icons/solar/shuffle-linear'
 import CoverArt from './CoverArt.vue'
 import TrackList from './TrackList.vue'
-import type { RowMeta } from './TrackRow.vue'
+import type { RowDetail, RowMeta } from './TrackRow.vue'
 import type { Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
 import { usePlayer } from '@/stores/player'
@@ -29,8 +29,12 @@ const props = withDefaults(
     meta?: (t: Track) => RowMeta
     /** Своя логика запуска: index −1 и shuffle — «Перемешать» */
     play?: (index: number, shuffle: boolean) => void
+    /** Плейлисты: места слева, подробности (альбом, добавлен, длительность), перестановка удержанием */
+    positions?: boolean
+    detail?: (t: Track, index: number) => RowDetail
+    reorder?: (from: number, to: number) => void
   }>(),
-  { art: null, seed: '', round: false, numbered: false, subtitle: '' },
+  { art: null, seed: '', round: false, numbered: false, subtitle: '', positions: false },
 )
 
 const router = useRouter()
@@ -61,6 +65,9 @@ const line = computed(
       :numbered="numbered"
       :meta="meta"
       :play="play ? (i: number) => play!(i, false) : undefined"
+      :positions="positions"
+      :detail="detail"
+      :reorder="reorder"
     >
       <template #header>
         <div class="hero" :style="{ '--c1': colors[0] }">

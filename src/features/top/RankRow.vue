@@ -43,7 +43,7 @@ defineEmits<{ tap: []; more: [] }>()
   grid-template-columns: 30px 30px 44px 1fr auto;
   gap: 8px;
   align-items: center;
-  padding: 8px var(--gutter) 8px 10px;
+  padding: 8px calc(var(--gutter) + 10px) 8px var(--gutter);
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -53,9 +53,11 @@ defineEmits<{ tap: []; more: [] }>()
 .rank:active {
   background: var(--surface);
 }
+/* Карточка первого места — ровно по полям экрана, как остальные карточки; колонки внутри стоят там же,
+   где у строк под ней: место — над местами, звёзды и прослушивания — у того же правого края */
 .rank.first {
-  margin: 0 10px 4px;
-  padding: 10px 6px;
+  margin: 0 var(--gutter) 4px;
+  padding: 10px 10px 10px 0;
   border-radius: 16px;
   background: var(--surface);
 }

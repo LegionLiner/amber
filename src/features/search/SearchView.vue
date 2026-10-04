@@ -129,7 +129,7 @@ function go(to: Parameters<typeof router.push>[0]) {
 
 <template>
   <div class="scroll screen">
-    <header class="hdr">
+    <header class="hdr glass-hdr">
       <h1 class="display title">Поиск</h1>
       <label class="field">
         <IconSearch class="ic" />

@@ -10,7 +10,9 @@ import { openPlaylistMenu } from './playlistMenu'
 import { useLibrary } from '@/stores/library'
 import { usePlaylists } from '@/stores/playlists'
 import { toQueueItem, usePlayer } from '@/stores/player'
-import { playlistItems, type PlaylistItemRow } from '@/data/repos/playlists'
+import { playlistItems, reorderPlaylist, type PlaylistItemRow } from '@/data/repos/playlists'
+import type { RowDetail } from '@/components/TrackRow.vue'
+import { formatDuration, relativeDay } from '@/domain/format'
 import { applyRules, describe, parseRules } from '@/domain/smart'
 import { applyMixTransition, parseTransition } from '@/domain/mix'
 import { orderFor } from '@/domain/shuffle'
@@ -41,10 +43,36 @@ watch(
 )
 
 const rules = computed(() => (info.value?.kind === 'smart' ? parseRules(info.value.rules) : null))
-const tracks = computed<Track[]>(() => {
-  if (rules.value) return applyRules(library.tracks, rules.value)
-  return items.value.map((i) => library.byKey.get(i.trackKey)).filter((t): t is Track => !!t)
-})
+/** Строки, чьи треки есть на устройстве: по ним и места, и перестановка */
+const present = computed(() =>
+  items.value.flatMap((i) => {
+    const t = library.byKey.get(i.trackKey)
+    return t ? [{ i, t }] : []
+  }),
+)
+const tracks = computed<Track[]>(() => (rules.value ? applyRules(library.tracks, rules.value) : present.value.map((x) => x.t)))
+
+function detail(t: Track, index: number): RowDetail {
+  const added = rules.value ? null : (present.value[index]?.i.addedAt ?? null)
+  return {
+    album: t.album ?? '',
+    added: rules.value ? null : added ? relativeDay(added) : '',
+    duration: formatDuration(t.durationMs),
+  }
+}
+
+/** Новый порядок виден сразу, в базу уходит следом; треки без файла остаются в конце */
+function reorder(from: number, to: number) {
+  const list = present.value.map((x) => x.i)
+  const [moved] = list.splice(from, 1)
+  list.splice(to, 0, moved!)
+  const shown = new Set(list.map((i) => i.id))
+  items.value = [...list, ...items.value.filter((i) => !shown.has(i.id))]
+  void reorderPlaylist(
+    id.value,
+    items.value.map((i) => i.id),
+  ).then(() => playlists.refresh())
+}
 const source = computed<PlaySource>(() => ({
   type: info.value?.kind === 'smart' ? 'smart' : 'playlist',
   id: String(id.value),
@@ -95,6 +123,9 @@ function menu() {
     :source="source"
     :meta="metaFor('rating')"
     :play="info.kind === 'mix' ? playMix : undefined"
+    positions
+    :detail="detail"
+    :reorder="info.kind === 'smart' ? undefined : reorder"
   >
     <template #actions>
       <button type="button" class="icon-btn" aria-label="Меню плейлиста" @click="menu"><IconMore /></button>

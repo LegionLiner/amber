@@ -23,6 +23,8 @@ export interface PlaylistItemRow {
   trackKey: string
   pos: number
   transition: string | null
+  /** Когда трек добавлен в плейлист */
+  addedAt: number
 }
 
 export async function listPlaylists(): Promise<PlaylistRow[]> {
@@ -79,7 +81,7 @@ export async function deletePlaylist(id: number): Promise<void> {
 export function playlistItems(id: number): Promise<PlaylistItemRow[]> {
   return db
     .selectFrom('playlistItems')
-    .select(['id', 'trackKey', 'pos', 'transition'])
+    .select(['id', 'trackKey', 'pos', 'transition', 'addedAt'])
     .where('playlistId', '=', id)
     .orderBy('pos')
     .execute()

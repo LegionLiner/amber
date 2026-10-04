@@ -10,6 +10,14 @@ export interface RowGestureOptions {
   onSwipeRight?: () => void
   /** Можно ли сейчас свайпать строку (в листаемых разделах — нет) */
   swipes?: () => boolean
+  /**
+   * Удержание берёт строку для перетаскивания (плейлисты) вместо меню: палец держит строку,
+   * дальше его движения идут в onHoldMove, отпускание — onHoldEnd. Мышью строку тянут сразу, без ожидания.
+   * Меню остаётся на «⋯» и правом клике.
+   */
+  onHold?: (y: number, el: HTMLElement) => void
+  onHoldMove?: (e: PointerEvent) => void
+  onHoldEnd?: () => void
 }
 
 const THRESHOLD = 72
@@ -31,9 +39,24 @@ export function useRowGesture(opts: RowGestureOptions) {
   let armed = false
   /** Мышью на компьютере строку не тянут: свайпы — для пальца, меню — по правому клику */
   let mouse = false
+  /** Строка взята для перетаскивания */
+  let held = false
+  let el: HTMLElement | null = null
+  let pointerId = 0
+  let lastY = 0
+
+  function hold(y: number) {
+    held = true
+    longFired = true
+    try {
+      el?.setPointerCapture(pointerId)
+    } catch {}
+    if (el) opts.onHold?.(y, el)
+  }
 
   const reset = () => {
     clearTimeout(timer)
+    held = false
     active = false
     lock = null
     dragging.value = false
@@ -46,7 +69,9 @@ export function useRowGesture(opts: RowGestureOptions) {
     mouse = isDesktop && e.pointerType === 'mouse'
     active = true
     sx = e.clientX
-    sy = e.clientY
+    sy = lastY = e.clientY
+    el = e.currentTarget as HTMLElement
+    pointerId = e.pointerId
     lock = null
     longFired = false
     armed = false
@@ -55,7 +80,9 @@ export function useRowGesture(opts: RowGestureOptions) {
       active = false
       return
     }
-    if (opts.onLongPress) {
+    if (opts.onHold && !mouse) {
+      timer = setTimeout(() => hold(lastY), 450)
+    } else if (opts.onLongPress) {
       timer = setTimeout(() => {
         longFired = true
         haptic.press()
@@ -66,8 +93,20 @@ export function useRowGesture(opts: RowGestureOptions) {
 
   function onPointermove(e: PointerEvent) {
     if (!active) return
+    lastY = e.clientY
+    if (held) {
+      opts.onHoldMove?.(e)
+      return
+    }
     const mx = e.clientX - sx
     const my = e.clientY - sy
+    // Мышь: потянул строку вверх или вниз — она поехала
+    if (mouse && opts.onHold && !lock && Math.abs(my) > 6 && Math.abs(my) > Math.abs(mx)) {
+      clearTimeout(timer)
+      hold(sy)
+      opts.onHoldMove?.(e)
+      return
+    }
     if (!lock && Math.hypot(mx, my) > 8) {
       clearTimeout(timer)
       const canSwipe = !mouse && (opts.swipes?.() ?? true) && ((mx > 0 && opts.onSwipeRight) || (mx < 0 && opts.onSwipeLeft))
@@ -91,6 +130,11 @@ export function useRowGesture(opts: RowGestureOptions) {
   function onPointerup() {
     if (!active) return
     clearTimeout(timer)
+    if (held) {
+      opts.onHoldEnd?.()
+      reset()
+      return
+    }
     if (lock === 'x') {
       if (dx.value >= THRESHOLD) opts.onSwipeRight?.()
       else if (dx.value <= -THRESHOLD) opts.onSwipeLeft?.()
@@ -101,7 +145,13 @@ export function useRowGesture(opts: RowGestureOptions) {
   }
 
   function onPointercancel() {
+    if (held) opts.onHoldEnd?.()
     reset()
+  }
+
+  /** Пока строка в руке, палец не прокручивает список (слушатель не пассивный — иначе отменить нельзя) */
+  function onTouchmove(e: TouchEvent) {
+    if (held && e.cancelable) e.preventDefault()
   }
 
   function onContextmenu(e: Event) {
@@ -112,5 +162,5 @@ export function useRowGesture(opts: RowGestureOptions) {
     opts.onLongPress?.()
   }
 
-  return { dx, dragging, handlers: { onPointerdown, onPointermove, onPointerup, onPointercancel, onContextmenu } }
+  return { dx, dragging, onTouchmove, handlers: { onPointerdown, onPointermove, onPointerup, onPointercancel, onContextmenu } }
 }

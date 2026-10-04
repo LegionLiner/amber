@@ -33,7 +33,8 @@
 }
 
 /* ---- наведение мышью ---- */
-:root.desktop .vrow .row {
+:root.desktop .vrow .row,
+:root.desktop .thead {
   padding-right: max(4px, calc(var(--gutter) - 12px));
 }
 :root.desktop .icon-btn:hover:not(:disabled) {
@@ -161,9 +162,13 @@
   background: var(--glass-sheet);
   border: 1px solid var(--glass-edge);
 }
-/* Заголовки разделов и шапка поиска: содержимое уходит под них размытым */
+/*
+ * Закреплённые шапки (заголовки разделов, поиск, подбор треков): содержимое уходит под них размытым.
+ * Обычные шапки экранов прокручиваются вместе с ним — им своя полоса не нужна, иначе под ней
+ * остаётся пустая щель до первого блока.
+ */
 :root.desktop .sec-head,
-:root.desktop .pages .hdr {
+:root.desktop .glass-hdr {
   background: var(--glass-head);
   border-bottom: 1px solid var(--glass-edge);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -176,8 +181,7 @@
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-edge);
 }
-/* Строки списков без своей заливки — через них виден фон окна */
-:root.desktop .vrow .row,
+/* Строки списков без своей заливки — через них виден фон окна (у строк треков её нет и так) */
 :root.desktop .queue .row {
   background: transparent;
 }

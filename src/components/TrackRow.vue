@@ -12,6 +12,14 @@ import { displayArtist, type Track } from '@/domain/track'
 
 export type RowMeta = { kind: 'stars'; rating: number | null } | { kind: 'text'; text: string } | { kind: 'none' }
 
+/** Подробности строки плейлиста: в широком окне — колонки таблицы, в узком — под названием и справа */
+export interface RowDetail {
+  album: string
+  /** Когда добавлен в плейлист (null — колонки нет, как у умных плейлистов) */
+  added: string | null
+  duration: string
+}
+
 const props = defineProps<{
   track: Track
   active?: boolean
@@ -21,21 +29,51 @@ const props = defineProps<{
   number?: number | null
   /** Подпись вместо исполнителя */
   subtitle?: string
+  /** Место в плейлисте — слева от обложки */
+  position?: number | null
+  detail?: RowDetail | null
+  /** Широкое окно: подробности колонками (сетка колонок — переменная --cols у списка) */
+  wide?: boolean
+  /** Удержание берёт строку для перетаскивания, а не открывает меню */
+  holdDrag?: boolean
+  /** Строку сейчас тянут */
+  lifted?: boolean
 }>()
 
-const emit = defineEmits<{ tap: []; more: []; swipeLeft: []; swipeRight: [] }>()
+const emit = defineEmits<{
+  tap: []
+  more: []
+  swipeLeft: []
+  swipeRight: []
+  hold: [y: number, el: HTMLElement]
+  holdMove: [e: PointerEvent]
+  holdEnd: []
+}>()
 
 /** В листаемых разделах горизонтальный свайп листает раздел, а не двигает строку */
 const pageSwipes = inject(PAGE_SWIPES, ref(false))
-const { dx, dragging, handlers } = useRowGesture({
+const { dx, dragging, onTouchmove, handlers } = useRowGesture({
   onTap: () => emit('tap'),
   onLongPress: () => emit('more'),
   onSwipeLeft: () => emit('swipeLeft'),
   onSwipeRight: () => emit('swipeRight'),
   swipes: () => !pageSwipes.value,
+  ...(props.holdDrag
+    ? {
+        onHold: (y: number, el: HTMLElement) => emit('hold', y, el),
+        onHoldMove: (e: PointerEvent) => emit('holdMove', e),
+        onHoldEnd: () => emit('holdEnd'),
+      }
+    : {}),
 })
+// Не пассивный touchmove только у строк, которые можно взять: остальные списки прокручиваются без ожидания
+const touch = props.holdDrag ? { touchmove: onTouchmove } : {}
 
-const sub = computed(() => props.subtitle ?? displayArtist(props.track))
+const table = computed(() => !!props.detail && !!props.wide)
+const sub = computed(() => {
+  const s = props.subtitle ?? displayArtist(props.track)
+  return props.detail && !props.wide && props.detail.album ? `${s} · ${props.detail.album}` : s
+})
 const starText = computed(() => {
   const r = props.meta?.kind === 'stars' ? props.meta.rating : null
   if (r == null) return ''
@@ -53,10 +91,12 @@ const starText = computed(() => {
     </div>
     <div
       class="row"
-      :class="{ active, dragging }"
+      :class="{ active, dragging, moved: dx !== 0, lifted, table, placed: position != null }"
       :style="dx ? { transform: `translateX(${dx}px)` } : undefined"
       v-bind="handlers"
+      v-on="touch"
     >
+      <span v-if="position != null" class="pos num">{{ position }}</span>
       <span v-if="number != null" class="no num">
         <EqBars v-if="active" :playing="playing" />
         <template v-else>{{ number }}</template>
@@ -72,7 +112,22 @@ const starText = computed(() => {
           {{ sub }}
         </div>
       </div>
-      <div v-if="meta && meta.kind !== 'none'" class="meta num">
+      <template v-if="table && detail">
+        <span class="col ellipsis">{{ detail.album }}</span>
+        <span v-if="detail.added != null" class="col ellipsis">{{ detail.added }}</span>
+        <span class="col meta num">
+          <span v-if="starText" class="stars"><IconStar />{{ starText }}</span>
+        </span>
+        <span class="col num dur">{{ detail.duration }}</span>
+      </template>
+      <div v-else-if="detail" class="meta two num">
+        <span class="l1">
+          <span v-if="starText" class="stars"><IconStar />{{ starText }}</span>
+          {{ detail.duration }}
+        </span>
+        <span v-if="detail.added" class="l2">{{ detail.added }}</span>
+      </div>
+      <div v-else-if="meta && meta.kind !== 'none'" class="meta num">
         <template v-if="meta.kind === 'stars'">
           <span v-if="starText" class="stars"><IconStar />{{ starText }}</span>
         </template>
@@ -126,13 +181,71 @@ const starText = computed(() => {
   align-items: center;
   gap: 12px;
   padding: 0 4px 0 var(--gutter);
-  background: var(--bg);
+  /* Без своей заливки: под строкой виден фон экрана. Заливка нужна, только пока строку сдвигают
+     свайпом — чтобы подложка «Следующим» / «В избранное» не просвечивала сквозь неё */
+  background: transparent;
   touch-action: pan-y;
   transition: transform 220ms var(--ease-out);
   cursor: pointer;
 }
 .row.dragging {
   transition: none;
+}
+.row.moved {
+  background: var(--bg);
+}
+/* Место слева от обложки: ширина колонки — по самому длинному номеру в списке */
+.row.placed {
+  grid-template-columns: var(--pos-w, 22px) 44px minmax(0, 1fr) auto auto;
+  column-gap: 10px;
+}
+.row.table {
+  grid-template-columns: var(--cols);
+  column-gap: 16px;
+}
+/* Взятая строка — карточкой над соседями (сильнее нажатия и наведения мышью) */
+.wrap:has(.lifted) {
+  overflow: visible;
+}
+.row.lifted {
+  background: var(--surface-2) !important;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  cursor: grabbing;
+}
+.pos {
+  text-align: right;
+  font: 500 13px/1 var(--f-body);
+  color: var(--ink-3);
+}
+.active .pos {
+  color: var(--amber-ink);
+}
+.col {
+  min-width: 0;
+  font: 400 13px/1.25 var(--f-body);
+  color: var(--ink-2);
+}
+.col.meta {
+  text-align: left;
+}
+.dur {
+  text-align: right;
+}
+.two {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+.two .l1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.two .l2 {
+  font-size: 11.5px;
+  color: var(--ink-3);
 }
 .row:active:not(.dragging) {
   background: var(--surface);

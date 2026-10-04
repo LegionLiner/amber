@@ -112,7 +112,6 @@ watch(root, (el) => (scrollEl.value = findScroller(el)))
   gap: 10px;
   align-items: center;
   padding: 0 4px 0 var(--gutter);
-  background: var(--bg);
   transition: transform 180ms var(--ease-out);
 }
 .item.dragging {

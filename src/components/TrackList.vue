@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useVirtualizer } from '@tanstack/vue-virtual'
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/vue-virtual'
 import { useElementSize } from '@vueuse/core'
-import TrackRow, { type RowMeta } from './TrackRow.vue'
+import IconClock from '~icons/solar/clock-circle-linear'
+import TrackRow, { type RowDetail, type RowMeta } from './TrackRow.vue'
+import { useDragList } from '@/composables/useDragList'
 import TrackActionsSheet from './TrackActionsSheet.vue'
 import type { Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
@@ -25,8 +27,14 @@ const props = withDefaults(
     subtitle?: (t: Track) => string
     /** Своя логика запуска (миксы с переходами); по умолчанию — список как очередь */
     play?: (index: number) => void
+    /** Места 1, 2, 3… слева от обложки (плейлисты) */
+    positions?: boolean
+    /** Альбом, дата добавления и длительность: колонками в широком окне, в узком — в строке */
+    detail?: (t: Track, index: number) => RowDetail
+    /** Порядок можно менять: удержание берёт строку, мышью — просто потянуть */
+    reorder?: (from: number, to: number) => void | Promise<void>
   }>(),
-  { numbered: false },
+  { numbered: false, positions: false },
 )
 
 const ROW_H = 64
@@ -38,6 +46,33 @@ const ui = useUi()
 const scrollEl = ref<HTMLElement | null>(null)
 const headerEl = ref<HTMLElement | null>(null)
 const { height: headerH } = useElementSize(headerEl, undefined, { box: 'border-box' })
+const { width } = useElementSize(scrollEl)
+
+/** Таблица с колонками — когда подробности есть и места хватает (компьютер, планшет) */
+const wide = computed(() => !!props.detail && width.value >= 700)
+const hasAdded = computed(() => !!props.detail && !!props.tracks[0] && props.detail(props.tracks[0], 0).added != null)
+const listStyle = computed(() => ({
+  '--pos-w': `${String(props.tracks.length).length * 8 + 6}px`,
+  '--cols': `var(--pos-w) 44px minmax(0, 3fr) minmax(0, 2fr)${hasAdded.value ? ' 112px' : ''} 52px 48px 40px`,
+}))
+
+/* Перетаскивание: взятая строка едет за пальцем, соседи расступаются, отпустил — новый порядок */
+const settling = ref(false)
+const drag = useDragList({
+  rowH: ROW_H,
+  count: () => props.tracks.length,
+  scrollEl,
+  onMove: (from, to) => props.reorder?.(from, to),
+})
+function hold(i: number, y: number) {
+  settling.value = true
+  drag.start({ clientY: y }, i)
+}
+function release() {
+  void drag.end()
+  setTimeout(() => (settling.value = drag.from.value != null), 220)
+}
+const shift = (i: number) => (drag.from.value === i ? drag.dy.value : drag.offsetFor(i))
 
 const virt = useVirtualizer(
   computed(() => ({
@@ -47,6 +82,12 @@ const virt = useVirtualizer(
     overscan: 10,
     scrollMargin: headerH.value,
     getItemKey: (i: number) => props.tracks[i]?.key ?? i,
+    // Взятая строка остаётся в DOM, даже если её увезли далеко от того места, где взяли
+    rangeExtractor: (range: Parameters<typeof defaultRangeExtractor>[0]) => {
+      const base = defaultRangeExtractor(range)
+      const f = drag.from.value
+      return f == null || base.includes(f) ? base : [...base, f].sort((a, b) => a - b)
+    },
   })),
 )
 
@@ -87,14 +128,27 @@ defineExpose({ scrollToTop, scrollToIndex, scrollEl })
 </script>
 
 <template>
-  <div ref="scrollEl" class="scroll list">
-    <div ref="headerEl"><slot name="header" /></div>
-    <div class="rows" :style="{ height: `${total}px` }">
+  <div ref="scrollEl" class="scroll list" :style="listStyle">
+    <div ref="headerEl">
+      <slot name="header" />
+      <div v-if="wide && tracks.length" class="thead">
+        <span class="num">#</span>
+        <span />
+        <span>Название</span>
+        <span>Альбом</span>
+        <span v-if="hasAdded">Добавлен</span>
+        <span>Оценка</span>
+        <span class="dur" aria-label="Длительность"><IconClock /></span>
+        <span />
+      </div>
+    </div>
+    <div class="rows" :class="{ sorting: settling }" :style="{ height: `${total}px` }">
       <div
         v-for="r in rows"
         :key="String(r.key)"
         class="vrow"
-        :style="{ transform: `translateY(${r.start - headerH}px)`, height: `${ROW_H}px` }"
+        :class="{ up: drag.from.value === r.index }"
+        :style="{ transform: `translateY(${r.start - headerH + shift(r.index)}px)`, height: `${ROW_H}px` }"
       >
         <TrackRow
           v-if="tracks[r.index]"
@@ -104,10 +158,18 @@ defineExpose({ scrollToTop, scrollToIndex, scrollEl })
           :meta="meta?.(tracks[r.index]!)"
           :number="numbered ? (tracks[r.index]!.trackNo ?? r.index + 1) : null"
           :subtitle="subtitle?.(tracks[r.index]!)"
+          :position="positions ? r.index + 1 : null"
+          :detail="detail?.(tracks[r.index]!, r.index)"
+          :wide="wide"
+          :hold-drag="!!reorder"
+          :lifted="drag.from.value === r.index"
           @tap="playAt(r.index)"
           @more="more(tracks[r.index]!)"
           @swipe-right="swipeRight(tracks[r.index]!)"
           @swipe-left="swipeLeft(tracks[r.index]!)"
+          @hold="(y: number) => hold(r.index, y)"
+          @hold-move="drag.move"
+          @hold-end="release"
         />
       </div>
     </div>
@@ -129,6 +191,37 @@ defineExpose({ scrollToTop, scrollToIndex, scrollEl })
   top: 0;
   left: 0;
   width: 100%;
+}
+/* Пока строки переставляют, соседи расступаются плавно; взятая едет за пальцем без задержки */
+.sorting .vrow {
+  transition: transform 180ms var(--ease-out);
+}
+.sorting .vrow.up {
+  z-index: 2;
+  transition: none;
+}
+.thead {
+  display: grid;
+  grid-template-columns: var(--cols);
+  column-gap: 16px;
+  align-items: center;
+  height: 36px;
+  margin-top: 6px;
+  padding: 0 4px 0 var(--gutter);
+  border-bottom: 1px solid var(--line);
+  font: 500 12px/1 var(--f-body);
+  color: var(--ink-3);
+}
+.thead .num {
+  text-align: right;
+}
+.thead .dur {
+  display: flex;
+  justify-content: flex-end;
+}
+.thead svg {
+  width: 15px;
+  height: 15px;
 }
 .bottom-space {
   height: calc(var(--nav-h) + var(--mini-h) + var(--safe-bottom) + 28px);

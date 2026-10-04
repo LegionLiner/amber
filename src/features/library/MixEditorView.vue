@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useViewRoute } from '@/app/view-route'
 import IconPlay from '~icons/solar/play-bold'
 import IconStop from '~icons/solar/stop-bold'
@@ -49,9 +49,11 @@ const pairs = computed(() => {
   return out
 })
 
-onMounted(async () => {
+// Экран живёт в KeepAlive: состав плейлиста мог поменяться, пока он был спрятан — читаем заново при каждом показе
+onActivated(async () => {
   if (!playlists.loaded) await playlists.refresh()
   items.value = await playlistItems(id.value)
+  edits.clear()
   for (const it of items.value) {
     const tx = parseTransition(it.transition)
     if (tx) edits.set(it.id, tx)

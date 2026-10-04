@@ -227,7 +227,7 @@ async function myRadio() {
 
 <style scoped>
 .hdr {
-  padding: calc(var(--safe-top) + 6px) var(--gutter) 6px;
+  padding: calc(var(--safe-top) + 16px) var(--gutter) 16px;
 }
 .top {
   height: 44px;

@@ -1,0 +1,4 @@
+node_modules
+.env
+# база для запуска без Docker (DATABASE_URL=pglite:./data)
+data

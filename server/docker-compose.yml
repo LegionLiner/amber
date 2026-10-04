@@ -1,0 +1,39 @@
+# Сервер синхронизации Amber: API + Postgres. Подробно — в README.md рядом.
+#   cp .env.example .env    (задать пароль базы)
+#   docker compose up -d --build
+# API слушает только 127.0.0.1:8096 — наружу его отдаёт nginx по https.
+name: amber
+
+services:
+  api:
+    build: .
+    image: amber-server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://amber:${POSTGRES_PASSWORD}@db:5432/amber
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+      SIGNUP_CODE: ${SIGNUP_CODE:-}
+    ports:
+      - "127.0.0.1:${AMBER_PORT:-8096}:8080"
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: amber
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задай POSTGRES_PASSWORD в .env}
+      POSTGRES_DB: amber
+      POSTGRES_INITDB_ARGS: --encoding=UTF8
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amber -d amber"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

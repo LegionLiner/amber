@@ -20,6 +20,8 @@ import { DEFAULT_COUNTING } from '@/domain/counting'
 import { SHUFFLE_KINDS } from '@/domain/shuffle'
 import { countLabel, formatDate } from '@/domain/format'
 import type { CountingRule } from '@/native/types'
+import SyncSection from './SyncSection.vue'
+import { useSync } from '@/stores/sync'
 
 const settings = useSettings()
 const library = useLibrary()
@@ -134,6 +136,7 @@ async function useDemo() {
 
 /* ---------------- папки на компьютере ---------------- */
 
+const sync = useSync()
 const folders = computed(() => web.value?.folders ?? [])
 async function addDesktopFolder() {
   try {
@@ -467,11 +470,15 @@ async function backupNow() {
       </label>
     </section>
 
+    <SyncSection />
+
     <section class="group">
       <h2 class="gtitle">Данные</h2>
       <p class="note">
-        Все оценки, история и настройки живут только на этом {{ isDesktop ? 'компьютере' : 'телефоне' }}. Бэкап — один JSON со
-        всем сразу{{ isDesktop ? ': так же можно перенести историю с телефона' : '' }}.
+        {{ sync.signedIn ? 'Данные синхронизируются с сервером, а копия' : 'Все оценки, история и настройки живут только' }} на
+        этом {{ isDesktop ? 'компьютере' : 'телефоне' }}. Бэкап — один JSON со всем сразу{{
+          isDesktop ? ': так же можно перенести историю с телефона' : ''
+        }}.
       </p>
       <button type="button" class="btn primary block" :disabled="busy" @click="exportData">Экспорт в JSON</button>
       <div class="seg">

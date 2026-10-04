@@ -5,6 +5,8 @@
  *
  * Версия схемы хранится в PRAGMA user_version. Миграции только добавляются, старые не правятся.
  */
+import { syncSchema } from '../sync/kinds'
+
 export interface Migration {
   version: number
   statements: string[]
@@ -258,6 +260,12 @@ export const MIGRATIONS: Migration[] = [
         at INTEGER NOT NULL
       )`,
     ],
+  },
+  {
+    version: 4,
+    // Синхронизация с сервером: журнал изменений и триггеры на таблицах с твоими данными (src/sync/kinds.ts).
+    // Триггеры пишут в журнал, только когда синхронизация включена, и срабатывают и на записи из Kotlin
+    statements: syncSchema(),
   },
 ]
 

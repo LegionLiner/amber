@@ -1,4 +1,4 @@
-# Сборка Amber: тесты, веб-версия, APK и Docker-образ.
+# Сборка Amber: тесты, веб-версия, APK, Docker-образ и сервер синхронизации.
 # APK лежит в артефактах каждого запуска (вкладка Actions → запуск → Artifacts).
 # По тегу вида v0.2.0 создаётся релиз с APK.
 #
@@ -37,7 +37,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
-      - run: npx prettier --check src tests
+      - run: npx prettier --check src tests server/src server/test
       - run: npm test
       - run: npm run build
       - uses: actions/upload-artifact@v4
@@ -112,6 +112,47 @@ jobs:
         with:
           files: out/*.apk
           generate_release_notes: true
+
+  server:
+    name: Сервер синхронизации
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: amber
+          POSTGRES_PASSWORD: amber
+          POSTGRES_DB: amber
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U amber" --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - name: Тесты (PGlite)
+        run: npm test
+      - name: Тесты (настоящий Postgres)
+        run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://amber:amber@127.0.0.1:5432/amber
+      - name: Образ собирается и поднимается вместе с базой
+        run: |
+          cp .env.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 16)/" .env
+          docker compose up -d --build --wait --wait-timeout 180
+          curl -sf http://127.0.0.1:8096/v1/health
+          curl -sf -X POST http://127.0.0.1:8096/v1/auth/register -H 'content-type: application/json' \
+            -d '{"email":"ci@amber.test","password":"ci-password","device":{"name":"CI"}}' | grep -q token
+      - if: failure()
+        run: docker compose logs
 
   docker:
     name: Docker-образ

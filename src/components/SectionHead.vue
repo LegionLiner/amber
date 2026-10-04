@@ -55,11 +55,12 @@ function select(tab: string) {
   left: 0;
   right: 0;
   z-index: 3;
+  padding-bottom: 6px;
   background: var(--bg);
   will-change: transform;
 }
 .hd-title {
-  padding: calc(var(--safe-top) + 10px) var(--gutter) 6px;
+  padding: calc(var(--safe-top) + 18px) var(--gutter) 8px;
   transform-origin: left bottom;
 }
 .top {

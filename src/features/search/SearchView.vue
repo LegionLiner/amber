@@ -296,7 +296,8 @@ function go(to: Parameters<typeof router.push>[0]) {
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: calc(var(--safe-top) + 10px) var(--gutter) 10px;
+  padding: calc(var(--safe-top) + 18px) var(--gutter) 16px;
+  margin-bottom: 8px;
   background: var(--bg);
 }
 .title {

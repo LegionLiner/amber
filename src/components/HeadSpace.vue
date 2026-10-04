@@ -8,7 +8,8 @@
 
 <style scoped>
 .head-space {
-  height: var(--head-h, 0px);
+  /* Высота шапки раздела и просвет до первого блока под ней */
+  height: calc(var(--head-h, 0px) + 14px);
   flex: none;
 }
 </style>

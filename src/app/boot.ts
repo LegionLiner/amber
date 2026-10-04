@@ -13,6 +13,7 @@ import { setupDeepLinks } from './deeplinks'
 import { runAutoBackup } from './auto-backup'
 import { weeklyHousekeeping } from './housekeeping'
 import { setupDesktop } from './desktop'
+import { useSync } from '@/stores/sync'
 
 /**
  * Запуск приложения:
@@ -61,6 +62,8 @@ export async function boot(): Promise<void> {
 
   setupBackButton()
   setupDesktop()
+  const sync = useSync()
+  await sync.load().catch((e) => console.warn('sync load failed', e))
   // Ярлыки на значке работают и в первый запуск, сразу после приветствия
   await setupDeepLinks()
 
@@ -74,6 +77,11 @@ export async function boot(): Promise<void> {
     .scan((settings.s.scan.version ?? 0) < SCANNER_VERSION)
     .catch((e) => console.warn('scan failed', e))
     .finally(() => {
+      // Синхронизация — после сканирования: карточки треков для других устройств берут названия из медиатеки
+      if (sync.signedIn) {
+        sync.start()
+        void sync.syncNow()
+      }
       void weeklyHousekeeping().catch((e) => console.warn('housekeeping failed', e))
       void runAutoBackup().catch((e) => console.warn('auto-backup failed', e))
     })

@@ -68,7 +68,7 @@ function markText(m: Milestone): string {
 <template>
   <section>
     <div v-if="pastByDay.length" class="section-title"><span>В этот день</span></div>
-    <div v-if="pastByDay.length" class="past">
+    <div v-if="pastByDay.length" class="past hscroll">
       <button v-for="p in pastByDay" :key="p.day" type="button" class="pcard" @click="router.push(`/day/${p.day}`)">
         <CoverArt v-if="p.track" :art="p.track.art" :seed="p.track.title" :label="p.track.title" size="s" class="cv" />
         <span class="text">
@@ -81,7 +81,7 @@ function markText(m: Milestone): string {
 
     <template v-if="marks.length">
       <div class="section-title"><span>Вехи</span></div>
-      <div class="marks">
+      <div class="marks hscroll">
         <div v-for="(m, i) in marks" :key="i" class="mark">
           <b>{{ markText(m) }}</b>
           <small>{{ formatDate(m.at) }}</small>

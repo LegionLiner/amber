@@ -146,7 +146,7 @@ async function myRadio() {
         </button>
       </div>
 
-      <div v-if="ctxNow || contexts.length" class="ctxbar">
+      <div v-if="ctxNow || contexts.length" class="ctxbar hscroll">
         <button
           v-for="c in ctxNow ? [ctxNow] : contexts.slice(0, 4)"
           :key="c.id"

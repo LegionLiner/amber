@@ -175,7 +175,7 @@ function go(to: Parameters<typeof router.push>[0]) {
     <template v-else>
       <section v-if="artistResults.length">
         <div class="section-title"><span>Исполнители</span></div>
-        <div class="chips">
+        <div class="chips hscroll">
           <button
             v-for="a in artistResults"
             :key="a.id"
@@ -212,7 +212,7 @@ function go(to: Parameters<typeof router.push>[0]) {
 
       <section v-if="albumResults.length">
         <div class="section-title"><span>Альбомы</span></div>
-        <div class="albums">
+        <div class="albums hscroll">
           <button
             v-for="a in albumResults"
             :key="a.id"

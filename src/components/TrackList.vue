@@ -207,7 +207,7 @@ defineExpose({ scrollToTop, scrollToIndex, scrollEl })
   align-items: center;
   height: 36px;
   margin-top: 6px;
-  padding: 0 4px 0 var(--gutter);
+  padding: 0 max(4px, calc(var(--gutter) - 12px)) 0 var(--gutter);
   border-bottom: 1px solid var(--line);
   font: 500 12px/1 var(--f-body);
   color: var(--ink-3);

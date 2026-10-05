@@ -157,7 +157,7 @@ function edit() {
 
       <template v-if="discoveries.length">
         <div class="section-title"><span>Открытия</span><span class="muted small">впервые в этот период</span></div>
-        <div class="disc">
+        <div class="disc hscroll">
           <button
             v-for="(t, i) in discoveries.slice(0, 20)"
             :key="t.key"

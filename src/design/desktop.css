@@ -33,9 +33,15 @@
 }
 
 /* ---- наведение мышью ---- */
-:root.desktop .vrow .row,
-:root.desktop .thead {
-  padding-right: max(4px, calc(var(--gutter) - 12px));
+/*
+ * Горизонтальные ленты (чипсы, альбомы в поиске, контексты, ленты хроники) на телефоне листаются
+ * от края до края экрана. В окне компьютера они стоят в колонке содержимого — как всё остальное,
+ * а не уезжают под правое поле до края окна
+ */
+:root.desktop .hscroll {
+  margin-inline: var(--gutter);
+  padding-inline: 0;
+  scroll-padding-inline: 0;
 }
 :root.desktop .icon-btn:hover:not(:disabled) {
   background: var(--chip);

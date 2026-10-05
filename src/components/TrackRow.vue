@@ -180,7 +180,8 @@ const starText = computed(() => {
   grid-template-columns: 44px 1fr auto auto;
   align-items: center;
   gap: 12px;
-  padding: 0 4px 0 var(--gutter);
+  /* Правое поле зеркалит левое: на телефоне это те же 4 px, в широком окне — край колонки содержимого */
+  padding: 0 max(4px, calc(var(--gutter) - 12px)) 0 var(--gutter);
   /* Без своей заливки: под строкой виден фон экрана. Заливка нужна, только пока строку сдвигают
      свайпом — чтобы подложка «Следующим» / «В избранное» не просвечивала сквозь неё */
   background: transparent;

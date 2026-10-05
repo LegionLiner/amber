@@ -208,7 +208,12 @@ function done() {
   align-items: center;
   gap: 8px;
   height: 52px;
-  padding: 0 8px 0 6px;
+  /* От полей экрана: на телефоне это прежние 6 и 8 px, в широком окне шапка встаёт в колонку со списком */
+  padding: 0 calc(var(--gutter) - 8px) 0 calc(var(--gutter) - 10px);
+}
+/* В окне компьютера «Готово» встаёт ровно над правым краем поля поиска */
+:root.desktop .bar {
+  padding-right: var(--gutter);
 }
 .ttl {
   min-width: 0;

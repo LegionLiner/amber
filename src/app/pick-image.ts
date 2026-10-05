@@ -37,8 +37,13 @@ async function squareJpeg(file: Blob, maxPx: number): Promise<PickedImage> {
   const blob = await new Promise<Blob>((res, rej) =>
     canvas.toBlob((b) => (b ? res(b) : rej(new Error('jpeg'))), 'image/jpeg', 0.9),
   )
+  return { base64: await blobToBase64(blob), url: URL.createObjectURL(blob) }
+}
+
+/** Содержимое файла в base64 (без «data:…» в начале) — так картинки принимает движок */
+export async function blobToBase64(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer())
   let bin = ''
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-  return { base64: btoa(bin), url: URL.createObjectURL(blob) }
+  return btoa(bin)
 }

@@ -39,4 +39,7 @@ contextBridge.exposeInMainWorld('amberDesktop', {
   ytInfo: (url: string) => invoke('yt:info', url),
   ytDownload: (url: string, names: { title: string; artist: string }) => invoke('yt:download', url, names),
   onYtProgress: (cb: (p: unknown) => void) => void ipcRenderer.on('yt:progress', (_e, p) => cb(p)),
+
+  voicePrepare: () => invoke('voice:prepare'),
+  onVoiceProgress: (cb: (p: unknown) => void) => void ipcRenderer.on('voice:progress', (_e, p) => cb(p)),
 })

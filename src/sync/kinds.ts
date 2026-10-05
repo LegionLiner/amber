@@ -36,10 +36,25 @@ const ACTIVE = `EXISTS (SELECT 1 FROM sync_state WHERE k = 'enabled') AND NOT EX
 
 type Row = Record<string, SqlValue>
 
+export interface Watch {
+  table: string
+  /** Выражение eid через NEW./OLD. */
+  eid: (row: 'NEW' | 'OLD') => string
+  /** В какой миграции появился триггер (по умолчанию 4): старые триггеры не пересоздаются */
+  since?: number
+  /** Дополнительные условия триггеров на вставку, изменение и удаление */
+  when?: { i?: string; u?: string; d?: string }
+}
+
 export interface KindDef {
   kind: string
-  /** Таблицы, изменения в которых затрагивают этот вид, и выражение eid через NEW./OLD. */
-  watch: { table: string; eid: (row: 'NEW' | 'OLD') => string }[]
+  /** Таблицы, изменения в которых затрагивают этот вид */
+  watch: Watch[]
+  /**
+   * Запись несёт картинку: read отдаёт { art } — ключ обложки на этом устройстве, а сам файл читает
+   * и сохраняет движок синхронизации через hooks.readCover / saveCover (в SQL картинок нет)
+   */
+  media?: boolean
   /** Все существующие записи — для первого включения: eid и время изменения */
   seed: string
   /** Запись по eid для отправки; null — записи нет (удалена); 'wait' — ещё не готова (трек играет) */
@@ -68,6 +83,7 @@ function simple(opts: {
   where: string[]
   fromEid: (eid: string) => SqlValue[]
   eid: (row: 'NEW' | 'OLD') => string
+  since?: number
   seed: string
   readFilter?: string
   trackKeys?: (d: Record<string, unknown>) => string[]
@@ -76,7 +92,7 @@ function simple(opts: {
   const rest = opts.cols.filter((c) => !opts.where.includes(c))
   return {
     kind: opts.kind,
-    watch: [{ table: opts.table, eid: opts.eid }],
+    watch: [{ table: opts.table, eid: opts.eid, since: opts.since }],
     seed: opts.seed,
     async read(db, eid) {
       const r = await one(db, `SELECT * FROM ${opts.table} WHERE ${cond}`, opts.fromEid(eid))
@@ -142,7 +158,11 @@ const TRACK_COLS = [
   'updated_at',
 ] as const
 
-const PLAYLIST_COLS = ['name', 'kind', 'rules', 'sort', 'note', 'created_at', 'updated_at'] as const
+/**
+ * Порядок, группа и закрепление (pos, group_at, pin_pos) — с версии 0.5. Устройство со старой версией
+ * их не присылает: тогда они не трогаются (обновляются только пришедшие поля)
+ */
+const PLAYLIST_COLS = ['name', 'kind', 'rules', 'sort', 'note', 'created_at', 'updated_at', 'pos', 'group_at', 'pin_pos'] as const
 
 export const KINDS: KindDef[] = [
   simple({
@@ -288,7 +308,7 @@ export const KINDS: KindDef[] = [
         ]
       }
       const d = item.data
-      const rest = PLAYLIST_COLS.filter((c) => c !== 'created_at')
+      const rest = PLAYLIST_COLS.filter((c) => c !== 'created_at' && c in d)
       const items = (d.items as [string, string | null, number][] | undefined) ?? []
       return [
         {
@@ -308,6 +328,41 @@ export const KINDS: KindDef[] = [
       ]
     },
     trackKeys: (d) => ((d.items as [string][] | undefined) ?? []).map((i) => i[0]),
+  },
+  simple({
+    // Группы плейлистов; при удалении группы её плейлисты остаются (у них group_at без группы — значит, вне групп)
+    kind: 'pgroup',
+    table: 'playlist_groups',
+    cols: ['name', 'pos', 'created_at', 'updated_at'],
+    where: ['created_at'],
+    fromEid: (e) => [Number(e)],
+    eid: (r) => `${r}.created_at`,
+    since: 5,
+    seed: `SELECT CAST(created_at AS TEXT) AS eid, updated_at AS at FROM playlist_groups`,
+  }),
+  {
+    // Обложка плейлиста — отдельно от него: картинка уходит, только когда сменилась, а не при каждой правке списка
+    kind: 'pcover',
+    media: true,
+    watch: [
+      {
+        table: 'playlists',
+        eid: (r) => `${r}.created_at`,
+        since: 5,
+        when: { i: 'NEW.cover IS NOT NULL', u: 'NEW.cover IS NOT OLD.cover', d: 'OLD.cover IS NOT NULL' },
+      },
+    ],
+    seed: `SELECT CAST(created_at AS TEXT) AS eid, updated_at AS at FROM playlists WHERE cover IS NOT NULL`,
+    async read(db, eid) {
+      const p = await one(db, `SELECT cover FROM playlists WHERE created_at = ?`, [Number(eid)])
+      return p?.cover ? { art: p.cover } : null
+    },
+    apply(item) {
+      // Картинку уже сохранил движок синхронизации: в data — ключ обложки на этом устройстве
+      const art = item.deleted || !item.data ? null : ((item.data.art as string | undefined) ?? null)
+      if (!item.deleted && !art) return []
+      return [{ sql: `UPDATE playlists SET cover = ? WHERE created_at = ?`, params: [art, Number(item.id)] }]
+    },
   },
   simple({
     kind: 'diary',
@@ -348,7 +403,9 @@ export const APPLY_ORDER = [
   'ctx',
   'ctxi',
   'era',
+  'pgroup',
   'playlist',
+  'pcover',
   'mark',
   'play',
   'rate',
@@ -364,17 +421,23 @@ export const APPLY_ORDER = [
  * запись приложения они не меняют и не могут сорвать (удалить + вставить, пустой eid пропускается).
  */
 export function syncSchema(): string[] {
-  const out = [
+  return [
     `CREATE TABLE sync_state (k TEXT PRIMARY KEY, v TEXT)`,
     `CREATE TABLE sync_outbox (kind TEXT NOT NULL, eid TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (kind, eid))`,
     // Карточки треков (название, исполнитель), уже отправленные на сервер
     `CREATE TABLE sync_cards (key TEXT PRIMARY KEY)`,
+    ...syncTriggers(4),
   ]
-  const rows: { kind: string; table: string; eid: (r: 'NEW' | 'OLD') => string }[] = [
+}
+
+/** Триггеры, появившиеся в миграции version: у каждого наблюдения свой since (по умолчанию 4) */
+export function syncTriggers(version: number): string[] {
+  const out: string[] = []
+  const rows: ({ kind: string } & Watch)[] = [
     ...KINDS.flatMap((k) => k.watch.map((w) => ({ kind: k.kind, ...w }))),
     { kind: 'pref', table: 'settings', eid: () => `'app'` },
-  ]
-  for (const { kind, table, eid } of rows) {
+  ].filter((w) => (w.since ?? 4) === version)
+  for (const { kind, table, eid, when } of rows) {
     // Не INSERT OR REPLACE: политику конфликтов в триггере перекрывает внешняя команда, и после upsert
     // приложения (INSERT … ON CONFLICT DO UPDATE) повторная запись в журнал падала вместе с самой правкой.
     // Удалить и вставить не конфликтует ни при какой внешней политике
@@ -383,10 +446,15 @@ export function syncSchema(): string[] {
       `INSERT INTO sync_outbox (kind, eid, at) SELECT '${kind}', ${eid(r)}, ${NOW_MS} WHERE ${eid(r)} IS NOT NULL;`
     const only = table === 'settings' ? ` AND NEW.key = 'app'` : ''
     const onlyOld = table === 'settings' ? ` AND OLD.key = 'app'` : ''
+    const extra = (c?: string) => (c ? ` AND (${c})` : '')
     const name = `sync_${kind}_${table}`
-    out.push(`CREATE TRIGGER ${name}_i AFTER INSERT ON ${table} WHEN ${ACTIVE}${only} BEGIN ${put('NEW')} END`)
-    out.push(`CREATE TRIGGER ${name}_u AFTER UPDATE ON ${table} WHEN ${ACTIVE}${only} BEGIN ${put('OLD')} ${put('NEW')} END`)
-    out.push(`CREATE TRIGGER ${name}_d AFTER DELETE ON ${table} WHEN ${ACTIVE}${onlyOld} BEGIN ${put('OLD')} END`)
+    out.push(`CREATE TRIGGER ${name}_i AFTER INSERT ON ${table} WHEN ${ACTIVE}${only}${extra(when?.i)} BEGIN ${put('NEW')} END`)
+    out.push(
+      `CREATE TRIGGER ${name}_u AFTER UPDATE ON ${table} WHEN ${ACTIVE}${only}${extra(when?.u)} BEGIN ${put('OLD')} ${put('NEW')} END`,
+    )
+    out.push(
+      `CREATE TRIGGER ${name}_d AFTER DELETE ON ${table} WHEN ${ACTIVE}${onlyOld}${extra(when?.d)} BEGIN ${put('OLD')} END`,
+    )
   }
   return out
 }

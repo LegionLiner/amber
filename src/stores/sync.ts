@@ -6,6 +6,7 @@ import { isDesktop } from '@/native/desktop/bridge'
 import type { SyncDb } from '@/sync/kinds'
 import { disableSync, enableSync, pendingCount, runSync } from '@/sync/engine'
 import { ApiError, SyncApi, normalizeUrl, type Me } from '@/sync/api'
+import { readCoverImage, saveCoverImage } from '@/sync/covers'
 import { useSettings, type AppSettings } from './settings'
 import { useLibrary } from './library'
 import { usePlaylists } from './playlists'
@@ -28,6 +29,7 @@ const SHARED_PREFS = [
   'askRatingAfterPlays',
   'shuffleKind',
   'showLyrics',
+  'lrclib',
 ] as const satisfies readonly (keyof AppSettings)[]
 
 const PERIOD_MS = 3 * 60 * 1000
@@ -166,7 +168,12 @@ export const useSync = defineStore('sync', () => {
     running = (async () => {
       status.value = 'syncing'
       try {
-        const report = await runSync(sdb, api(), { readPrefs, applyPrefs })
+        const report = await runSync(sdb, api(), {
+          readPrefs,
+          applyPrefs,
+          readCover: readCoverImage,
+          saveCover: saveCoverImage,
+        })
         lastAt.value = Date.now()
         failures = 0
         status.value = 'idle'
@@ -175,7 +182,7 @@ export const useSync = defineStore('sync', () => {
         // Пришли чужие изменения — перечитываем то, что показывается сейчас
         const k = report.kinds
         if (['track', 'card', 'play', 'rate', 'duel'].some((x) => k.has(x))) await useLibrary().load()
-        if (k.has('playlist')) await usePlaylists().refresh()
+        if (['playlist', 'pgroup', 'pcover'].some((x) => k.has(x))) await usePlaylists().refresh()
       } catch (e) {
         failures++
         handleError(e)

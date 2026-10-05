@@ -16,6 +16,20 @@ export interface PlaylistRow {
   createdAt: number
   updatedAt: number
   count: number
+  /** Место в списке (внутри группы — среди плейлистов группы) */
+  pos: number | null
+  /** Группа — по её createdAt; null — вне групп */
+  groupAt: number | null
+  /** Место среди закреплённых; null — не закреплён */
+  pinPos: number | null
+}
+
+export interface PlaylistGroupRow {
+  id: number
+  name: string
+  pos: number | null
+  createdAt: number
+  updatedAt: number
 }
 
 export interface PlaylistItemRow {
@@ -40,9 +54,13 @@ export async function listPlaylists(): Promise<PlaylistRow[]> {
       'p.cover',
       'p.createdAt',
       'p.updatedAt',
+      'p.pos',
+      'p.groupAt',
+      'p.pinPos',
       fn.count<number>('i.id').as('count'),
     ])
     .groupBy('p.id')
+    .orderBy('p.pos')
     .orderBy('p.updatedAt', 'desc')
     .execute()
   return rows.map((r) => ({ ...r, count: Number(r.count) }))
@@ -54,11 +72,84 @@ export async function createPlaylist(
   rules: string | null = null,
 ): Promise<number> {
   const now = Date.now()
+  // Новый — первым в списке вне групп
+  const top = await db
+    .selectFrom('playlists')
+    .select(({ fn }) => fn.min('pos').as('p'))
+    .executeTakeFirst()
+  const groupsTop = await db
+    .selectFrom('playlistGroups')
+    .select(({ fn }) => fn.min('pos').as('p'))
+    .executeTakeFirst()
+  const first = Math.min(Number(top?.p ?? 0), Number(groupsTop?.p ?? 0))
   const r = await db
     .insertInto('playlists')
-    .values({ name, kind, rules, sort: null, cover: null, note: null, createdAt: now, updatedAt: now })
+    .values({
+      name,
+      kind,
+      rules,
+      sort: null,
+      cover: null,
+      note: null,
+      createdAt: now,
+      updatedAt: now,
+      pos: first - 1,
+      groupAt: null,
+      pinPos: null,
+    })
     .executeTakeFirst()
   return Number(r.insertId)
+}
+
+/** Куда положить плейлист: группа (null — вне групп), место в ней и место среди закреплённых */
+export async function placePlaylist(id: number, place: { groupAt: number | null; pos: number; pinPos: number | null }) {
+  await db
+    .updateTable('playlists')
+    .set({ groupAt: place.groupAt, pos: place.pos, pinPos: place.pinPos, updatedAt: Date.now() })
+    .where('id', '=', id)
+    .execute()
+}
+
+/* ------------------------------ группы ------------------------------ */
+
+export function listGroups(): Promise<PlaylistGroupRow[]> {
+  return db
+    .selectFrom('playlistGroups')
+    .select(['id', 'name', 'pos', 'createdAt', 'updatedAt'])
+    .orderBy('pos')
+    .orderBy('createdAt')
+    .execute()
+}
+
+export async function createGroup(name: string, pos: number): Promise<number> {
+  const now = Date.now()
+  await db.insertInto('playlistGroups').values({ name, pos, createdAt: now, updatedAt: now }).execute()
+  return now
+}
+
+export async function renameGroup(createdAt: number, name: string): Promise<void> {
+  await db.updateTable('playlistGroups').set({ name, updatedAt: Date.now() }).where('createdAt', '=', createdAt).execute()
+}
+
+export async function moveGroup(createdAt: number, pos: number): Promise<void> {
+  await db.updateTable('playlistGroups').set({ pos, updatedAt: Date.now() }).where('createdAt', '=', createdAt).execute()
+}
+
+/** Удалить группу: её плейлисты остаются и встают на её место в общем списке */
+export async function deleteGroup(createdAt: number): Promise<void> {
+  const g = await db.selectFrom('playlistGroups').select('pos').where('createdAt', '=', createdAt).executeTakeFirst()
+  const inside = await db.selectFrom('playlists').select(['id', 'pos']).where('groupAt', '=', createdAt).orderBy('pos').execute()
+  const base = g?.pos ?? 0
+  const now = Date.now()
+  await batch([
+    ...inside.map((p, i) =>
+      db
+        .updateTable('playlists')
+        .set({ groupAt: null, pos: base + (i + 1) / (inside.length + 1), updatedAt: now })
+        .where('id', '=', p.id),
+    ),
+    db.deleteFrom('playlistGroups').where('createdAt', '=', createdAt),
+  ])
 }
 
 export async function renamePlaylist(id: number, name: string): Promise<void> {

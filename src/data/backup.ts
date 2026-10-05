@@ -1,4 +1,5 @@
 import { all, batch } from './db'
+import { APP_VERSION } from '@/app/version'
 import type { SqlStatement, SqlValue } from '@/native/types'
 import { normKey } from '@/domain/names'
 
@@ -51,6 +52,7 @@ const USER_COLUMNS = [
 const PLAIN_TABLES = [
   'rating_history',
   'playlists',
+  'playlist_groups',
   'playlist_items',
   'bookmarks',
   'tags',
@@ -123,7 +125,7 @@ export async function buildBackup(): Promise<BackupFile> {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
-    app: 'Amber 0.2.0',
+    app: `Amber ${APP_VERSION}`,
     tracks,
     trackUser,
     plays,

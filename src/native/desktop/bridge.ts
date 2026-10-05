@@ -68,6 +68,10 @@ export interface DesktopBridge {
   ytInfo(url: string): Promise<DesktopYtInfo>
   ytDownload(url: string, names: { title: string; artist: string }): Promise<{ path: string; cover: string | null; id: string }>
   onYtProgress(cb: (p: DesktopYtProgress) => void): void
+
+  // Голосовые команды: подготовить модель речи (первый раз — скачать) → её адрес для распознавателя
+  voicePrepare(): Promise<string>
+  onVoiceProgress(cb: (p: { stage: 'download' | 'unpack'; done: number; total: number }) => void): void
 }
 
 export const desktop: DesktopBridge | null =

@@ -5,7 +5,7 @@
  *
  * Версия схемы хранится в PRAGMA user_version. Миграции только добавляются, старые не правятся.
  */
-import { syncSchema } from '../sync/kinds'
+import { syncSchema, syncTriggers } from '../sync/kinds'
 
 export interface Migration {
   version: number
@@ -266,6 +266,29 @@ export const MIGRATIONS: Migration[] = [
     // Синхронизация с сервером: журнал изменений и триггеры на таблицах с твоими данными (src/sync/kinds.ts).
     // Триггеры пишут в журнал, только когда синхронизация включена, и срабатывают и на записи из Kotlin
     statements: syncSchema(),
+  },
+  {
+    version: 5,
+    statements: [
+      // Группы плейлистов (папки в боковом меню). Ссылка на группу — её created_at: он одинаков на всех
+      // устройствах, а номер строки у каждого свой
+      `CREATE TABLE playlist_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        pos REAL,
+        created_at INTEGER NOT NULL UNIQUE,
+        updated_at INTEGER NOT NULL
+      )`,
+      // Свой порядок плейлистов, группа и закрепление. Порядок — дробный: перенос меняет одну строку
+      `ALTER TABLE playlists ADD COLUMN pos REAL`,
+      `ALTER TABLE playlists ADD COLUMN group_at INTEGER`,
+      `ALTER TABLE playlists ADD COLUMN pin_pos REAL`,
+      // До этой версии список шёл от недавно изменённых: тот же порядок становится начальным
+      `UPDATE playlists SET pos = (SELECT COUNT(*) FROM playlists q
+         WHERE q.updated_at > playlists.updated_at OR (q.updated_at = playlists.updated_at AND q.id > playlists.id))`,
+      // Синхронизация групп и обложек плейлистов
+      ...syncTriggers(5),
+    ],
   },
 ]
 

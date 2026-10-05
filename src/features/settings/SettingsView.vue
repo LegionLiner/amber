@@ -22,6 +22,8 @@ import { countLabel, formatDate } from '@/domain/format'
 import type { CountingRule } from '@/native/types'
 import SyncSection from './SyncSection.vue'
 import { useSync } from '@/stores/sync'
+import { APP_VERSION } from '@/app/version'
+import { voice } from '@/app/voice'
 
 const settings = useSettings()
 const library = useLibrary()
@@ -425,6 +427,13 @@ async function backupNow() {
         <span><b>Дубли</b><small>Один трек в нескольких файлах</small></span>
       </button>
       <label class="row">
+        <span
+          ><b>Тексты песен из LRCLIB</b
+          ><small>Если в файле текста нет, он подставится из открытой базы lrclib.net (нужна сеть)</small></span
+        >
+        <input id="opt-lrclib" v-model="s.lrclib" type="checkbox" class="switch" />
+      </label>
+      <label class="row">
         <span><b>Папка вместо альбома</b><small>Если у трека пустой тег альбома</small></span>
         <input id="opt-album-folder" v-model="s.albumFromFolder" type="checkbox" class="switch" @change="library.load()" />
       </label>
@@ -544,6 +553,27 @@ async function backupNow() {
         >
         <input id="opt-pulse" v-model="s.desktopPulse" type="checkbox" class="switch" />
       </label>
+      <label class="row">
+        <span
+          ><b>Голосовые команды</b
+          ><small
+            >«Эмбер, стоп», «Эмбер, продолжи», «Эмбер, следующий», «Эмбер, назад», «Эмбер, тише», «Эмбер, громче», «Эмбер, лайк».
+            Можно и отдельно: «Эмбер» — музыка притихнет — «следующий». Распознаётся на компьютере, без интернета; в первый раз
+            скачается модель речи (45 МБ)</small
+          ></span
+        >
+        <input id="opt-voice" v-model="s.voice" type="checkbox" class="switch" />
+      </label>
+      <p v-if="s.voice" class="note voice-state" :class="voice.state">
+        <template v-if="voice.state === 'loading'"
+          >{{ voice.stage
+          }}<template v-if="voice.progress != null"> · {{ Math.round(voice.progress * 100) }}%</template>…</template
+        >
+        <template v-else-if="voice.state === 'listening'"
+          >Слушаю<template v-if="voice.last">. Последняя команда: {{ voice.last }}</template></template
+        >
+        <template v-else-if="voice.state === 'error'">{{ voice.error }}</template>
+      </p>
       <p class="note">
         Клавиши: пробел — пауза, Ctrl+→ и Ctrl+← — следующий и предыдущий, Shift+→ и Shift+← — перемотка на 10 секунд, Ctrl+↑ и
         Ctrl+↓ — громкость, Ctrl+F — поиск, Ctrl+L — в избранное, Esc — закрыть шторку или плеер. Клавиши мультимедиа на
@@ -560,12 +590,21 @@ async function backupNow() {
       <button type="button" class="btn block" @click="MusicCore.openBatterySettings()">Настройки батареи</button>
     </section>
 
-    <p class="about muted">Amber 0.2.0 · офлайн, без аккаунтов</p>
+    <p class="about muted">
+      Amber {{ APP_VERSION }} ·
+      {{ sync.signedIn ? `синхронизация: ${sync.email}` : 'работает без сети, синхронизация — по желанию' }}
+    </p>
     <div class="bottom-space" />
   </div>
 </template>
 
 <style scoped>
+.voice-state.listening {
+  color: var(--amber-ink);
+}
+.voice-state.error {
+  color: var(--bad);
+}
 .dfolders {
   display: flex;
   flex-direction: column;

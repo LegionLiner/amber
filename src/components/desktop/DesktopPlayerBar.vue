@@ -17,6 +17,7 @@ import IconVolume from '~icons/solar/volume-loud-linear'
 import IconVolumeLow from '~icons/solar/volume-small-linear'
 import IconMute from '~icons/solar/volume-cross-linear'
 import IconExpand from '~icons/solar/maximize-square-minimalistic-linear'
+import IconMic from '~icons/solar/microphone-linear'
 import CoverArt from '@/components/CoverArt.vue'
 import BarSlider from './BarSlider.vue'
 import SpeedSheet from '@/features/player/SpeedSheet.vue'
@@ -28,6 +29,8 @@ import { useUi } from '@/stores/ui'
 import { formatDuration } from '@/domain/format'
 import { plainSound } from '@/domain/effects'
 import { setVolume, toggleMute, volume } from '@/app/desktop'
+import { voice } from '@/app/voice'
+import { useSettings } from '@/stores/settings'
 
 /**
  * Панель плеера внизу окна: что играет, управление и перемотка посередине, звук, очередь и громкость справа.
@@ -36,6 +39,16 @@ import { setVolume, toggleMute, volume } from '@/app/desktop'
 const player = usePlayer()
 const library = useLibrary()
 const ui = useUi()
+const settings = useSettings()
+const micTitle = computed(() =>
+  voice.state === 'listening'
+    ? 'Слушаю: «Эмбер, стоп / дальше / назад / тише / громче». Нажми, чтобы выключить'
+    : voice.state === 'loading'
+      ? `${voice.stage}…`
+      : voice.state === 'error'
+        ? `Голосовые команды: ${voice.error}`
+        : 'Голосовые команды',
+)
 
 const item = computed(() => player.current)
 const track = computed(() => player.currentTrack)
@@ -196,6 +209,17 @@ function favorite() {
         @click="ui.queueOpen = !ui.queueOpen"
       >
         <IconQueue />
+      </button>
+      <button
+        v-if="settings.s.voice"
+        type="button"
+        class="icon-btn mic"
+        :class="[voice.state, { wake: voice.wakeAt > 0 }]"
+        :aria-label="micTitle"
+        :title="micTitle"
+        @click="settings.s.voice = false"
+      >
+        <IconMic />
       </button>
       <div class="vol">
         <button
@@ -367,5 +391,25 @@ button:disabled {
 }
 .volbar {
   width: 96px;
+}
+/* Голосовые команды: слушает — янтарный, услышал «Эмбер» — пульсирует, ошибка — красный */
+.mic.listening {
+  color: var(--amber-ink);
+}
+.mic.loading {
+  opacity: 0.5;
+}
+.mic.error {
+  color: var(--bad);
+}
+.mic.wake {
+  color: var(--amber);
+  background: rgba(var(--amber-rgb), 0.18);
+  animation: mic-pulse 0.9s ease-in-out infinite alternate;
+}
+@keyframes mic-pulse {
+  to {
+    box-shadow: 0 0 0 6px rgba(var(--amber-rgb), 0.12);
+  }
 }
 </style>

@@ -93,6 +93,21 @@ export interface PlaylistsTable {
   note: string | null
   createdAt: number
   updatedAt: number
+  /** Место в списке (дробное: перенос меняет одну строку); у закреплённых — внутри своей группы */
+  pos: number | null
+  /** Группа — по её created_at (одинаков на всех устройствах); null — вне групп */
+  groupAt: number | null
+  /** Место среди закреплённых; null — не закреплён */
+  pinPos: number | null
+}
+
+export interface PlaylistGroupsTable {
+  id: Generated<number>
+  name: string
+  /** Место среди групп и плейлистов вне групп */
+  pos: number | null
+  createdAt: number
+  updatedAt: number
 }
 
 export interface PlaylistItemsTable {
@@ -233,6 +248,7 @@ export interface DB {
   ratingHistory: RatingHistoryTable
   playEvents: PlayEventsTable
   playlists: PlaylistsTable
+  playlistGroups: PlaylistGroupsTable
   playlistItems: PlaylistItemsTable
   bookmarks: BookmarksTable
   tags: TagsTable

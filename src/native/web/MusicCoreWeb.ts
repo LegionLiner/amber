@@ -1,4 +1,5 @@
 import { WebPlugin } from '@capacitor/core'
+import { APP_VERSION } from '@/app/version'
 import type { MusicCorePlugin, MusicCoreWebExtras, WebFolderInfo } from '../music-core'
 import type {
   AnalysisProgress,
@@ -325,7 +326,14 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   /* ---------------- сервис ---------------- */
 
   async getInfo(): Promise<DeviceInfo> {
-    return { platform: 'web', sdkInt: 0, manufacturer: 'browser', model: navigator.userAgent, appVersion: '0.2.0', coversDir: '' }
+    return {
+      platform: 'web',
+      sdkInt: 0,
+      manufacturer: 'browser',
+      model: navigator.userAgent,
+      appVersion: APP_VERSION,
+      coversDir: '',
+    }
   }
 
   async checkPermissions(): Promise<MusicPermissionStatus> {

@@ -13,6 +13,7 @@ import { setupDeepLinks } from './deeplinks'
 import { runAutoBackup } from './auto-backup'
 import { weeklyHousekeeping } from './housekeeping'
 import { setupDesktop } from './desktop'
+import { setupVoice } from './voice'
 import { useSync } from '@/stores/sync'
 
 /**
@@ -62,6 +63,7 @@ export async function boot(): Promise<void> {
 
   setupBackButton()
   setupDesktop()
+  setupVoice()
   const sync = useSync()
   await sync.load().catch((e) => console.warn('sync load failed', e))
   // Ярлыки на значке работают и в первый запуск, сразу после приветствия

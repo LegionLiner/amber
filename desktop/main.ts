@@ -5,6 +5,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { thumbIcons } from './icons'
 import { setYoutubeDataDir, youtubeDownload, youtubeInfo } from './youtube'
+import { voiceModelPath } from './voice'
 
 /**
  * Amber для компьютера: главный процесс Electron.
@@ -90,6 +91,18 @@ async function serveApp(url: URL): Promise<Response> {
   if (!file.startsWith(distDir()) || !fs.existsSync(file)) file = path.join(distDir(), 'index.html')
   const body = await fsp.readFile(file)
   return new Response(body, { headers: { 'content-type': MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream' } })
+}
+
+/** Модель распознавания речи для голосовых команд (готовит voice.ts) — её скачивает распознаватель на странице */
+async function serveVoice(): Promise<Response> {
+  const file = path.join(userData(), 'voice', 'model-ru-small.tar.gz')
+  try {
+    const st = await fsp.stat(file)
+    const stream = Readable.toWeb(fs.createReadStream(file)) as unknown as ReadableStream
+    return new Response(stream, { headers: { 'content-type': 'application/gzip', 'content-length': String(st.size) } })
+  } catch {
+    return new Response('not found', { status: 404 })
+  }
 }
 
 /**
@@ -500,6 +513,12 @@ function setupIpc() {
   })
   ipcMain.on('app:quit', () => app.quit())
 
+  // Голосовые команды: модель речи скачивается при первом включении, дальше лежит в папке данных
+  ipcMain.handle('voice:prepare', async (e) => {
+    await voiceModelPath(userData(), (p) => e.sender.send('voice:progress', p))
+    return 'app://amber/__voice/model.tar.gz'
+  })
+
   ipcMain.handle('yt:info', (_e, url: string) => youtubeInfo(url))
   ipcMain.handle('yt:download', async (e, url: string, names?: { title: string; artist: string }) => {
     // Скачанное ложится в «Музыка/Amber»; если эта папка не в библиотеке — добавляем
@@ -531,7 +550,9 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(null)
     protocol.handle('app', (req) => {
       const url = new URL(req.url)
-      return url.pathname === '/__media' ? serveMedia(req, url) : serveApp(url)
+      if (url.pathname === '/__media') return serveMedia(req, url)
+      if (url.pathname === '/__voice/model.tar.gz') return serveVoice()
+      return serveApp(url)
     })
     setupIpc()
     createWindow()

@@ -1,61 +1,155 @@
+<script lang="ts">
+/** Треки, для которых в LRCLIB ничего не нашлось: до перезапуска не спрашиваем снова */
+const lrclibMissing = new Set<string>()
+</script>
+
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import IconEdit from '~icons/solar/pen-linear'
+import IconFind from '~icons/solar/magnifer-linear'
 import { usePlayer } from '@/stores/player'
+import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { MusicCore } from '@/native/music-core'
 import { lineAt, parseLrc, plainText, type LyricLine } from '@/domain/lyrics'
+import { AUTO_MAX, lrclibId, score, toSaved, type LrclibRecord } from '@/domain/lrclib'
+import { lrclibFind } from '@/data/lrclib'
+import { formatDuration } from '@/domain/format'
 import { saveLyrics, savedLyrics } from '@/data/repos/tags'
 
 /**
- * Текст песни. Берётся из самого файла (USLT/SYLT) или из вставленного тобой.
+ * Текст песни. Берётся из самого файла (USLT/SYLT), из вставленного тобой или из открытой базы LRCLIB:
+ * если в файле текста нет, лучший вариант оттуда подставляется сам и сохраняется (и синхронизируется),
+ * не подошёл — другой вариант из списка или свой текст.
  * Синхронный текст подсвечивает текущую строку и сам прокручивается; тап по строке — перемотка туда.
  */
 const player = usePlayer()
+const settings = useSettings()
 const ui = useUi()
 
 const loading = ref(true)
+const loadingText = ref('Ищу текст…')
 const synced = ref<LyricLine[] | null>(null)
 const plain = ref('')
-const source = ref<'file' | 'mine' | null>(null)
+const source = ref<'file' | 'mine' | 'lrclib' | null>(null)
+const currentId = ref<number | null>(null)
+const variants = ref<LrclibRecord[] | null>(null)
+const picking = ref(false)
+const searching = ref(false)
+const searchError = ref('')
 const editing = ref(false)
 const draft = ref('')
 const listEl = ref<HTMLElement | null>(null)
 const taEl = ref<HTMLTextAreaElement | null>(null)
 
 const item = computed(() => player.current)
+const emptyText = computed(() =>
+  source.value === 'lrclib'
+    ? 'Текст убран.'
+    : settings.s.lrclib && item.value && lrclibMissing.has(item.value.key)
+      ? 'Текста нет ни в файле, ни в LRCLIB.'
+      : 'В файле нет текста.',
+)
+
+function show(text: string) {
+  synced.value = parseLrc(text)
+  plain.value = synced.value ? '' : plainText(text)
+}
 
 async function load() {
   const it = item.value
   synced.value = null
   plain.value = ''
   source.value = null
+  currentId.value = null
+  variants.value = null
+  picking.value = false
+  searchError.value = ''
   editing.value = false
   if (!it) return
   loading.value = true
+  loadingText.value = 'Ищу текст…'
   try {
     const mine = await savedLyrics(it.key)
     if (mine) {
-      synced.value = parseLrc(mine)
-      plain.value = synced.value ? '' : plainText(mine)
-      source.value = 'mine'
+      show(mine)
+      currentId.value = lrclibId(mine)
+      source.value = currentId.value != null ? 'lrclib' : 'mine'
       return
     }
     const track = player.currentTrack
-    const r = await MusicCore.lyrics({ uri: it.uri, path: track?.path })
-    if (r.synced?.length) synced.value = r.synced
-    else if (r.text) {
-      synced.value = parseLrc(r.text)
-      if (!synced.value) plain.value = plainText(r.text)
+    const r = await MusicCore.lyrics({ uri: it.uri, path: track?.path }).catch(() => null)
+    if (r?.synced?.length) synced.value = r.synced
+    else if (r?.text) show(r.text)
+    if (synced.value || plain.value) {
+      source.value = 'file'
+      return
     }
-    if (synced.value || plain.value) source.value = 'file'
-  } catch {
-    /* текста нет — покажем пустое состояние */
+    if (settings.s.lrclib && !lrclibMissing.has(it.key)) {
+      loadingText.value = 'Ищу текст в LRCLIB…'
+      await findOnline(true)
+    }
   } finally {
-    loading.value = false
+    if (item.value?.key === it.key) loading.value = false
   }
 }
 watch(() => item.value?.key, load, { immediate: true })
+
+/** Варианты из LRCLIB; auto — подставить лучший сразу (когда текста нет ни своего, ни в файле) */
+async function findOnline(auto = false) {
+  const it = item.value
+  const t = player.currentTrack
+  if (!it) return
+  searching.value = true
+  searchError.value = ''
+  try {
+    const q = {
+      title: t?.title ?? it.title,
+      artist: t?.artist ?? it.artist ?? '',
+      album: t?.album,
+      durationMs: t?.durationMs ?? 0,
+    }
+    const list = await lrclibFind(q)
+    if (item.value?.key !== it.key) return
+    variants.value = list
+    if (!list.length) {
+      lrclibMissing.add(it.key)
+      if (!auto) searchError.value = 'В LRCLIB этого трека нет'
+      return
+    }
+    // Сам подставляем только явно тот же трек; сомнительные варианты — в список по кнопке поиска
+    if (auto) {
+      if (score(list[0]!, q) <= AUTO_MAX) await choose(list[0]!, true)
+    } else picking.value = true
+  } catch {
+    if (!auto) searchError.value = 'Не получилось связаться с LRCLIB — нет сети?'
+  } finally {
+    searching.value = false
+  }
+}
+
+async function choose(r: LrclibRecord, silent = false) {
+  const it = item.value
+  const text = toSaved(r)
+  if (!it || !text) return
+  await saveLyrics(it.key, text)
+  show(text)
+  source.value = 'lrclib'
+  currentId.value = r.id
+  picking.value = false
+  if (!silent) ui.toast('Текст заменён')
+}
+
+function variantLine(r: LrclibRecord) {
+  const kind = r.syncedLyrics ? 'синхронный' : r.instrumental ? 'без слов' : 'текст'
+  return [r.albumName, formatDuration(r.duration * 1000), kind].filter(Boolean).join(' · ')
+}
+const peek = (r: LrclibRecord) =>
+  (r.plainLyrics ?? '')
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .slice(0, 2)
+    .join(' / ')
 
 const current = computed(() => (synced.value ? lineAt(synced.value, player.position + 250) : -1))
 watch(current, async (i) => {
@@ -87,8 +181,10 @@ function fmt(ms: number) {
 async function save() {
   const it = item.value
   if (!it) return
-  await saveLyrics(it.key, draft.value)
-  ui.toast(draft.value.trim() ? 'Текст сохранён' : 'Свой текст удалён')
+  // Стёр текст целиком — значит, он не нужен: метка «#0» не даёт LRCLIB подставить его снова
+  const empty = !draft.value.trim()
+  await saveLyrics(it.key, empty && settings.s.lrclib ? '[re:LRCLIB #0]' : draft.value)
+  ui.toast(empty ? 'Текст убран' : 'Текст сохранён')
   await load()
 }
 /** Поставить метку времени текущей позиции в начало строки под курсором — так текст синхронизируется вручную */
@@ -110,10 +206,26 @@ function stamp() {
     <header class="top">
       <div class="names">
         <h3 class="sheet-head ellipsis">{{ item?.title ?? 'Текст' }}</h3>
-        <small class="muted ellipsis">{{ item?.artist }}<template v-if="source === 'mine'"> · твой текст</template></small>
+        <small class="muted ellipsis"
+          >{{ item?.artist }}<template v-if="source === 'mine'"> · твой текст</template
+          ><template v-else-if="source === 'lrclib' && currentId"> · из LRCLIB</template></small
+        >
       </div>
+      <button
+        v-if="!editing"
+        type="button"
+        class="icon-btn"
+        aria-label="Варианты из LRCLIB"
+        title="Варианты из LRCLIB"
+        :disabled="searching"
+        @click="variants && variants.length ? (picking = !picking) : findOnline()"
+      >
+        <IconFind />
+      </button>
       <button v-if="!editing" type="button" class="icon-btn" aria-label="Изменить текст" @click="startEdit"><IconEdit /></button>
     </header>
+    <p v-if="searching && !loading" class="muted note">Ищу в LRCLIB…</p>
+    <p v-else-if="searchError" class="muted note">{{ searchError }}</p>
 
     <template v-if="editing">
       <textarea
@@ -131,7 +243,23 @@ function stamp() {
       <button type="button" class="btn block" @click="editing = false">Отмена</button>
     </template>
 
-    <div v-else-if="loading" class="muted pad">Ищу текст…</div>
+    <div v-else-if="picking && variants" class="variants">
+      <p class="muted note">Варианты из LRCLIB, лучший сверху. Не подошёл ни один — карандаш и свой текст.</p>
+      <button
+        v-for="v in variants"
+        :key="v.id"
+        type="button"
+        class="variant"
+        :class="{ on: v.id === currentId }"
+        @click="choose(v)"
+      >
+        <b class="ellipsis">{{ v.artistName }} — {{ v.trackName }}</b>
+        <small class="ellipsis">{{ variantLine(v) }}</small>
+        <span class="peek">{{ peek(v) }}</span>
+      </button>
+      <button type="button" class="btn block" @click="picking = false">Назад к тексту</button>
+    </div>
+    <div v-else-if="loading" class="muted pad">{{ loadingText }}</div>
     <div v-else-if="synced" ref="listEl" class="lines">
       <button
         v-for="(l, i) in synced"
@@ -147,8 +275,11 @@ function stamp() {
     </div>
     <pre v-else-if="plain" class="plain">{{ plain }}</pre>
     <div v-else class="empty-l">
-      <p>В файле нет текста.</p>
-      <button type="button" class="btn" @click="startEdit">Добавить свой</button>
+      <p>{{ emptyText }}</p>
+      <div class="btns">
+        <button type="button" class="btn" :disabled="searching" @click="findOnline()">Найти в LRCLIB</button>
+        <button type="button" class="btn" @click="startEdit">Добавить свой</button>
+      </div>
     </div>
   </div>
 </template>
@@ -219,5 +350,39 @@ function stamp() {
 }
 .pad {
   padding: 20px 0;
+}
+.variants {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 64vh;
+  overflow-y: auto;
+}
+.variant {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  text-align: left;
+  min-width: 0;
+}
+.variant.on {
+  box-shadow: inset 0 0 0 1.5px var(--amber);
+}
+.variant b {
+  font: 600 14px/1.3 var(--f-body);
+}
+.variant small {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.peek {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

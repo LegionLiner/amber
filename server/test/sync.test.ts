@@ -24,6 +24,7 @@ function pglite(pg: PGlite): Db {
 }
 
 let SQL: SqlJsStatic
+let oldToken = ''
 let app: FastifyInstance
 
 class Device {
@@ -58,9 +59,17 @@ class Device {
   run(sql: string, params: unknown[] = []) {
     this.db.run(sql, params as never)
   }
+  /** Файлы обложек устройства: ключ → картинка */
+  covers = new Map<string, string>()
   hooks: SyncHooks = {
     readPrefs: () => this.prefs,
     applyPrefs: (d) => (this.prefs = { ...d }),
+    readCover: async (art) => this.covers.get(art) ?? null,
+    saveCover: async (image) => {
+      const key = `${this.name}-${image.length}-${image.slice(-6)}`
+      this.covers.set(key, image)
+      return key
+    },
   }
   async sync() {
     const token = this.token
@@ -171,6 +180,9 @@ describe('синхронизация телефона и компьютера', 
     )
     pc.token = String(
       (await post('/v1/auth/login', { email: 'me@example.com', password: 'secret-pass', device: { name: 'ПК' } })).body.token,
+    )
+    oldToken = String(
+      (await post('/v1/auth/login', { email: 'me@example.com', password: 'secret-pass', device: { name: 'Старый' } })).body.token,
     )
   })
 
@@ -307,6 +319,60 @@ describe('синхронизация телефона и компьютера', 
     await phone.sync()
     await pc.sync()
     expect(pc.all(`SELECT track_key FROM play_events WHERE started_at = 3000`)).toEqual([{ track_key: 'k3new' }])
+  })
+
+  it('группы, закрепление и порядок плейлистов расходятся; обложка — картинкой', async () => {
+    phone.covers.set('art-1', 'QUJDREVGR0g=')
+    phone.run(`INSERT INTO playlist_groups (name, pos, created_at, updated_at) VALUES ('Для бега', 0, 500, 500)`)
+    phone.run(
+      `INSERT INTO playlists (name, kind, created_at, updated_at, pos, group_at, pin_pos, cover) VALUES ('Утро', 'manual', 600, 600, 2.5, 500, 1, 'art-1')`,
+    )
+    await phone.sync()
+    await pc.sync()
+    expect(pc.all(`SELECT name, pos FROM playlist_groups`)).toEqual([{ name: 'Для бега', pos: 0 }])
+    const got = pc.all<{ pos: number; group_at: number; pin_pos: number; cover: string }>(
+      `SELECT pos, group_at, pin_pos, cover FROM playlists WHERE created_at = 600`,
+    )[0]!
+    expect([got.pos, got.group_at, got.pin_pos]).toEqual([2.5, 500, 1])
+    // Обложка пришла самой картинкой и сохранилась файлом на компьютере
+    expect(pc.covers.get(got.cover)).toBe('QUJDREVGR0g=')
+
+    // Компьютер переносит плейлист из группы и открепляет; телефон получает
+    pc.run(`UPDATE playlists SET group_at = NULL, pin_pos = NULL, pos = -1, updated_at = 700 WHERE created_at = 600`)
+    await pc.sync()
+    await phone.sync()
+    expect(phone.all(`SELECT pos, group_at, pin_pos FROM playlists WHERE created_at = 600`)).toEqual([
+      { pos: -1, group_at: null, pin_pos: null },
+    ])
+    // Правка плейлиста без смены обложки картинку заново не отправляет
+    expect(phone.all(`SELECT COUNT(*) AS n FROM sync_outbox WHERE kind = 'pcover'`)).toEqual([{ n: 0 }])
+  })
+
+  it('устройство со старой версией не сбрасывает группу и закрепление', async () => {
+    phone.run(`UPDATE playlists SET group_at = 500, pin_pos = 3, updated_at = 800 WHERE created_at = 600`)
+    await phone.sync()
+    await pc.sync()
+    // Старое приложение присылает плейлист без новых полей (0.4.x о них не знает)
+    const items = [
+      {
+        kind: 'playlist',
+        id: '600',
+        updatedAt: Date.now() + 60_000,
+        deleted: false,
+        data: { name: 'Утро!', kind: 'manual', rules: null, sort: null, note: null, created_at: 600, updated_at: 900, items: [] },
+      },
+    ]
+    const r = await app.inject({
+      method: 'POST',
+      url: '/v1/sync',
+      headers: { authorization: `Bearer ${oldToken}` },
+      payload: { cursor: 0, changes: items },
+    })
+    expect(r.statusCode).toBe(200)
+    await pc.sync()
+    expect(pc.all(`SELECT name, group_at, pin_pos FROM playlists WHERE created_at = 600`)).toEqual([
+      { name: 'Утро!', group_at: 500, pin_pos: 3 },
+    ])
   })
 
   it('одинаковые настройки не гоняются туда-обратно', async () => {

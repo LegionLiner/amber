@@ -9,6 +9,8 @@ const props = defineProps<{
   onDelete: () => void
   /** Дополнительные пункты: порядок, правила, редактор микса */
   actions?: { label: string; icon: Component; run: () => void }[]
+  /** Что останется после удаления (по умолчанию — про треки плейлиста) */
+  deleteNote?: string
 }>()
 const emit = defineEmits<{ close: [] }>()
 const confirmDelete = ref(false)
@@ -28,7 +30,7 @@ function remove() {
     <button type="button" class="act" @click="props.onRename()"><IconPen />Переименовать</button>
     <button v-if="!confirmDelete" type="button" class="act danger" @click="confirmDelete = true"><IconTrash />Удалить</button>
     <div v-else class="confirm">
-      <p>Удалить «{{ name }}»? Треки останутся в библиотеке.</p>
+      <p>Удалить «{{ name }}»? {{ deleteNote ?? 'Треки останутся в библиотеке.' }}</p>
       <div class="btns">
         <button type="button" class="btn" @click="emit('close')">Отмена</button>
         <button type="button" class="btn danger-btn" @click="remove">Удалить</button>

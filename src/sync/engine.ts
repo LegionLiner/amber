@@ -30,6 +30,10 @@ export interface SyncHooks {
   /** Настройки, которые синхронизируются (часть AppSettings) */
   readPrefs?(): Record<string, unknown> | null
   applyPrefs?(data: Record<string, unknown>): void
+  /** Картинка обложки по её ключу на устройстве — base64 JPEG небольшого размера (null — файла нет) */
+  readCover?(art: string): Promise<string | null>
+  /** Сохранить пришедшую картинку как обложку на устройстве: ключ для таблицы */
+  saveCover?(image: string): Promise<string>
 }
 
 export interface SyncReport {
@@ -125,8 +129,17 @@ export async function runSync(db: SyncDb, transport: SyncTransport, hooks: SyncH
         sent.push(o)
         continue
       }
-      const data = await def.read(db, o.eid)
+      let data = await def.read(db, o.eid)
       if (data === 'wait') continue
+      if (def.media && data) {
+        // Вместо ключа файла — сама картинка. Не прочиталась (файла нет, нечем читать) — не отправляем
+        const image = typeof data.art === 'string' && hooks.readCover ? await hooks.readCover(data.art).catch(() => null) : null
+        if (!image) {
+          sent.push(o)
+          continue
+        }
+        data = { image }
+      }
       changes.push({ kind: o.kind, id: o.eid, data, deleted: data == null, updatedAt: o.at })
       sent.push(o)
       if (data && def.trackKeys) for (const k of def.trackKeys(data)) keys.add(k)
@@ -208,7 +221,15 @@ async function applyIncoming(db: SyncDb, items: SyncItem[], hooks: SyncHooks, re
       continue
     }
     const def = byKind.get(it.kind)
-    if (def) stmts.push(...def.apply(it))
+    if (!def) continue
+    if (def.media && !it.deleted && it.data) {
+      // Картинку — в файлы обложек устройства, в таблицу — её ключ
+      const image = typeof it.data.image === 'string' ? it.data.image : null
+      const art = image && hooks.saveCover ? await hooks.saveCover(image).catch(() => null) : null
+      if (art) stmts.push(...def.apply({ ...it, data: { art } }))
+      continue
+    }
+    stmts.push(...def.apply(it))
   }
   stmts.push(setState('applying', null))
   await db.batch(stmts)

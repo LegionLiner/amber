@@ -6,6 +6,11 @@ import IconList from '~icons/solar/playlist-linear'
 import IconSmart from '~icons/solar/filter-linear'
 import IconMix from '~icons/solar/transfer-horizontal-linear'
 import IconStar from '~icons/solar/star-shine-linear'
+import IconFolderAdd from '~icons/solar/add-folder-linear'
+import IconFolder from '~icons/solar/folder-linear'
+import IconFolderOpen from '~icons/solar/folder-open-linear'
+import IconChevron from '~icons/solar/alt-arrow-right-linear'
+import IconPin from '~icons/solar/pin-bold'
 import NewPlaylistSheet from './NewPlaylistSheet.vue'
 import { useRadio } from '@/stores/radio'
 import HeadSpace from '@/components/HeadSpace.vue'
@@ -16,7 +21,8 @@ import { coverGradient } from '@/domain/palette'
 import { countLabel } from '@/domain/format'
 import CoverArt from '@/components/CoverArt.vue'
 import { useLongPress } from '@/composables/useLongPress'
-import { openPlaylistMenu } from './playlistMenu'
+import { createGroupDialog, openGroupMenu, openPlaylistMenu } from './playlistMenu'
+import type { PlaylistRow } from '@/data/repos/playlists'
 import { onPageShown } from '@/app/paging'
 
 const playlists = usePlaylists()
@@ -39,6 +45,11 @@ function create() {
   ui.openSheet(NewPlaylistSheet)
 }
 
+const sub = (p: PlaylistRow) =>
+  p.kind === 'smart'
+    ? 'умный, собирается сам'
+    : `${p.kind === 'mix' ? 'микс · ' : ''}${countLabel(p.count, ['трек', 'трека', 'треков'])}`
+
 async function highlights() {
   const n = await radio.startHighlights()
   if (!n) ui.toast('Отметь в треках «лучшие моменты» (звезда в метках), и здесь они зазвучат подряд', undefined, 5000)
@@ -54,27 +65,90 @@ async function highlights() {
     <button type="button" class="row" @click="create">
       <span class="ic add"><IconAdd /></span><span class="t">Создать</span>
     </button>
-    <button
-      v-for="p in playlists.list"
-      :key="p.id"
-      type="button"
-      class="row"
-      v-bind="hold(() => openPlaylistMenu(p, router))"
-      @click="router.push(`/playlist/${p.id}`)"
-    >
-      <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
-      <span v-else class="ic"
-        ><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else
-      /></span>
-      <span class="text">
-        <span class="t ellipsis">{{ p.name }}</span>
-        <span class="s">{{
-          p.kind === 'smart'
-            ? 'умный, собирается сам'
-            : `${p.kind === 'mix' ? 'микс · ' : ''}${countLabel(p.count, ['трек', 'трека', 'треков'])}`
-        }}</span>
-      </span>
+    <button type="button" class="row" @click="createGroupDialog()">
+      <span class="ic add"><IconFolderAdd /></span><span class="t">Новая группа</span>
     </button>
+
+    <!-- Закреплённые: сверху, своим порядком. Порядок — «Выше» / «Ниже» в меню по удержанию -->
+    <template v-if="playlists.tree.pinned.length">
+      <div class="sub-head"><IconPin />Закреплённые</div>
+      <button
+        v-for="p in playlists.tree.pinned"
+        :key="p.id"
+        type="button"
+        class="row"
+        v-bind="hold(() => openPlaylistMenu(p, router))"
+        @click="router.push(`/playlist/${p.id}`)"
+      >
+        <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
+        <span v-else class="ic"
+          ><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else
+        /></span>
+        <span class="text">
+          <span class="t ellipsis">{{ p.name }}</span>
+          <span class="s">{{ sub(p) }}</span>
+        </span>
+      </button>
+      <div class="divider" />
+    </template>
+
+    <template v-for="n in playlists.tree.root" :key="n.key">
+      <template v-if="n.type === 'group'">
+        <button
+          type="button"
+          class="row grp"
+          :class="{ open: !playlists.isCollapsed(n.group.createdAt) }"
+          :aria-expanded="!playlists.isCollapsed(n.group.createdAt)"
+          v-bind="hold(() => openGroupMenu(n.group, router))"
+          @click="playlists.setCollapsed(n.group.createdAt, !playlists.isCollapsed(n.group.createdAt))"
+        >
+          <span class="ic folder"
+            ><component :is="playlists.isCollapsed(n.group.createdAt) ? IconFolder : IconFolderOpen"
+          /></span>
+          <span class="text">
+            <span class="t ellipsis">{{ n.group.name }}</span>
+            <span class="s">{{ countLabel(n.items.length, ['плейлист', 'плейлиста', 'плейлистов']) }}</span>
+          </span>
+          <IconChevron class="chev" />
+        </button>
+        <div v-if="!playlists.isCollapsed(n.group.createdAt)" class="grp-items">
+          <button
+            v-for="p in n.items"
+            :key="p.id"
+            type="button"
+            class="row"
+            v-bind="hold(() => openPlaylistMenu(p, router))"
+            @click="router.push(`/playlist/${p.id}`)"
+          >
+            <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
+            <span v-else class="ic"
+              ><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else
+            /></span>
+            <span class="text">
+              <span class="t ellipsis">{{ p.name }}</span>
+              <span class="s">{{ sub(p) }}</span>
+            </span>
+          </button>
+          <p v-if="!n.items.length" class="note muted">Пусто: удержи плейлист → «В группу…»</p>
+        </div>
+      </template>
+      <button
+        v-else
+        type="button"
+        class="row"
+        v-bind="hold(() => openPlaylistMenu(n.p, router))"
+        @click="router.push(`/playlist/${n.p.id}`)"
+      >
+        <CoverArt v-if="n.p.cover" :art="n.p.cover" :seed="n.p.name" :label="n.p.name" size="s" radius="12px" class="pcv" />
+        <span v-else class="ic"
+          ><IconSmart v-if="n.p.kind === 'smart'" /><IconMix v-else-if="n.p.kind === 'mix'" /><IconList v-else
+        /></span>
+        <span class="text">
+          <span class="t ellipsis">{{ n.p.name }}</span>
+          <span class="s">{{ sub(n.p) }}</span>
+        </span>
+      </button>
+    </template>
     <p v-if="playlists.loaded && !playlists.list.length" class="note muted">
       Плейлист можно собрать из любого списка: долгое нажатие на трек → «Добавить в плейлист».
     </p>
@@ -183,6 +257,52 @@ async function highlights() {
 .s {
   font-size: 12.5px;
   color: var(--ink-2);
+}
+.sub-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px var(--gutter) 4px;
+  color: var(--ink-3);
+  font: 600 11.5px/1 var(--f-body);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sub-head svg {
+  width: 13px;
+  height: 13px;
+  color: var(--amber-ink);
+}
+.divider {
+  height: 1px;
+  margin: 6px var(--gutter);
+  background: var(--line);
+}
+.grp {
+  grid-template-columns: 48px 1fr 18px;
+}
+.ic.folder {
+  color: var(--amber-ink);
+  background: rgba(var(--amber-rgb), 0.12);
+}
+.chev {
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3);
+  transition: transform var(--t-fast) var(--ease);
+}
+.grp.open .chev {
+  transform: rotate(90deg);
+}
+.grp-items {
+  margin-left: calc(var(--gutter) + 22px);
+  border-left: 1px solid var(--line);
+}
+.grp-items .row {
+  padding-left: 12px;
+}
+.grp-items .note {
+  padding-left: 12px;
 }
 .note {
   padding: 8px var(--gutter);

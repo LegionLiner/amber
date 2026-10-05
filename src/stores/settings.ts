@@ -63,6 +63,12 @@ export interface AppSettings {
   writeTagsToFiles: boolean
   /** Показывать текст песни в плеере, если он есть */
   showLyrics: boolean
+  /** Если в файле нет текста — искать его в открытой базе LRCLIB */
+  lrclib: boolean
+  /** Свёрнутые группы плейлистов (их created_at) — своё у каждого устройства */
+  collapsedGroups: number[]
+  /** Компьютер: голосовые команды («Эмбер, следующий») */
+  voice: boolean
   /** Компьютер: фон и свечение снизу дышат в такт басам */
   desktopPulse: boolean
 }
@@ -117,6 +123,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   radio: { adventure: 0.35, freshness: 0.4 },
   writeTagsToFiles: true,
   showLyrics: true,
+  lrclib: true,
+  collapsedGroups: [],
+  voice: false,
   desktopPulse: true,
 }
 

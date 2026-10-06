@@ -1,4 +1,5 @@
 import type { Track } from './track'
+import { refinementOf } from './rating'
 
 /**
  * Автоплейлисты: чистые функции отбора. Данные о прослушиваниях приходят готовыми
@@ -128,7 +129,12 @@ export function buildAuto(id: AutoId, tracks: Track[], ctx: AutoContext): Track[
     case 'bestRated':
       return tracks
         .filter((t) => (t.rating ?? 0) >= 9)
-        .sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0) || b.plays - a.plays)
+        .sort(
+          (a, b) =>
+            (b.rating ?? 0) - (a.rating ?? 0) ||
+            refinementOf(b.rating, b.rankScore) - refinementOf(a.rating, a.rankScore) ||
+            b.plays - a.plays,
+        )
     case 'morning':
     case 'day':
     case 'evening':

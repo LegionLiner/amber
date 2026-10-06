@@ -4,6 +4,7 @@ import { applyDuel, expected, kFactor, pickPair, refinementsForOrder } from '@/d
 import { bucketBase, ratingSuggestions } from '@/domain/rating'
 import { normalizeNeighbors, pickRadio, similarity, type RadioTrack } from '@/domain/radio'
 import { orderFor } from '@/domain/shuffle'
+import { sortTracks } from '@/domain/sort'
 import { writeId3 } from '@/native/web/id3-writer'
 import { parseV2, tagSize } from '@/native/web/id3'
 import { analyzeChannels } from '@/native/web/analysis'
@@ -216,5 +217,19 @@ describe('анализ громкости (как на телефоне)', () =>
     expect(r.peakDb).toBeCloseTo(-12.04, 1)
     expect(Math.abs(r.introMs - 2000)).toBeLessThan(15)
     expect(Math.abs(r.outroMs - 3000)).toBeLessThan(15)
+  })
+})
+
+describe('места в рейтинге', () => {
+  it('перетаскивание внутри 5★ не роняет треки под 4½★', () => {
+    const t = (key: string, rating: number, rankScore: number | null) =>
+      ({ key, rating, rankScore, plays: 0, title: key }) as never
+    // Десять треков с 5★ после перетаскивания: уточнения от +400 до −400
+    const refs = refinementsForOrder(10)
+    const five = refs.map((r, i) => t(`five${i}`, 10, bucketBase(10) + r))
+    // Трек с 4½★, поднятый дуэлями почти до верха своей группы
+    const half = t('half', 9, bucketBase(9) + 380)
+    const sorted = sortTracks([half, ...five].reverse(), 'rating', 'desc').map((x) => x.key)
+    expect(sorted).toEqual([...five.map((x) => (x as { key: string }).key), 'half'])
   })
 })

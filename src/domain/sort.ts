@@ -1,4 +1,5 @@
 import type { Track } from './track'
+import { refinementOf } from './rating'
 
 export type TrackSortKey =
   | 'title'
@@ -71,12 +72,11 @@ export function sortTracks(list: Track[], key: TrackSortKey, dir: 'asc' | 'desc'
       cmp = (a, b) => (a.durationMs - b.durationMs) * d
       break
     case 'rating':
+      // Сначала звёзды, счёт — только внутри одинаковых звёзд: уточнения соседних групп перекрываются
+      // (шаг групп 500, уточнение до ±400), и по одному счёту нижние 5★ уходили под верхний 4½★
       cmp = (a, b) =>
-        nullsLast(
-          a.rankScore ?? (a.rating != null ? a.rating * 500 : null),
-          b.rankScore ?? (b.rating != null ? b.rating * 500 : null),
-          d,
-        ) ||
+        nullsLast(a.rating, b.rating, d) ||
+        (refinementOf(a.rating, a.rankScore) - refinementOf(b.rating, b.rankScore)) * d ||
         b.plays - a.plays ||
         byTitle(a, b)
       break

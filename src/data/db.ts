@@ -15,6 +15,16 @@ import type { ExecResult, QueryResult as BridgeResult, SqlStatement, SqlValue } 
 import type { DB } from './schema'
 import { MIGRATIONS } from './migrations'
 
+/**
+ * Кто-то записал в базу из интерфейса: синхронизация по этому сигналу сразу смотрит журнал изменений.
+ * Записи движка (прослушивания) сюда не попадают — их синхронизация замечает опросом журнала.
+ */
+let writeListener: (() => void) | null = null
+export function onDbWrite(fn: () => void): void {
+  writeListener = fn
+}
+const wrote = () => writeListener?.()
+
 /** Превращает ответ моста { columns, values } в массив объектов */
 export function toObjects<T>(res: BridgeResult): T[] {
   const { columns, values } = res
@@ -44,6 +54,7 @@ class BridgeConnection implements DatabaseConnection {
       return { rows: toObjects<R>(res) }
     }
     const r = await MusicCore.execute({ sql: q.sql, params })
+    wrote()
     return { rows: [], numAffectedRows: BigInt(r.changes), insertId: BigInt(r.lastId) }
   }
 
@@ -103,6 +114,7 @@ function toStatement(s: SqlStatement | Compilable): SqlStatement {
 export async function batch(statements: (SqlStatement | Compilable)[]): Promise<ExecResult[]> {
   if (statements.length === 0) return []
   const { results } = await MusicCore.batch({ statements: statements.map(toStatement) })
+  wrote()
   return results
 }
 
@@ -112,7 +124,9 @@ export async function all<T>(sql: string, params: SqlValue[] = []): Promise<T[]>
 }
 
 export async function run(sql: string, params: SqlValue[] = []): Promise<ExecResult> {
-  return MusicCore.execute({ sql, params })
+  const r = await MusicCore.execute({ sql, params })
+  wrote()
+  return r
 }
 
 /** Прогоняет недостающие миграции. Вызывается один раз при старте приложения. */

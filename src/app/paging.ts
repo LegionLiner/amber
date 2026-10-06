@@ -1,5 +1,6 @@
 import { inject, onActivated, onDeactivated, watch, type InjectionKey, type Ref } from 'vue'
 import type { RouteLocationNormalizedLoaded, RouteLocationRaw } from 'vue-router'
+import { dataRev } from './data-rev'
 
 /**
  * Лента главных экранов: главная → разделы медиатеки → поиск → вкладки топа → вкладки хроники.
@@ -95,6 +96,11 @@ export function onPageShown(fn: () => void, opts: { preload?: boolean } = {}): v
     first = false
   })
   if (shown) watch(shown, (v) => v && fn())
+  // С другого устройства пришли изменения, а экран сейчас на глазах — перечитываем сразу
+  let active = true
+  onActivated(() => (active = true))
+  onDeactivated(() => (active = false))
+  watch(dataRev, () => active && (!shown || shown.value) && fn())
 }
 
 /** Экран ушёл с глаз: открыли что-то поверх или долистали дальше */

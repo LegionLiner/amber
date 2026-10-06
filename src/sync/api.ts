@@ -3,6 +3,9 @@ import type { SyncResponse } from './engine'
 
 /** Запросы к серверу Amber (server/). Ошибки — с текстом для человека и видом: нет сети, нужно войти, прочее */
 
+/** Сколько поток событий может молчать, прежде чем считается мёртвым (сервер подаёт голос раз в 25 с) */
+const SILENCE_MS = 70_000
+
 export type ApiErrorKind = 'offline' | 'auth' | 'server'
 
 export class ApiError extends Error {
@@ -104,5 +107,59 @@ export class SyncApi {
 
   sync(body: { cursor: number; changes: SyncItem[] }) {
     return this.req<SyncResponse>('POST', '/v1/sync', body, 120000)
+  }
+
+  /**
+   * Поток событий сервера (SSE): «hello» — поток открыт, «changed» — другое устройство прислало изменения.
+   * Возвращается, когда поток закрылся. Сервер раз в 25 с шлёт пустую строку; тишина дольше SILENCE_MS —
+   * соединение мертво (сеть сменилась, телефон спал), рвём его сами.
+   * Ошибка вида 'server' — сервер старый и потока не знает.
+   */
+  async events(onEvent: (name: string) => void, signal: AbortSignal): Promise<void> {
+    const ctl = new AbortController()
+    const stop = () => ctl.abort()
+    signal.addEventListener('abort', stop)
+    let watchdog = 0
+    const alive = () => {
+      clearTimeout(watchdog)
+      watchdog = setTimeout(stop, SILENCE_MS) as unknown as number
+    }
+    try {
+      alive()
+      let res: Response
+      try {
+        res = await fetch(`${this.base}/v1/events`, {
+          headers: { Accept: 'text/event-stream', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}) },
+          cache: 'no-store',
+          signal: ctl.signal,
+        })
+      } catch {
+        throw new ApiError('offline', 'Сервер недоступен: нет сети или неверный адрес')
+      }
+      if (res.status === 401) throw new ApiError('auth', 'Вход устарел: войди снова')
+      if (!res.ok || !res.body || !(res.headers.get('content-type') ?? '').includes('text/event-stream')) {
+        throw new ApiError('server', 'Сервер не умеет мгновенную доставку: обнови его')
+      }
+      const reader = res.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ''
+      try {
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) return
+          alive()
+          buf += dec.decode(value, { stream: true })
+          const lines = buf.split('\n')
+          buf = lines.pop() ?? ''
+          for (const line of lines) if (line.startsWith('event:')) onEvent(line.slice(6).trim())
+        }
+      } catch {
+        // Оборвалось посреди потока — для вызывающего это просто «поток закрылся»
+        return
+      }
+    } finally {
+      clearTimeout(watchdog)
+      signal.removeEventListener('abort', stop)
+    }
   }
 }

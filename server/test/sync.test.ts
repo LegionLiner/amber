@@ -116,6 +116,7 @@ async function post(url: string, payload: unknown, token?: string) {
 }
 
 let closeDb = async () => {}
+let baseUrl = ''
 beforeAll(async () => {
   SQL = await initSqlJs()
   let db: Db
@@ -130,11 +131,37 @@ beforeAll(async () => {
   }
   await migrate(db)
   app = await buildApp(db, { allowSignup: true })
+  baseUrl = await app.listen({ host: '127.0.0.1', port: 0 })
 })
 afterAll(async () => {
   await app.close()
   await closeDb()
 })
+
+/** Поток событий устройства по настоящему HTTP: названия пришедших событий по мере прихода */
+async function listen(token: string) {
+  const ctl = new AbortController()
+  const res = await fetch(`${baseUrl}/v1/events`, { headers: { authorization: `Bearer ${token}` }, signal: ctl.signal })
+  const events: string[] = []
+  const reader = res.body!.getReader()
+  const dec = new TextDecoder()
+  void (async () => {
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        for (const m of dec.decode(value, { stream: true }).matchAll(/^event: (\w+)/gm)) events.push(m[1]!)
+      }
+    } catch {
+      /* закрыли сами */
+    }
+  })()
+  const until = async (n: number) => {
+    for (let i = 0; i < 100 && events.length < n; i++) await new Promise((r) => setTimeout(r, 20))
+    return events
+  }
+  return { status: res.status, type: res.headers.get('content-type'), events, until, close: () => ctl.abort() }
+}
 
 describe('аккаунт', () => {
   it('регистрация, вход, ошибки', async () => {
@@ -419,5 +446,35 @@ describe('закрытая регистрация', () => {
     })
     expect(yes.statusCode).toBe(200)
     await closed.close()
+  })
+})
+
+describe('мгновенная доставка', () => {
+  it('изменение одного устройства сразу будит остальные, но не его само', async () => {
+    const login = async (name: string) =>
+      String((await post('/v1/auth/login', { email: 'me@example.com', password: 'secret-pass', device: { name } })).body.token)
+    const [a, b] = [await login('А'), await login('Б')]
+    const [la, lb] = [await listen(a), await listen(b)]
+    expect(lb.status).toBe(200)
+    expect(lb.type).toContain('text/event-stream')
+    expect(await lb.until(1)).toEqual(['hello'])
+    await la.until(1)
+
+    const item = { kind: 'rate', id: 'live-1', data: { rating: 9 }, deleted: false, updatedAt: Date.now() }
+    expect((await post('/v1/sync', { cursor: 0, changes: [item] }, a)).status).toBe(200)
+    expect(await lb.until(2)).toEqual(['hello', 'changed'])
+    // Пустая синхронизация и повтор той же записи никого не будят
+    await post('/v1/sync', { cursor: 0, changes: [] }, a)
+    await post('/v1/sync', { cursor: 0, changes: [item] }, a)
+    await new Promise((r) => setTimeout(r, 150))
+    expect(lb.events).toEqual(['hello', 'changed'])
+    expect(la.events).toEqual(['hello'])
+    la.close()
+    lb.close()
+  })
+
+  it('без входа поток не открывается', async () => {
+    const r = await fetch(`${baseUrl}/v1/events`, { headers: { authorization: 'Bearer nope' } })
+    expect(r.status).toBe(401)
   })
 })

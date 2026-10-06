@@ -14,12 +14,17 @@ import { hashPassword, newToken, tokenHash, verifyPassword } from './auth.ts'
  *   DELETE /v1/devices/:id    выйти на другом устройстве
  *   DELETE /v1/me {password}  удалить аккаунт со всеми данными
  *   POST   /v1/sync           {cursor, changes} → {cursor, changes, more}
+ *   GET    /v1/events         поток событий (SSE): «changed» — другое устройство прислало изменения
  *   GET    /v1/health
  *
  * Синхронизация: устройство отправляет свои изменения и получает чужие после своего курсора.
  * Из двух версий записи остаётся более поздняя (по времени изменения на устройстве), при равенстве — та,
  * что пришла на сервер раньше. Удаление — тоже
  * запись (deleted), чтобы другое устройство узнало о нём. Треков на сервере нет: только данные о них.
+ *
+ * Мгновенная доставка: устройство держит открытым /v1/events. Как только сервер принял изменения от одного
+ * устройства, остальным устройствам аккаунта уходит «changed», и они тут же делают обычный /v1/sync.
+ * Сами данные по потоку не ходят — он только будит. Слушатели живут в памяти процесса: сервер один.
  */
 
 export interface AppOptions {
@@ -45,6 +50,8 @@ declare module 'fastify' {
   }
 }
 
+/** Раз в столько потоку событий шлётся пустая строка: прокси (nginx, 60–120 с) не рвёт молчащее соединение */
+const HEARTBEAT_MS = 25_000
 const PAGE = 1000
 const MAX_CHANGES = 2000
 const MAX_ITEM_BYTES = 256 * 1024
@@ -113,6 +120,17 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
     ])
     return token
   }
+
+  /** Открытые потоки событий: аккаунт → устройства, которые слушают */
+  const listeners = new Map<string, Set<{ deviceId: string; send: (event: string) => void; end: () => void }>>()
+  function notify(userId: string, exceptDevice: string) {
+    for (const l of listeners.get(userId) ?? []) if (l.deviceId !== exceptDevice) l.send('changed')
+  }
+  // Сервер останавливается — потоки закрываются сами, иначе close() ждал бы их вечно
+  app.addHook('preClose', async () => {
+    for (const set of listeners.values()) for (const l of set) l.end()
+    listeners.clear()
+  })
 
   const authLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }
 
@@ -191,6 +209,36 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
     return { ok: true }
   })
 
+  app.get('/v1/events', async (req, reply) => {
+    await auth(req)
+    const { userId, deviceId } = req.auth!
+    // Ответ пишем сами: это бесконечный поток. Заголовки CORS, которые уже поставил плагин, переносим
+    reply.hijack()
+    const res = reply.raw
+    res.writeHead(200, {
+      ...(reply.getHeaders() as Record<string, string>),
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      // nginx не копит поток в буфере, а отдаёт сразу
+      'X-Accel-Buffering': 'no',
+    })
+    const listener = {
+      deviceId,
+      send: (event: string) => void res.write(`event: ${event}\ndata: {}\n\n`),
+      end: () => void res.end(),
+    }
+    const set = listeners.get(userId) ?? new Set()
+    listeners.set(userId, set.add(listener))
+    listener.send('hello')
+    const beat = setInterval(() => void res.write(':\n\n'), HEARTBEAT_MS)
+    res.on('close', () => {
+      clearInterval(beat)
+      set.delete(listener)
+      if (!set.size) listeners.delete(userId)
+    })
+  })
+
   app.post('/v1/sync', async (req) => {
     await auth(req)
     const { userId, deviceId } = req.auth!
@@ -213,7 +261,7 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
       if (!prev || prev.updatedAt <= updatedAt) latest.set(k, { kind: c.kind, id: c.id, data, deleted: !!c.deleted, updatedAt })
     }
 
-    return db.tx(async (q) => {
+    const result = await db.tx(async (q) => {
       // Синхронизации одного аккаунта идут по очереди: номера изменений не перепрыгивают друг через друга
       await q.query(`SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`, [userId])
       let accepted = 0
@@ -265,6 +313,9 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
           .map((r) => ({ kind: r.kind, id: r.id, data: r.data, deleted: r.deleted, updatedAt: Number(r.updated_at) })),
       }
     })
+    // После фиксации в базе: остальные устройства аккаунта сразу идут за новым
+    if (result.accepted > 0) notify(userId, deviceId)
+    return result
   })
 
   return app

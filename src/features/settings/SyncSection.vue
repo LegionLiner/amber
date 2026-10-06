@@ -57,7 +57,7 @@ const statusText = computed(() => {
     default:
       return sync.pending > 0
         ? `Ждёт отправки: ${countLabel(sync.pending, ['запись', 'записи', 'записей'])}`
-        : `Всё синхронизировано · ${ago(sync.lastAt)}`
+        : `Всё синхронизировано · ${sync.live ? 'на связи, изменения приходят сразу' : ago(sync.lastAt)}`
   }
 })
 
@@ -120,6 +120,9 @@ async function removeAccount() {
       <p class="note">
         Сервер {{ sync.url.replace(/^https?:\/\//, '') }}. Оценки, история, плейлисты, эпохи, контексты, дневник и общие настройки
         синхронизируются сами, треки остаются на устройствах.
+      </p>
+      <p v-if="sync.liveUnsupported" class="note">
+        Сервер старой версии: изменения приходят раз в несколько минут. Обнови сервер — и они будут приходить сразу.
       </p>
       <div class="btns">
         <button type="button" class="btn" @click="showDevices = !showDevices">

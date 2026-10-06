@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, toRaw } from 'vue'
-import { all, batch } from '@/data/db'
+import { all, batch, onDbWrite } from '@/data/db'
+import { dataRev } from '@/app/data-rev'
 import { isNative } from '@/native/paths'
 import { isDesktop } from '@/native/desktop/bridge'
 import type { SyncDb } from '@/sync/kinds'
@@ -12,8 +13,13 @@ import { useLibrary } from './library'
 import { usePlaylists } from './playlists'
 
 /**
- * Синхронизация с твоим сервером Amber (server/). Работает молча:
- * — при запуске, раз в несколько минут, после своих изменений (через полминуты) и как только появилась сеть;
+ * Синхронизация с твоим сервером Amber (server/). Работает молча и сразу:
+ * — своё изменение уходит на сервер, как только оно появилось в журнале: запись из интерфейса замечается
+ *   тут же, запись движка (прослушивание; на телефоне его пишет Kotlin) — опросом журнала раз в пару секунд;
+ * — чужое приходит по сигналу: устройство держит открытым поток событий сервера, и тот будит его, как только
+ *   другое устройство что-то прислало. Открытые экраны перечитывают данные сами (app/data-rev.ts);
+ * — про запас остаются старые поводы: запуск, раз в несколько минут, появилась сеть, окно снова на глазах.
+ *   Со старым сервером без потока событий на них всё и держится;
  * — без сети всё работает как раньше, изменения копятся в журнале и уходят при следующей связи;
  * — ошибки не всплывают сообщениями, видны только в настройках («Синхронизация»).
  *
@@ -33,7 +39,12 @@ const SHARED_PREFS = [
 ] as const satisfies readonly (keyof AppSettings)[]
 
 const PERIOD_MS = 3 * 60 * 1000
-const AFTER_CHANGE_MS = 30 * 1000
+/** Запись из интерфейса: ждём чуть-чуть, чтобы пачка правок (перестановка, импорт) ушла одним запросом */
+const AFTER_WRITE_MS = 250
+/** Как часто смотреть в журнал за тем, что записал движок мимо интерфейса */
+const OUTBOX_POLL_MS = 2000
+/** Сервер без потока событий: заново пробуем редко (вдруг обновили) */
+const NO_LIVE_RETRY_MS = 10 * 60 * 1000
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'offline' | 'error' | 'auth'
 
@@ -73,12 +84,22 @@ export const useSync = defineStore('sync', () => {
   const pending = ref(0)
   const me = ref<Me | null>(null)
   const signedIn = computed(() => !!token.value)
+  /** Поток событий открыт: чужие изменения приходят сразу */
+  const live = ref(false)
+  /** Сервер старый и потока событий не знает — изменения приходят по расписанию */
+  const liveUnsupported = ref(false)
 
   let running: Promise<void> | null = null
+  /** Пока шла синхронизация, появился ещё повод — сразу после неё нужен новый проход */
+  let again = false
   let timer = 0
   let changeTimer = 0
   let failures = 0
   let started = false
+  /** Журнал, каким он остался после последнего прохода: «число записей:время последней» */
+  let outboxSig = ''
+  let liveCtl: AbortController | null = null
+  let wake: (() => void) | null = null
 
   const api = () => new SyncApi(url.value, token.value)
 
@@ -107,6 +128,7 @@ export const useSync = defineStore('sync', () => {
     failures = 0
     start()
     await syncNow()
+    void listen()
   }
 
   /** Выйти на этом устройстве: данные остаются, синхронизация выключается */
@@ -116,6 +138,7 @@ export const useSync = defineStore('sync', () => {
     status.value = 'off'
     me.value = null
     clearTimeout(timer)
+    stopListening()
     await a.logout().catch(() => undefined)
     await disableSync(sdb)
     await setStates({ token: null, lastAt: null })
@@ -161,12 +184,21 @@ export const useSync = defineStore('sync', () => {
     error.value = e instanceof Error ? e.message : String(e)
   }
 
-  /** Один проход синхронизации; если уже идёт — ждём его */
+  async function readOutboxSig(): Promise<string> {
+    const [r] = await all<{ n: number; m: number }>('SELECT COUNT(*) AS n, COALESCE(MAX(at), 0) AS m FROM sync_outbox')
+    return String(r?.n ?? 0) + ':' + String(r?.m ?? 0)
+  }
+
+  /** Один проход синхронизации; если уже идёт — ждём его, а после него делаем ещё один */
   function syncNow(): Promise<void> {
     if (!token.value || status.value === 'auth') return Promise.resolve()
-    if (running) return running
+    if (running) {
+      again = true
+      return running
+    }
     running = (async () => {
       status.value = 'syncing'
+      let ok = false
       try {
         const report = await runSync(sdb, api(), {
           readPrefs,
@@ -179,17 +211,24 @@ export const useSync = defineStore('sync', () => {
         status.value = 'idle'
         error.value = ''
         await setStates({ lastAt: String(lastAt.value) })
+        ok = true
         // Пришли чужие изменения — перечитываем то, что показывается сейчас
         const k = report.kinds
         if (['track', 'card', 'play', 'rate', 'duel'].some((x) => k.has(x))) await useLibrary().load()
         if (['playlist', 'pgroup', 'pcover'].some((x) => k.has(x))) await usePlaylists().refresh()
+        if (report.pulled > 0) dataRev.value++
       } catch (e) {
         failures++
         handleError(e)
       } finally {
         pending.value = await pendingCount(sdb).catch(() => pending.value)
+        // Что осталось в журнале (играющий трек, неотправленное без сети) — уже учтено: заново из-за него не идём
+        outboxSig = await readOutboxSig().catch(() => outboxSig)
         running = null
-        schedule()
+        const rerun = again && ok
+        again = false
+        if (rerun) void syncNow()
+        else schedule()
       }
     })()
     return running
@@ -203,26 +242,103 @@ export const useSync = defineStore('sync', () => {
     timer = window.setTimeout(() => void syncNow(), delay)
   }
 
-  /** Что-то поменялось на устройстве — синхронизируем через полминуты, собрав пачку изменений */
+  /** В журнале появилось новое с последнего прохода — отправляем сразу */
+  async function checkOutbox() {
+    if (!token.value || running || status.value === 'auth') return
+    const sig = await readOutboxSig().catch(() => null)
+    if (sig == null || sig === outboxSig) return
+    if (sig.startsWith('0:')) {
+      outboxSig = sig
+      pending.value = 0
+      return
+    }
+    void syncNow()
+  }
+
+  /** В базу записали из интерфейса: через мгновение смотрим журнал */
   function noteChange() {
     if (!token.value) return
     clearTimeout(changeTimer)
-    changeTimer = window.setTimeout(async () => {
-      pending.value = await pendingCount(sdb).catch(() => pending.value)
-      if (pending.value > 0) void syncNow()
-    }, AFTER_CHANGE_MS)
+    changeTimer = window.setTimeout(() => void checkOutbox(), AFTER_WRITE_MS)
+  }
+
+  /**
+   * Поток событий сервера: пока он открыт, чужие изменения приходят сразу. Оборвался — переподключаемся
+   * с растущей паузой (до 30 с); появилась сеть или окно вернулось на глаза — без паузы.
+   */
+  async function listen() {
+    if (liveCtl || !token.value || status.value === 'auth') return
+    const ctl = (liveCtl = new AbortController())
+    let fails = 0
+    while (!ctl.signal.aborted && token.value) {
+      let pause = 0
+      try {
+        await api().events((name) => {
+          fails = 0
+          liveUnsupported.value = false
+          if (name === 'hello') live.value = true
+          // «hello» — догоняем то, что пришло, пока потока не было; «changed» — пришло только что
+          void syncNow()
+        }, ctl.signal)
+      } catch (e) {
+        if (e instanceof ApiError && e.kind === 'auth') {
+          handleError(e)
+          break
+        }
+        if (e instanceof ApiError && e.kind === 'server') {
+          liveUnsupported.value = true
+          pause = NO_LIVE_RETRY_MS
+        }
+      }
+      live.value = false
+      if (ctl.signal.aborted) break
+      fails++
+      await new Promise<void>((resolve) => {
+        const t = window.setTimeout(done, pause || Math.min(30_000, 1000 * 2 ** Math.min(fails - 1, 5)))
+        function done() {
+          clearTimeout(t)
+          wake = null
+          resolve()
+        }
+        wake = done
+        ctl.signal.addEventListener('abort', done, { once: true })
+      })
+    }
+    live.value = false
+    if (liveCtl === ctl) liveCtl = null
+  }
+
+  function stopListening() {
+    liveCtl?.abort()
+    liveCtl = null
+    live.value = false
+  }
+
+  /** Повод думать, что связь вернулась: не ждём конца паузы переподключения */
+  function reconnect() {
+    if (!token.value || status.value === 'auth') return
+    if (!liveCtl) void listen()
+    else if (!live.value && !liveUnsupported.value) wake?.()
   }
 
   /** Запуск расписания: при старте приложения и после входа */
   function start() {
     if (started) return
     started = true
-    window.addEventListener('online', () => void syncNow())
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && Date.now() - (lastAt.value ?? 0) > 60_000) void syncNow()
+    window.addEventListener('online', () => {
+      reconnect()
+      void syncNow()
     })
-    // Изменения не всегда идут через интерфейс (на телефоне прослушивания пишет Kotlin): раз в минуту смотрим журнал
-    window.setInterval(() => noteChange(), 60_000)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return
+      reconnect()
+      // Поток жив — всё уже пришло по нему; нет — догоняем сами
+      if (!live.value || Date.now() - (lastAt.value ?? 0) > 60_000) void syncNow()
+    })
+    onDbWrite(noteChange)
+    // Изменения не всегда идут через интерфейс (прослушивания пишет движок, на телефоне — Kotlin): смотрим журнал
+    window.setInterval(() => void checkOutbox(), OUTBOX_POLL_MS)
+    void listen()
   }
 
   return {
@@ -234,6 +350,8 @@ export const useSync = defineStore('sync', () => {
     pending,
     me,
     signedIn,
+    live,
+    liveUnsupported,
     load,
     signIn,
     signOut,

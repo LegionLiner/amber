@@ -18,12 +18,20 @@ import PageStrip from '@/components/PageStrip.vue'
 import DesktopSidebar from '@/components/desktop/DesktopSidebar.vue'
 import DesktopPlayerBar from '@/components/desktop/DesktopPlayerBar.vue'
 import DesktopAmbient from '@/components/desktop/DesktopAmbient.vue'
+import DesktopTitleBar from '@/components/desktop/DesktopTitleBar.vue'
+import DesktopNowPanel from '@/components/desktop/DesktopNowPanel.vue'
 import { isDesktop } from '@/native/desktop/bridge'
+import { useSettings } from '@/stores/settings'
+import { useMediaQuery } from '@vueuse/core'
 
 const route = useRoute()
 const ui = useUi()
 const player = usePlayer()
+const settings = useSettings()
 const bare = computed(() => !!route.meta.bare)
+/** Панель «Сейчас играет» справа: когда есть что показывать, окно достаточно широкое и её не свернули */
+const roomy = useMediaQuery('(min-width: 1300px)')
+const nowPanel = computed(() => isDesktop && !bare.value && player.hasTrack && settings.s.nowPanel && roomy.value)
 
 /**
  * Экраны живут в KeepAlive под своим адресом, поэтому помнят прокрутку. Главные экраны — одна лента
@@ -36,10 +44,14 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
 
 <template>
   <div class="shell" :class="{ 'has-mini': player.hasTrack && !bare, wide: isDesktop && !bare }">
-    <!-- Компьютер: окно без системной рамки, за эту полосу его таскают; кнопки окна рисует Windows -->
-    <div v-if="isDesktop" class="drag-strip" aria-hidden="true" />
+    <!-- Компьютер: окно без системной рамки. Обычно его таскают за строку заголовка (DesktopTitleBar);
+         на экранах без неё (приветствие) — за эту полосу. Кнопки окна рисует Windows -->
+    <div v-if="isDesktop && bare" class="drag-strip" aria-hidden="true" />
     <!-- Компьютер: живой фон в цветах обложки, через него видно стекло меню и панелей -->
     <DesktopAmbient v-if="isDesktop" />
+    <!-- Зерно поверх всего окна: гладкое стекло и градиенты без него выглядят стерильно -->
+    <i v-if="isDesktop" class="grain" aria-hidden="true" />
+    <DesktopTitleBar v-if="isDesktop && !bare" />
     <DesktopSidebar v-if="isDesktop && !bare" />
     <div v-if="bootState.error" class="boot-error">
       <h3>Не удалось запустить</h3>
@@ -59,6 +71,9 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
         </Transition>
       </RouterView>
     </div>
+    <Transition name="nowp">
+      <DesktopNowPanel v-if="nowPanel" />
+    </Transition>
     <DesktopPlayerBar v-if="isDesktop && !bare" />
     <template v-else-if="!bare">
       <MiniPlayer />
@@ -83,20 +98,60 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
   height: 100%;
   overflow: hidden;
 }
-/* Компьютер: меню слева, экраны справа, панель плеера на всю ширину внизу */
+/*
+ * Компьютер: окно собрано из плавающих стеклянных панелей над живым фоном. Сверху — строка заголовка,
+ * под ней меню, сцена с экранами и панель «Сейчас играет». Плеер — капсула поверх сцены: экраны
+ * прокручиваются под ней (оформление панелей — design/desktop.css)
+ */
 .shell.wide {
   display: grid;
-  grid-template-columns: var(--side-w) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) var(--bar-h);
+  grid-template-columns: var(--side-w) minmax(0, 1fr) auto;
+  grid-template-rows: var(--title-h) minmax(0, 1fr);
+  column-gap: var(--pane-gap);
+  padding: 0 var(--pane-gap) var(--pane-gap);
 }
-/* Экраны уходят под панель плеера: она стеклянная, под ней видно прокручиваемое */
 .shell.wide .pages {
-  grid-row: 1 / -1;
+  grid-row: 2;
   grid-column: 2;
   height: auto;
   min-height: 0;
   container-type: inline-size;
   z-index: 1;
+}
+/* Панель справа появляется и уходит со сдвигом; сцена занимает освободившееся место */
+.nowp-enter-active,
+.nowp-leave-active {
+  transition:
+    opacity 220ms var(--ease),
+    transform 320ms var(--ease-out);
+}
+.nowp-leave-active {
+  position: absolute;
+  right: var(--pane-gap);
+  top: var(--title-h);
+  bottom: var(--pane-gap);
+}
+.nowp-enter-from,
+.nowp-leave-to {
+  opacity: 0;
+  transform: translateX(28px);
+}
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* Селектор с атрибутом темы пишется напрямую: :global(…) в стилях компонента отбрасывает всё, что после него */
+[data-theme='light'] .grain {
+  filter: invert(1);
+  opacity: 0.04;
+}
+[data-motion='reduced'] .grain,
+[data-glass='low'] .grain {
+  display: none;
 }
 .drag-strip {
   position: fixed;

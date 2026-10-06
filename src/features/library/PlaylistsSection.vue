@@ -62,93 +62,96 @@ async function highlights() {
     <HeadSpace />
 
     <div class="section-title"><span>Мои плейлисты</span></div>
-    <button type="button" class="row" @click="create">
-      <span class="ic add"><IconAdd /></span><span class="t">Создать</span>
-    </button>
-    <button type="button" class="row" @click="createGroupDialog()">
-      <span class="ic add"><IconFolderAdd /></span><span class="t">Новая группа</span>
-    </button>
-
-    <!-- Закреплённые: сверху, своим порядком. Порядок — «Выше» / «Ниже» в меню по удержанию -->
-    <template v-if="playlists.tree.pinned.length">
-      <div class="sub-head"><IconPin />Закреплённые</div>
-      <button
-        v-for="p in playlists.tree.pinned"
-        :key="p.id"
-        type="button"
-        class="row"
-        v-bind="hold(() => openPlaylistMenu(p, router))"
-        @click="router.push(`/playlist/${p.id}`)"
-      >
-        <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
-        <span v-else class="ic"
-          ><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else
-        /></span>
-        <span class="text">
-          <span class="t ellipsis">{{ p.name }}</span>
-          <span class="s">{{ sub(p) }}</span>
-        </span>
+    <!-- На компьютере «мои плейлисты» — сетка плашек; группы и подписи занимают строку целиком -->
+    <div class="tile-grid mine">
+      <button type="button" class="row" @click="create">
+        <span class="ic add"><IconAdd /></span><span class="t">Создать</span>
       </button>
-      <div class="divider" />
-    </template>
+      <button type="button" class="row" @click="createGroupDialog()">
+        <span class="ic add"><IconFolderAdd /></span><span class="t">Новая группа</span>
+      </button>
 
-    <template v-for="n in playlists.tree.root" :key="n.key">
-      <template v-if="n.type === 'group'">
+      <!-- Закреплённые: сверху, своим порядком. Порядок — «Выше» / «Ниже» в меню по удержанию -->
+      <template v-if="playlists.tree.pinned.length">
+        <div class="sub-head"><IconPin />Закреплённые</div>
         <button
+          v-for="p in playlists.tree.pinned"
+          :key="p.id"
           type="button"
-          class="row grp"
-          :class="{ open: !playlists.isCollapsed(n.group.createdAt) }"
-          :aria-expanded="!playlists.isCollapsed(n.group.createdAt)"
-          v-bind="hold(() => openGroupMenu(n.group, router))"
-          @click="playlists.setCollapsed(n.group.createdAt, !playlists.isCollapsed(n.group.createdAt))"
+          class="row"
+          v-bind="hold(() => openPlaylistMenu(p, router))"
+          @click="router.push(`/playlist/${p.id}`)"
         >
-          <span class="ic folder"
-            ><component :is="playlists.isCollapsed(n.group.createdAt) ? IconFolder : IconFolderOpen"
+          <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
+          <span v-else class="ic"
+            ><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else
           /></span>
           <span class="text">
-            <span class="t ellipsis">{{ n.group.name }}</span>
-            <span class="s">{{ countLabel(n.items.length, ['плейлист', 'плейлиста', 'плейлистов']) }}</span>
+            <span class="t ellipsis">{{ p.name }}</span>
+            <span class="s">{{ sub(p) }}</span>
           </span>
-          <IconChevron class="chev" />
         </button>
-        <div v-if="!playlists.isCollapsed(n.group.createdAt)" class="grp-items">
+        <div class="divider" />
+      </template>
+
+      <template v-for="n in playlists.tree.root" :key="n.key">
+        <template v-if="n.type === 'group'">
           <button
-            v-for="p in n.items"
-            :key="p.id"
             type="button"
-            class="row"
-            v-bind="hold(() => openPlaylistMenu(p, router))"
-            @click="router.push(`/playlist/${p.id}`)"
+            class="row grp"
+            :class="{ open: !playlists.isCollapsed(n.group.createdAt) }"
+            :aria-expanded="!playlists.isCollapsed(n.group.createdAt)"
+            v-bind="hold(() => openGroupMenu(n.group, router))"
+            @click="playlists.setCollapsed(n.group.createdAt, !playlists.isCollapsed(n.group.createdAt))"
           >
-            <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
-            <span v-else class="ic"
-              ><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else
+            <span class="ic folder"
+              ><component :is="playlists.isCollapsed(n.group.createdAt) ? IconFolder : IconFolderOpen"
             /></span>
             <span class="text">
-              <span class="t ellipsis">{{ p.name }}</span>
-              <span class="s">{{ sub(p) }}</span>
+              <span class="t ellipsis">{{ n.group.name }}</span>
+              <span class="s">{{ countLabel(n.items.length, ['плейлист', 'плейлиста', 'плейлистов']) }}</span>
             </span>
+            <IconChevron class="chev" />
           </button>
-          <p v-if="!n.items.length" class="note muted">Пусто: удержи плейлист → «В группу…»</p>
-        </div>
+          <div v-if="!playlists.isCollapsed(n.group.createdAt)" class="grp-items">
+            <button
+              v-for="p in n.items"
+              :key="p.id"
+              type="button"
+              class="row"
+              v-bind="hold(() => openPlaylistMenu(p, router))"
+              @click="router.push(`/playlist/${p.id}`)"
+            >
+              <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
+              <span v-else class="ic"
+                ><IconSmart v-if="p.kind === 'smart'" /><IconMix v-else-if="p.kind === 'mix'" /><IconList v-else
+              /></span>
+              <span class="text">
+                <span class="t ellipsis">{{ p.name }}</span>
+                <span class="s">{{ sub(p) }}</span>
+              </span>
+            </button>
+            <p v-if="!n.items.length" class="note muted">Пусто: удержи плейлист → «В группу…»</p>
+          </div>
+        </template>
+        <button
+          v-else
+          type="button"
+          class="row"
+          v-bind="hold(() => openPlaylistMenu(n.p, router))"
+          @click="router.push(`/playlist/${n.p.id}`)"
+        >
+          <CoverArt v-if="n.p.cover" :art="n.p.cover" :seed="n.p.name" :label="n.p.name" size="s" radius="12px" class="pcv" />
+          <span v-else class="ic"
+            ><IconSmart v-if="n.p.kind === 'smart'" /><IconMix v-else-if="n.p.kind === 'mix'" /><IconList v-else
+          /></span>
+          <span class="text">
+            <span class="t ellipsis">{{ n.p.name }}</span>
+            <span class="s">{{ sub(n.p) }}</span>
+          </span>
+        </button>
       </template>
-      <button
-        v-else
-        type="button"
-        class="row"
-        v-bind="hold(() => openPlaylistMenu(n.p, router))"
-        @click="router.push(`/playlist/${n.p.id}`)"
-      >
-        <CoverArt v-if="n.p.cover" :art="n.p.cover" :seed="n.p.name" :label="n.p.name" size="s" radius="12px" class="pcv" />
-        <span v-else class="ic"
-          ><IconSmart v-if="n.p.kind === 'smart'" /><IconMix v-else-if="n.p.kind === 'mix'" /><IconList v-else
-        /></span>
-        <span class="text">
-          <span class="t ellipsis">{{ n.p.name }}</span>
-          <span class="s">{{ sub(n.p) }}</span>
-        </span>
-      </button>
-    </template>
+    </div>
     <p v-if="playlists.loaded && !playlists.list.length" class="note muted">
       Плейлист можно собрать из любого списка: долгое нажатие на трек → «Добавить в плейлист».
     </p>
@@ -263,10 +266,33 @@ async function highlights() {
   align-items: center;
   gap: 6px;
   padding: 12px var(--gutter) 4px;
-  color: var(--ink-3);
-  font: 600 11.5px/1 var(--f-body);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  font: 600 12.5px/1 var(--f-body);
+}
+/* В сетке плашек подписи, разделитель и группы занимают строку целиком */
+:root.desktop .mine > .sub-head,
+:root.desktop .mine > .divider,
+:root.desktop .mine > .grp,
+:root.desktop .mine > .grp-items {
+  grid-column: 1 / -1;
+}
+:root.desktop .mine > .sub-head {
+  padding: 10px 2px 0;
+}
+:root.desktop .mine > .divider {
+  margin: 4px 0;
+}
+:root.desktop .mine > .grp {
+  width: auto;
+  justify-self: start;
+  min-width: min(100%, 340px);
+}
+:root.desktop .grp-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  margin-left: 22px;
+  padding-left: 16px;
 }
 .sub-head svg {
   width: 13px;

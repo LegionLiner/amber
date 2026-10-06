@@ -31,10 +31,12 @@ const props = withDefaults(
     positions?: boolean
     /** Альбом, дата добавления и длительность: колонками в широком окне, в узком — в строке */
     detail?: (t: Track, index: number) => RowDetail
+    /** Подпись третьей колонки таблицы (по умолчанию — дата добавления) */
+    extraLabel?: string
     /** Порядок можно менять: удержание берёт строку, мышью — просто потянуть */
     reorder?: (from: number, to: number) => void | Promise<void>
   }>(),
-  { numbered: false, positions: false },
+  { numbered: false, positions: false, extraLabel: 'Добавлен' },
 )
 
 const ROW_H = 64
@@ -50,10 +52,13 @@ const { width } = useElementSize(scrollEl)
 
 /** Таблица с колонками — когда подробности есть и места хватает (компьютер, планшет) */
 const wide = computed(() => !!props.detail && width.value >= 700)
-const hasAdded = computed(() => !!props.detail && !!props.tracks[0] && props.detail(props.tracks[0], 0).added != null)
+const first = computed(() => (props.detail && props.tracks[0] ? props.detail(props.tracks[0], 0) : null))
+const hasAlbum = computed(() => first.value?.album != null)
+const hasAdded = computed(() => first.value?.added != null)
 const listStyle = computed(() => ({
   '--pos-w': `${String(props.tracks.length).length * 8 + 6}px`,
-  '--cols': `var(--pos-w) 44px minmax(0, 3fr) minmax(0, 2fr)${hasAdded.value ? ' 112px' : ''} 52px 48px 40px`,
+  // Колонки таблицы: [место] обложка, название, [альбом], [третья колонка], оценка, длительность, «⋯»
+  '--cols': `${props.positions ? 'var(--pos-w) ' : ''}44px minmax(0, 3fr)${hasAlbum.value ? ' minmax(0, 2fr)' : ''}${hasAdded.value ? ' 128px' : ''} 52px 48px 40px`,
 }))
 
 /* Перетаскивание: взятая строка едет за пальцем, соседи расступаются, отпустил — новый порядок */
@@ -132,11 +137,11 @@ defineExpose({ scrollToTop, scrollToIndex, scrollEl })
     <div ref="headerEl">
       <slot name="header" />
       <div v-if="wide && tracks.length" class="thead">
-        <span class="num">#</span>
+        <span v-if="positions" class="num">#</span>
         <span />
         <span>Название</span>
-        <span>Альбом</span>
-        <span v-if="hasAdded">Добавлен</span>
+        <span v-if="hasAlbum">Альбом</span>
+        <span v-if="hasAdded">{{ extraLabel }}</span>
         <span>Оценка</span>
         <span class="dur" aria-label="Длительность"><IconClock /></span>
         <span />

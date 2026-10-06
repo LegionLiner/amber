@@ -29,6 +29,7 @@ import SleepSheet from './SleepSheet.vue'
 import PlayerMenuSheet from './PlayerMenuSheet.vue'
 import OutputSheet from './OutputSheet.vue'
 import LyricsSheet from './LyricsSheet.vue'
+import NowExtras from '@/components/desktop/NowExtras.vue'
 import SpeedSheet from './SpeedSheet.vue'
 import { loadWaveform } from '@/data/repos/library'
 import { outputLabel } from '@/domain/outputs'
@@ -529,6 +530,9 @@ function togglePlay() {
             <IconRepeat v-else :key="player.repeat" :class="{ 'spin-pop': repeatPop }" />
           </button>
         </div>
+
+        <!-- Компьютер: рядом с управлением — текущие строки текста и ближайшие треки очереди -->
+        <NowExtras v-if="isDesktop" class="fx" :next="3" />
 
         <div class="bottom">
           <button type="button" class="out" @click="ui.openSheet(OutputSheet)">

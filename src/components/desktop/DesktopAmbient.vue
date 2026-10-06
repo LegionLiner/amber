@@ -84,6 +84,7 @@ onBeforeUnmount(stop)
     <i class="blob b2" />
     <i class="blob b3" />
     <i class="floor" />
+    <i class="corner" />
   </div>
 </template>
 
@@ -111,7 +112,7 @@ onBeforeUnmount(stop)
   left: -18vw;
   top: -30vw;
   background: radial-gradient(closest-side, var(--c1), transparent);
-  opacity: calc(0.26 + var(--pulse) * 0.14);
+  opacity: calc(0.36 + var(--pulse) * 0.14);
   animation: drift-a 38s ease-in-out infinite alternate;
 }
 .b2 {
@@ -120,7 +121,7 @@ onBeforeUnmount(stop)
   right: -20vw;
   top: 20vh;
   background: radial-gradient(closest-side, var(--c2), transparent);
-  opacity: calc(0.2 + var(--pulse) * 0.12);
+  opacity: calc(0.28 + var(--pulse) * 0.12);
   animation: drift-b 46s ease-in-out infinite alternate;
 }
 .b3 {
@@ -129,7 +130,7 @@ onBeforeUnmount(stop)
   left: 20vw;
   bottom: -14vw;
   background: radial-gradient(closest-side, var(--c1), transparent);
-  opacity: calc(0.16 + var(--pulse) * 0.16);
+  opacity: calc(0.22 + var(--pulse) * 0.16);
   animation: drift-a 52s ease-in-out infinite alternate-reverse;
 }
 /* Свечение снизу, над панелью плеера: в такт басам поднимается и становится ярче */
@@ -157,21 +158,33 @@ onBeforeUnmount(stop)
   transform: scaleY(calc(0.55 + var(--pulse) * 0.6));
   transition: none;
 }
+/* Под кнопками окна Windows (их подложка — сплошной цвет темы) фон гаснет, и прямоугольника не видно */
+.corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 260px;
+  height: 84px;
+  background: linear-gradient(270deg, var(--bg) 148px, transparent);
+  -webkit-mask-image: linear-gradient(#000 44px, transparent);
+  mask-image: linear-gradient(#000 44px, transparent);
+}
 .idle .blob {
   opacity: 0.1;
 }
 .amb-desk:not(.playing) .blob {
   animation-play-state: paused;
 }
-:global([data-theme='light']) .amb-desk .blob {
+/* На светлом фоне цвет «умножается» на фон — пятна насыщенные, а не белёсые */
+[data-theme='light'] .blob {
   mix-blend-mode: multiply;
 }
-:global([data-theme='light']) .b1 {
-  opacity: calc(0.2 + var(--pulse) * 0.1);
+[data-theme='light'] .b1 {
+  opacity: calc(0.3 + var(--pulse) * 0.1);
 }
-:global([data-theme='light']) .b2,
-:global([data-theme='light']) .b3 {
-  opacity: calc(0.15 + var(--pulse) * 0.1);
+[data-theme='light'] .b2,
+[data-theme='light'] .b3 {
+  opacity: calc(0.22 + var(--pulse) * 0.1);
 }
 @keyframes drift-a {
   to {

@@ -1,4 +1,5 @@
-import { nextTick, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
+import { GLOBAL_SEARCH_ID } from './search-query'
 import { MusicCoreWeb } from '@/native/music-core'
 import { desktop } from '@/native/desktop/bridge'
 import { useLibrary } from '@/stores/library'
@@ -105,13 +106,12 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault()
     ui.fullPlayer = false
     ui.queueOpen = false
-    void router
-      .push('/search')
-      .then(() =>
-        nextTick(() =>
-          document.querySelector<HTMLInputElement>('.pg:not([inert]) input[type="search"], .pg:not([inert]) input')?.focus(),
-        ),
-      )
+    // Курсор — в поле строки заголовка: оно само откроет раздел поиска
+    const field = document.getElementById(GLOBAL_SEARCH_ID) as HTMLInputElement | null
+    if (field) {
+      field.focus()
+      field.select()
+    } else void router.push('/search')
     return
   }
   if (ctrl && e.key === ',') {

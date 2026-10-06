@@ -30,6 +30,7 @@ import { formatDuration } from '@/domain/format'
 import { plainSound } from '@/domain/effects'
 import { setVolume, toggleMute, volume } from '@/app/desktop'
 import { voice } from '@/app/voice'
+import { useCoverGlow } from '@/app/cover-colors'
 import { useSettings } from '@/stores/settings'
 
 /**
@@ -52,6 +53,13 @@ const micTitle = computed(() =>
 
 const item = computed(() => player.current)
 const track = computed(() => player.currentTrack)
+/** Капсула слегка подкрашена обложкой того, что играет */
+const colors = useCoverGlow(() => ({
+  art: track.value?.art,
+  seed: item.value?.title ?? 'amber',
+  color1: track.value?.color1,
+  color2: track.value?.color2,
+}))
 const soundOn = computed(() => !plainSound(player.sound))
 const sleepOn = computed(() => player.sleepAt > 0 || player.sleepEndOfTrack)
 
@@ -73,11 +81,11 @@ function favorite() {
 </script>
 
 <template>
-  <footer class="pbar" :class="{ empty: !item }">
+  <footer class="pbar" :class="{ empty: !item }" :style="{ '--c1': colors[0] }">
     <div class="now">
       <template v-if="item">
         <button type="button" class="cover" aria-label="Открыть плеер" @click="ui.fullPlayer = true">
-          <CoverArt :art="track?.art" :seed="item.title" :label="item.title" size="s" radius="8px" />
+          <CoverArt :art="track?.art" :seed="item.title" :label="item.title" size="s" radius="12px" />
           <span class="expand"><IconExpand /></span>
         </button>
         <div class="names">
@@ -172,7 +180,7 @@ function favorite() {
     <div class="tools">
       <button
         type="button"
-        class="icon-btn"
+        class="icon-btn opt"
         :class="{ on: soundOn }"
         aria-label="Звук: пресеты, скорость и эффекты"
         title="Звук: пресеты, скорость и эффекты"
@@ -192,7 +200,7 @@ function favorite() {
       </button>
       <button
         type="button"
-        class="icon-btn"
+        class="icon-btn opt"
         :class="{ on: sleepOn }"
         aria-label="Сон-таймер"
         title="Сон-таймер"
@@ -238,19 +246,35 @@ function favorite() {
 </template>
 
 <style scoped>
+/*
+ * Плеер — стеклянная капсула, плавающая над нижним краем сцены: списки прокручиваются под ней.
+ * Слева она подсвечена цветом обложки. Ширина считается от сцены, поэтому в узком окне
+ * второстепенные кнопки и ползунок громкости уходят сами (контейнерные запросы ниже).
+ */
 .pbar {
-  grid-column: 1 / -1;
+  grid-column: 2;
   grid-row: 2;
-  display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(320px, 2fr) minmax(200px, 1fr);
-  align-items: center;
-  gap: 16px;
-  height: var(--bar-h);
-  padding: 0 16px;
-  background: var(--surface);
-  border-top: 1px solid var(--line);
+  align-self: end;
+  justify-self: center;
+  container-type: inline-size;
+  container-name: dock;
   position: relative;
   z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  width: min(calc(100% - 28px), 1180px);
+  height: var(--dock-h);
+  margin-bottom: 12px;
+  padding: 0 12px 0 10px;
+  border-radius: 20px;
+  background:
+    radial-gradient(46% 180% at 0% 50%, color-mix(in srgb, var(--c1) 24%, transparent), transparent 70%), var(--glass-dock);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-hi), var(--shadow-float);
+  transition: --c1 1.2s var(--ease);
 }
 .now {
   display: flex;
@@ -260,15 +284,23 @@ function favorite() {
 }
 .cover {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   flex: none;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 10px 20px -10px color-mix(in srgb, var(--c1) 75%, #000);
+  transition: transform var(--t-fast) var(--ease);
 }
 .cover :deep(.cover) {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
+}
+.cover:hover {
+  transform: scale(1.04);
+}
+.cover:active {
+  transform: scale(0.97);
 }
 .expand {
   position: absolute;
@@ -281,10 +313,11 @@ function favorite() {
   transition: opacity var(--t-fast) var(--ease);
 }
 .expand svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
-.cover:hover .expand {
+.cover:hover .expand,
+.cover:focus-visible .expand {
   opacity: 1;
 }
 .names {
@@ -300,12 +333,14 @@ function favorite() {
 }
 .t:hover {
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .a {
   font-size: 12.5px;
   color: var(--ink-2);
 }
 .idle {
+  padding-left: 8px;
   color: var(--ink-3);
   font-size: 13.5px;
 }
@@ -319,38 +354,53 @@ function favorite() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  min-width: 0;
+  gap: 1px;
+  width: clamp(280px, 44cqw, 600px);
 }
 .controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+.controls .icon-btn {
+  width: 36px;
+  height: 36px;
 }
 .controls .icon-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 21px;
+  height: 21px;
 }
 .controls .small svg {
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
+}
+.controls .small {
+  color: var(--ink-2);
 }
 .play {
   width: 38px;
   height: 38px;
+  margin: 0 4px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: var(--ink);
   color: var(--bg);
-  transition: transform var(--t-fast) var(--ease);
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--ink) 55%, transparent);
+  transition:
+    transform var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
 }
 .play:hover:not(:disabled) {
-  transform: scale(1.06);
+  transform: scale(1.07);
+  box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--ink) 70%, transparent);
+}
+.play:active:not(:disabled) {
+  transform: scale(0.94);
 }
 .play svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
 }
 .icon-btn.on {
   color: var(--amber-ink);
@@ -361,11 +411,10 @@ button:disabled {
 }
 .seek {
   display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  grid-template-columns: 40px 1fr 40px;
   align-items: center;
   gap: 8px;
   width: 100%;
-  max-width: 640px;
 }
 .time {
   font-size: 11.5px;
@@ -379,18 +428,41 @@ button:disabled {
   gap: 2px;
   min-width: 0;
 }
+.tools .icon-btn {
+  width: 36px;
+  height: 36px;
+  color: var(--ink-2);
+}
+.tools .icon-btn:hover:not(:disabled) {
+  color: var(--ink);
+}
+.tools .icon-btn.on {
+  color: var(--amber-ink);
+}
 .tools .icon-btn svg {
-  width: 21px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
 }
 .vol {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: 6px;
+  margin-left: 4px;
 }
 .volbar {
-  width: 96px;
+  width: 92px;
+}
+/* Узкая сцена: сначала уходит ползунок громкости, потом второстепенные кнопки и альбом в подписи */
+@container dock (max-width: 900px) {
+  .volbar {
+    display: none;
+  }
+}
+@container dock (max-width: 780px) {
+  .opt,
+  .heart {
+    display: none;
+  }
 }
 /* Голосовые команды: слушает — янтарный, услышал «Эмбер» — пульсирует, ошибка — красный */
 .mic.listening {

@@ -21,17 +21,19 @@ watch(
 <template>
   <div ref="scrollEl" class="scroll screen">
     <HeadSpace />
-    <button
-      v-for="g in library.genres"
-      :key="g.id"
-      type="button"
-      class="row"
-      @click="router.push(`/genre/${encodeURIComponent(g.id)}`)"
-    >
-      <span class="ic"><IconTag /></span>
-      <span class="t ellipsis">{{ g.name }}</span>
-      <span class="n muted num">{{ countLabel(g.tracks.length, ['трек', 'трека', 'треков']) }}</span>
-    </button>
+    <div class="tile-grid">
+      <button
+        v-for="g in library.genres"
+        :key="g.id"
+        type="button"
+        class="row"
+        @click="router.push(`/genre/${encodeURIComponent(g.id)}`)"
+      >
+        <span class="ic"><IconTag /></span>
+        <span class="t ellipsis">{{ g.name }}</span>
+        <span class="n muted num">{{ countLabel(g.tracks.length, ['трек', 'трека', 'треков']) }}</span>
+      </button>
+    </div>
     <div v-if="library.loaded && !library.genres.length" class="empty">
       <h3>Жанров нет</h3>
       <p>В файлах не заполнен жанр. Скоро здесь появятся твои теги вроде #драйв или #осень.</p>

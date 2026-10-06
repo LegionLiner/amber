@@ -60,23 +60,26 @@ function openSort() {
         <IconSort />{{ OPTIONS.find((o) => o.key === pref.key)?.label }}
       </button>
     </div>
-    <button
-      v-for="a in artists"
-      :key="a.id"
-      type="button"
-      class="row"
-      data-morph-card
-      @click="router.push(`/artist/${encodeURIComponent(a.id)}`)"
-    >
-      <CoverArt :art="a.art" :seed="a.name" :label="a.name" size="s" radius="50%" class="cv" />
-      <span class="text">
-        <span class="t ellipsis">{{ a.name }}</span>
-        <span class="s ellipsis">
-          {{ countLabel(a.tracks.length, ['трек', 'трека', 'треков'])
-          }}<template v-if="a.plays"> · {{ a.plays }} прослуш.</template>
+    <!-- .cards на телефоне «прозрачная» (список строк), на компьютере — сетка карточек -->
+    <div class="cards">
+      <button
+        v-for="a in artists"
+        :key="a.id"
+        type="button"
+        class="row"
+        data-morph-card
+        @click="router.push(`/artist/${encodeURIComponent(a.id)}`)"
+      >
+        <CoverArt :art="a.art" :seed="a.name" :label="a.name" size="s" radius="50%" class="cv" />
+        <span class="text">
+          <span class="t ellipsis">{{ a.name }}</span>
+          <span class="s ellipsis">
+            {{ countLabel(a.tracks.length, ['трек', 'трека', 'треков'])
+            }}<template v-if="a.plays"> · {{ a.plays }} прослуш.</template>
+          </span>
         </span>
-      </span>
-    </button>
+      </button>
+    </div>
     <div v-if="library.loaded && !artists.length" class="empty">
       <h3>Исполнителей нет</h3>
       <p>Имена возьмутся из тегов или из имён файлов вида «Исполнитель - Название».</p>
@@ -122,6 +125,34 @@ function openSort() {
 }
 .cv {
   width: 52px;
+}
+.cards {
+  display: contents;
+}
+:root.desktop .cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 24px 16px;
+  padding: 6px var(--gutter);
+}
+:root.desktop .row {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 12px;
+  padding: 0;
+  text-align: center;
+  contain-intrinsic-size: auto 220px;
+}
+:root.desktop .row:active {
+  background: none;
+}
+:root.desktop .cv {
+  width: 100%;
+  box-shadow: 0 16px 28px -18px rgba(0, 0, 0, 0.7);
+}
+:root.desktop .text {
+  align-items: center;
+  max-width: 100%;
 }
 .text {
   min-width: 0;

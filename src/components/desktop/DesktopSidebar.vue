@@ -53,6 +53,7 @@ const tabs: { id: TabId; to: string; label: string; icon: Component; on: Compone
 const active = computed(() =>
   route.name === 'settings' || String(route.name).startsWith('settings') ? null : (route.meta.tab ?? 'home'),
 )
+const activeIndex = computed(() => tabs.findIndex((t) => t.id === active.value))
 const openPlaylist = computed(() => (route.name === 'playlist' || route.name === 'mix' ? Number(route.params.id) : null))
 
 function go(t: (typeof tabs)[number]) {
@@ -114,8 +115,14 @@ function create() {
 
 <template>
   <aside class="side" aria-label="Разделы">
-    <div class="brand display">Amber</div>
     <nav class="nav">
+      <!-- Метка активного раздела — одна на всё меню, переезжает между пунктами -->
+      <i
+        class="nav-ind"
+        :class="{ off: activeIndex < 0 }"
+        :style="{ transform: `translateY(${Math.max(0, activeIndex) * 42}px)` }"
+        aria-hidden="true"
+      />
       <button
         v-for="t in tabs"
         :key="t.id"
@@ -258,34 +265,64 @@ function create() {
 </template>
 
 <style scoped>
+/* Меню — плавающая стеклянная панель: скругления, блик по кромке, тень вниз */
 .side {
+  grid-column: 1;
+  grid-row: 2;
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: calc(var(--safe-top) + 2px) 12px 12px;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-}
-.brand {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--amber);
-  padding: 4px 12px 14px;
+  padding: 10px;
+  border-radius: var(--pane-r);
+  background: var(--glass-pane);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-hi), var(--shadow-pane);
 }
 .nav {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+.nav-ind {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 40px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent);
+  transition:
+    transform 380ms var(--ease-out),
+    opacity var(--t-fast) var(--ease);
+}
+/* Янтарная риска слева — единственный акцент в меню */
+.nav-ind::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 11px;
+  bottom: 11px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--amber);
+  box-shadow: 0 0 12px rgba(var(--amber-rgb), 0.7);
+}
+.nav-ind.off {
+  opacity: 0;
+}
 .item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
+  padding: 0 12px 0 14px;
+  border-radius: 12px;
   color: var(--ink-2);
   font: 500 14.5px/1 var(--f-body);
   text-align: left;
@@ -294,36 +331,46 @@ function create() {
     color var(--t-fast) var(--ease);
 }
 .item:hover {
-  background: var(--chip);
   color: var(--ink);
 }
+.item:not(.on):hover {
+  background: color-mix(in srgb, var(--ink) 4.5%, transparent);
+}
 .item.on {
-  background: rgba(var(--amber-rgb), 0.14);
-  color: var(--amber-ink);
+  color: var(--ink);
+  font-weight: 600;
+}
+.item.on .ic {
+  color: var(--amber);
+}
+.item:active .ic {
+  transform: scale(0.9);
 }
 .ic {
-  width: 22px;
-  height: 22px;
+  width: 21px;
+  height: 21px;
   flex: none;
+  transition:
+    color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
 }
 .lists {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin-top: 18px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+  margin-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 7%, transparent);
+  padding-top: 10px;
 }
+/* Подписи — обычным регистром: капс с разрядкой тут кричал громче самих плейлистов */
 .lists-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px 6px 12px;
-  color: var(--ink-3);
-  font: 600 11.5px/1 var(--f-body);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  padding: 0 4px 6px 14px;
+  color: var(--ink-2);
+  font: 600 12.5px/1 var(--f-body);
 }
 .head-btns {
   display: flex;
@@ -359,16 +406,17 @@ function create() {
   align-items: center;
   gap: 10px;
   padding: 5px 8px;
-  border-radius: 9px;
+  border-radius: 11px;
   text-align: left;
   font-size: 13.5px;
   color: var(--ink);
+  transition: background var(--t-fast) var(--ease);
 }
 .pl:hover {
-  background: var(--chip);
+  background: color-mix(in srgb, var(--ink) 5.5%, transparent);
 }
 .pl.on {
-  background: var(--chip-strong);
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
 }
 .list.dragging .pl:hover:not(.on) {
   background: transparent;
@@ -386,11 +434,9 @@ function create() {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px 4px 12px;
+  padding: 6px 8px 5px 14px;
   color: var(--ink-3);
-  font: 600 11px/1 var(--f-body);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font: 500 12px/1 var(--f-body);
 }
 .sub-head svg {
   width: 13px;
@@ -533,6 +579,9 @@ function create() {
 }
 .settings {
   margin-top: 8px;
+}
+.settings.on {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
 }
 </style>
 

@@ -14,7 +14,8 @@ export type RowMeta = { kind: 'stars'; rating: number | null } | { kind: 'text';
 
 /** Подробности строки плейлиста: в широком окне — колонки таблицы, в узком — под названием и справа */
 export interface RowDetail {
-  album: string
+  /** null — колонки альбома нет (страница самого альбома) */
+  album: string | null
   /** Когда добавлен в плейлист (null — колонки нет, как у умных плейлистов) */
   added: string | null
   duration: string
@@ -75,7 +76,8 @@ const sub = computed(() => {
   return props.detail && !props.wide && props.detail.album ? `${s} · ${props.detail.album}` : s
 })
 const starText = computed(() => {
-  const r = props.meta?.kind === 'stars' ? props.meta.rating : null
+  // В таблице у оценки своя колонка, и она заполнена всегда; в строке оценку показывают, только если по ней сортируют
+  const r = table.value ? props.track.rating : props.meta?.kind === 'stars' ? props.meta.rating : null
   if (r == null) return ''
   const whole = Math.floor(r / 2)
   return r % 2 ? `${whole}½` : String(whole)
@@ -113,7 +115,7 @@ const starText = computed(() => {
         </div>
       </div>
       <template v-if="table && detail">
-        <span class="col ellipsis">{{ detail.album }}</span>
+        <span v-if="detail.album != null" class="col ellipsis">{{ detail.album }}</span>
         <span v-if="detail.added != null" class="col ellipsis">{{ detail.added }}</span>
         <span class="col meta num">
           <span v-if="starText" class="stars"><IconStar />{{ starText }}</span>

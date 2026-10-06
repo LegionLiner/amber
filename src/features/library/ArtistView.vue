@@ -8,12 +8,13 @@ import { useRadio } from '@/stores/radio'
 import { useUi } from '@/stores/ui'
 import { sortTracks } from '@/domain/sort'
 import { formatListen, countLabel } from '@/domain/format'
-import { metaFor } from './rowMeta'
+import { metaFor, tableFor } from './rowMeta'
 
 const route = useViewRoute()
 const library = useLibrary()
 const radio = useRadio()
 const ui = useUi()
+const table = tableFor('plays')
 const id = computed(() => decodeURIComponent(String(route.params.id ?? '')))
 const artist = computed(() => library.artists.find((a) => a.id === id.value))
 const tracks = computed(() => (artist.value ? sortTracks(artist.value.tracks, 'plays', 'desc') : []))
@@ -46,6 +47,8 @@ async function startRadio() {
     :tracks="tracks"
     :source="{ type: 'artist', id: artist.id, title: artist.name }"
     :meta="metaFor('plays')"
+    :detail="table?.of"
+    :extra-label="table?.label"
     round
   >
     <template #actions>

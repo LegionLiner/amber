@@ -13,8 +13,15 @@ import { usePlayer } from '@/stores/player'
 import { useCoverGlow } from '@/app/cover-colors'
 import { formatListen, countLabel } from '@/domain/format'
 import { flyCoverTo } from '@/app/motion'
+import { isDesktop } from '@/native/desktop/bridge'
 
-/** Общая страница набора треков: альбом, исполнитель, жанр, папка */
+/**
+ * Общая страница набора треков: альбом, исполнитель, жанр, папка, плейлист.
+ *
+ * На телефоне шапка — столбиком по центру (обложка, название, кнопки). В окне компьютера она
+ * горизонтальная: обложка слева, справа крупное название и действия в одну строку — так шапка
+ * занимает треть экрана, а не половину, и список начинается выше.
+ */
 const props = withDefaults(
   defineProps<{
     title: string
@@ -32,6 +39,8 @@ const props = withDefaults(
     /** Плейлисты: места слева, подробности (альбом, добавлен, длительность), перестановка удержанием */
     positions?: boolean
     detail?: (t: Track, index: number) => RowDetail
+    /** Подпись третьей колонки таблицы в окне компьютера */
+    extraLabel?: string
     reorder?: (from: number, to: number) => void
   }>(),
   { art: null, seed: '', round: false, numbered: false, subtitle: '', positions: false },
@@ -67,10 +76,11 @@ const line = computed(
       :play="play ? (i: number) => play!(i, false) : undefined"
       :positions="positions"
       :detail="detail"
+      :extra-label="extraLabel"
       :reorder="reorder"
     >
       <template #header>
-        <div class="hero" :style="{ '--c1': colors[0] }">
+        <div class="hero" :class="{ wide: isDesktop }" :style="{ '--c1': colors[0], '--c2': colors[1] }">
           <div class="bar">
             <button type="button" class="icon-btn" aria-label="Назад" @click="router.back()"><IconBack /></button>
             <slot name="actions" />
@@ -84,28 +94,33 @@ const line = computed(
             :radius="round ? '50%' : 'var(--r-l)'"
             class="cv"
           />
-          <p class="kind">{{ kind }}</p>
-          <h1 class="display title">{{ title }}</h1>
-          <p class="line muted">{{ line }}</p>
-          <div class="btns">
-            <button
-              type="button"
-              class="btn primary"
-              :disabled="!tracks.length"
-              @click="play ? play(0, false) : player.playTracks(tracks, 0, source, { shuffle: false })"
-            >
-              <IconPlay />Слушать
-            </button>
-            <button
-              type="button"
-              class="btn"
-              :disabled="!tracks.length"
-              @click="play ? play(-1, true) : player.playTracks(tracks, -1, source, { shuffle: true })"
-            >
-              <IconShuffle />Перемешать
-            </button>
+          <!-- .meta и .acts на телефоне «прозрачные» (display: contents): раскладку столбиком они не меняют -->
+          <div class="meta">
+            <p class="kind">{{ kind }}</p>
+            <h1 class="display title">{{ title }}</h1>
+            <p class="line muted">{{ line }}</p>
+            <div class="acts">
+              <div class="btns">
+                <button
+                  type="button"
+                  class="btn primary"
+                  :disabled="!tracks.length"
+                  @click="play ? play(0, false) : player.playTracks(tracks, 0, source, { shuffle: false })"
+                >
+                  <IconPlay />Слушать
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  :disabled="!tracks.length"
+                  @click="play ? play(-1, true) : player.playTracks(tracks, -1, source, { shuffle: true })"
+                >
+                  <IconShuffle />Перемешать
+                </button>
+              </div>
+              <slot name="extra" />
+            </div>
           </div>
-          <slot name="extra" />
         </div>
       </template>
     </TrackList>
@@ -134,11 +149,13 @@ const line = computed(
   box-shadow: var(--shadow-cover);
   margin-top: 4px;
 }
+.meta,
+.acts {
+  display: contents;
+}
 .kind {
   margin-top: 16px;
-  font: 600 11px/1 var(--f-body);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 600 13px/1 var(--f-body);
   color: var(--ink-2);
 }
 .title {
@@ -156,5 +173,84 @@ const line = computed(
   display: flex;
   gap: 10px;
   margin-top: 16px;
+}
+
+/* ---------- окно компьютера: шапка в строку ---------- */
+.hero.wide {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'bar bar'
+    'cv meta';
+  column-gap: 30px;
+  align-items: end;
+  padding: 4px var(--gutter) 22px;
+  text-align: left;
+  /* Свет обложки: слева её основной цвет, справа второй; книзу гаснет */
+  background:
+    radial-gradient(70% 120% at 12% 0%, color-mix(in srgb, var(--c1) 46%, transparent), transparent 70%),
+    radial-gradient(60% 110% at 92% 8%, color-mix(in srgb, var(--c2) 26%, transparent), transparent 72%);
+}
+.wide .bar {
+  grid-area: bar;
+  height: 44px;
+  margin: 0 -10px 6px;
+  width: auto;
+}
+.wide .cv {
+  grid-area: cv;
+  width: clamp(168px, 19cqw, 232px);
+  margin-top: 0;
+  box-shadow:
+    0 30px 50px -24px color-mix(in srgb, var(--c1) 70%, #000),
+    0 10px 20px -12px rgba(0, 0, 0, 0.6);
+}
+.wide .meta {
+  grid-area: meta;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+.wide .kind {
+  margin-top: 0;
+}
+.wide .title {
+  margin-top: 10px;
+  font-size: clamp(34px, 4.6cqw, 60px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* Выносные элементы букв (й, ё, д) не должны обрезаться ограничением строк */
+  padding-block: 0.06em;
+}
+.wide .line {
+  margin-top: 10px;
+  font-size: 13.5px;
+}
+.wide .acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+.wide .btns {
+  margin-top: 0;
+}
+/* Дополнительные кнопки страницы (добавить треки, стыки микса) — в той же строке, без своих отступов */
+.wide .acts :deep(.btn) {
+  margin-top: 0;
+}
+/* Всё остальное из дополнений (подсказка, вложенные папки) — отдельной строкой под кнопками */
+.wide .acts > :deep(:not(.btns):not(button)) {
+  flex-basis: 100%;
+  max-width: none;
+  margin-top: 2px;
 }
 </style>

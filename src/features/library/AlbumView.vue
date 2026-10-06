@@ -7,10 +7,12 @@ import TagEditorSheet from '@/components/TagEditorSheet.vue'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { formatListen, countLabel } from '@/domain/format'
+import { tableFor } from './rowMeta'
 
 const route = useViewRoute()
 const library = useLibrary()
 const ui = useUi()
+const table = tableFor('plays', false)
 const id = computed(() => decodeURIComponent(String(route.params.id ?? '')))
 const album = computed(() => library.albums.find((a) => a.id === id.value))
 const subtitle = computed(() => {
@@ -39,6 +41,8 @@ function editTags() {
     :tracks="album.tracks"
     :source="{ type: 'album', id: album.id, title: album.title }"
     numbered
+    :detail="table?.of"
+    :extra-label="table?.label"
   >
     <template #actions>
       <button type="button" class="icon-btn" aria-label="Теги альбома" @click="editTags"><IconTags /></button>

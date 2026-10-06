@@ -90,38 +90,43 @@ function create() {
 <template>
   <section>
     <div class="section-title"><span>Твои эпохи</span></div>
-    <button
-      v-for="x in mine"
-      :key="x.e.id"
-      type="button"
-      class="era"
-      :style="{ '--ec': x.e.color ?? 'var(--amber)' }"
-      v-bind="hold(() => menu(x.e))"
-      @click="router.push(`/era/c-${x.e.id}`)"
-    >
-      <b>{{ x.e.title }}</b>
-      <small>{{ dayLabel(x.e.startDay, true) }} — {{ dayLabel(x.e.endDay, true) }}</small>
-      <span class="stat">{{ x.plays ? `${formatListen(x.ms)} · ${x.plays} прослуш.` : 'пока без музыки' }}</span>
-    </button>
+    <!-- .era-grid на телефоне «прозрачная» (карточки столбцом), на компьютере — сетка -->
+    <div v-if="mine.length" class="era-grid">
+      <button
+        v-for="x in mine"
+        :key="x.e.id"
+        type="button"
+        class="era"
+        :style="{ '--ec': x.e.color ?? 'var(--amber)' }"
+        v-bind="hold(() => menu(x.e))"
+        @click="router.push(`/era/c-${x.e.id}`)"
+      >
+        <b>{{ x.e.title }}</b>
+        <small>{{ dayLabel(x.e.startDay, true) }} — {{ dayLabel(x.e.endDay, true) }}</small>
+        <span class="stat">{{ x.plays ? `${formatListen(x.ms)} · ${x.plays} прослуш.` : 'пока без музыки' }}</span>
+      </button>
+    </div>
     <button type="button" class="add" @click="create"><IconAdd />Своя эпоха</button>
 
     <div class="section-title"><span>Сезоны</span></div>
-    <button
-      v-for="x in seasons"
-      :key="x.s.id"
-      type="button"
-      class="era season"
-      :class="{ now: x.s.id === currentSeason.id }"
-      @click="router.push(`/era/s-${x.s.id}`)"
-    >
-      <b>{{ x.s.title }}</b>
-      <small>{{
-        x.s.id === currentSeason.id
-          ? `идёт сейчас, до ${dayLabel(x.s.endDay)}`
-          : `${dayLabel(x.s.startDay)} — ${dayLabel(x.s.endDay)}`
-      }}</small>
-      <span class="stat">{{ x.plays ? `${formatListen(x.ms)} · ${x.plays} прослуш.` : 'пока тихо' }}</span>
-    </button>
+    <div v-if="seasons.length" class="era-grid">
+      <button
+        v-for="x in seasons"
+        :key="x.s.id"
+        type="button"
+        class="era season"
+        :class="{ now: x.s.id === currentSeason.id }"
+        @click="router.push(`/era/s-${x.s.id}`)"
+      >
+        <b>{{ x.s.title }}</b>
+        <small>{{
+          x.s.id === currentSeason.id
+            ? `идёт сейчас, до ${dayLabel(x.s.endDay)}`
+            : `${dayLabel(x.s.startDay)} — ${dayLabel(x.s.endDay)}`
+        }}</small>
+        <span class="stat">{{ x.plays ? `${formatListen(x.ms)} · ${x.plays} прослуш.` : 'пока тихо' }}</span>
+      </button>
+    </div>
     <p v-if="!seasons.length" class="lead muted">Сезоны появятся, когда накопится история. Сегодня {{ dayLabel(today) }}.</p>
   </section>
 </template>
@@ -184,5 +189,45 @@ function create() {
 .lead {
   padding: 4px var(--gutter);
   font-size: 13px;
+}
+.era-grid {
+  display: contents;
+}
+:root.desktop .era-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 10px;
+  padding: 0 var(--gutter);
+}
+:root.desktop .era {
+  width: auto;
+  margin: 0;
+  padding: 16px 18px 16px 22px;
+  border-radius: 20px;
+  background: var(--glass-card);
+  box-shadow: var(--glass-hi);
+  transition:
+    transform var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+:root.desktop .era:hover {
+  background: var(--glass-card-hover);
+  transform: translateY(-2px);
+}
+:root.desktop .era:active {
+  transform: scale(0.985);
+}
+:root.desktop .season.now,
+:root.desktop .season.now:hover {
+  background: linear-gradient(135deg, rgba(var(--amber-rgb), 0.16), var(--glass-card) 70%);
+}
+:root.desktop .add {
+  margin-top: 4px;
+  border-radius: 12px;
+  padding: 10px 12px 10px 6px;
+  transition: background var(--t-fast) var(--ease);
+}
+:root.desktop .add:hover {
+  background: var(--chip);
 }
 </style>

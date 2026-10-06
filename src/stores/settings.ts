@@ -69,6 +69,8 @@ export interface AppSettings {
   collapsedGroups: number[]
   /** Компьютер: голосовые команды («Эмбер, следующий») */
   voice: boolean
+  /** Компьютер: панель «Сейчас играет» справа */
+  nowPanel: boolean
   /** Компьютер: фон и свечение снизу дышат в такт басам */
   desktopPulse: boolean
 }
@@ -126,6 +128,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lrclib: true,
   collapsedGroups: [],
   voice: false,
+  nowPanel: true,
   desktopPulse: true,
 }
 

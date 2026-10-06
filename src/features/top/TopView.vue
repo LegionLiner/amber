@@ -14,6 +14,7 @@ import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
 import { displayArtist, type Track } from '@/domain/track'
 import { onPageShown } from '@/app/paging'
+import { isDesktop } from '@/native/desktop/bridge'
 
 type TopTab = 'rank' | 'rate' | 'charts' | 'duels'
 
@@ -57,24 +58,30 @@ onPageShown(() => (justRated.value = new Set()))
     <DuelsTab v-else-if="tab === 'duels'" />
     <ChartsTab v-else-if="tab === 'charts'" />
     <section v-else>
-      <p class="lead muted">Сначала треки, которые ты слушаешь чаще всего. Проведи пальцем по звёздам.</p>
-      <div v-for="t in toRate" :key="t.key" class="rate-row" :class="{ done: t.rating != null }">
-        <CoverArt :art="t.art" :seed="t.title" :label="t.title" size="s" class="cv" />
-        <span class="text">
-          <span class="t ellipsis">{{ t.title }}</span>
-          <span class="s ellipsis"
-            >{{ displayArtist(t) }}<template v-if="t.plays"> · {{ t.plays }}×</template></span
+      <p class="lead muted">
+        Сначала треки, которые ты слушаешь чаще всего.
+        {{ isDesktop ? 'Нажми на звезду — левая половина ставит оценку с половинкой.' : 'Проведи пальцем по звёздам.' }}
+      </p>
+      <!-- .rate-grid на телефоне «прозрачная» (список строк), на компьютере — сетка карточек -->
+      <div class="rate-grid">
+        <div v-for="t in toRate" :key="t.key" class="rate-row" :class="{ done: t.rating != null }">
+          <CoverArt :art="t.art" :seed="t.title" :label="t.title" size="s" class="cv" />
+          <span class="text">
+            <span class="t ellipsis">{{ t.title }}</span>
+            <span class="s ellipsis"
+              >{{ displayArtist(t) }}<template v-if="t.plays"> · {{ t.plays }}×</template></span
+            >
+            <RatingStars :model-value="t.rating" :size="24" @update:model-value="(v) => rateInline(t, v)" />
+          </span>
+          <button
+            type="button"
+            class="icon-btn"
+            aria-label="Послушать"
+            @click="player.playTracks([t], 0, { type: 'track', title: t.title }, { shuffle: false })"
           >
-          <RatingStars :model-value="t.rating" :size="24" @update:model-value="(v) => rateInline(t, v)" />
-        </span>
-        <button
-          type="button"
-          class="icon-btn"
-          aria-label="Послушать"
-          @click="player.playTracks([t], 0, { type: 'track', title: t.title }, { shuffle: false })"
-        >
-          <IconPlay />
-        </button>
+            <IconPlay />
+          </button>
+        </div>
       </div>
       <div v-if="!toRate.length" class="empty">
         <h3>Всё оценено</h3>
@@ -117,5 +124,26 @@ onPageShown(() => (justRated.value = new Set()))
 .s {
   font-size: 12.5px;
   color: var(--ink-2);
+}
+.rate-grid {
+  display: contents;
+}
+:root.desktop .rate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 10px;
+  padding: 0 var(--gutter);
+}
+:root.desktop .rate-row {
+  padding: 12px 10px 12px 12px;
+  border-radius: 20px;
+  background: var(--glass-card);
+  box-shadow: var(--glass-hi);
+  transition:
+    opacity var(--t-mid) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+:root.desktop .rate-row:hover {
+  background: var(--glass-card-hover);
 }
 </style>

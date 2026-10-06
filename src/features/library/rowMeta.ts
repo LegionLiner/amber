@@ -1,6 +1,7 @@
-import type { RowMeta } from '@/components/TrackRow.vue'
+import type { RowDetail, RowMeta } from '@/components/TrackRow.vue'
 import type { Track } from '@/domain/track'
 import { formatDuration, formatListen, relativeDay } from '@/domain/format'
+import { isDesktop } from '@/native/desktop/bridge'
 
 /** Правая колонка строки показывает то, по чему сейчас отсортирован список */
 export function metaFor(sortKey: string): (t: Track) => RowMeta {
@@ -22,4 +23,38 @@ export function metaFor(sortKey: string): (t: Track) => RowMeta {
     default:
       return (t) => ({ kind: 'text', text: formatDuration(t.durationMs) })
   }
+}
+
+/**
+ * Таблица треков в окне компьютера: альбом, длительность и третья колонка — то, по чему список
+ * отсортирован (по умолчанию — когда трек появился в медиатеке).
+ */
+export function detailFor(sortKey: string, album = true): { label: string; of: (t: Track) => RowDetail } {
+  const row = (extra: (t: Track) => string) => (t: Track) => ({
+    album: album ? (t.album ?? '') : null,
+    added: extra(t),
+    duration: formatDuration(t.durationMs),
+  })
+  switch (sortKey) {
+    case 'plays':
+      return { label: 'Прослушиваний', of: row((t) => (t.plays ? String(t.plays) : '—')) }
+    case 'lastPlayed':
+      return { label: 'Слушал', of: row((t) => (t.lastPlayedAt ? relativeDay(t.lastPlayedAt) : '—')) }
+    case 'listened':
+      return { label: 'Наслушано', of: row((t) => (t.listenedMs ? formatListen(t.listenedMs) : '—')) }
+    case 'skips':
+      return { label: 'Пропусков', of: row((t) => (t.skips ? String(t.skips) : '—')) }
+    case 'year':
+      return { label: 'Год', of: row((t) => (t.year ? String(t.year) : '—')) }
+    default:
+      return { label: 'Добавлен', of: row((t) => relativeDay(t.addedAt)) }
+  }
+}
+
+/**
+ * Таблица на страницах наборов (альбом, исполнитель, жанр, папка, подборка). Только в окне компьютера:
+ * на телефоне строки остаются как были. album: false — без колонки альбома (страница самого альбома).
+ */
+export function tableFor(sortKey: string, album = true) {
+  return isDesktop ? detailFor(sortKey, album) : null
 }

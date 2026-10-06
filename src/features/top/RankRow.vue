@@ -61,6 +61,18 @@ defineEmits<{ tap: []; more: [] }>()
   border-radius: 16px;
   background: var(--surface);
 }
+:root.desktop .rank {
+  border-radius: 12px;
+  transition: background var(--t-fast) var(--ease);
+}
+:root.desktop .rank:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+:root.desktop .rank.first {
+  border-radius: 20px;
+  background: var(--glass-card);
+  box-shadow: var(--glass-hi);
+}
 .rank.first::before {
   content: '';
   position: absolute;

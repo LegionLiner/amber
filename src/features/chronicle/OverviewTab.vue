@@ -144,7 +144,7 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
 </script>
 
 <template>
-  <section>
+  <section class="ov">
     <ChipTabs v-model="period" :items="PERIODS" class="periods" />
     <div v-if="totals" class="tiles">
       <div class="tile">
@@ -164,49 +164,56 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
       </div>
     </div>
 
-    <div class="section-title"><span>Каждый день</span><span class="muted small">18 недель</span></div>
-    <div class="card">
-      <div class="months">
-        <span v-for="m in monthsAxis" :key="m.col" :style="{ gridColumn: `${m.col + 1}` }">{{ m.label }}</span>
+    <!-- .blk — блок целиком: на компьютере блоки расходятся по двум колонкам и не рвутся между ними -->
+    <div class="blk">
+      <div class="section-title"><span>Каждый день</span><span class="muted small">18 недель</span></div>
+      <div class="card">
+        <div class="months">
+          <span v-for="m in monthsAxis" :key="m.col" :style="{ gridColumn: `${m.col + 1}` }">{{ m.label }}</span>
+        </div>
+        <div class="heat" role="img" aria-label="Календарь прослушиваний за 18 недель">
+          <button
+            v-for="c in calendar"
+            :key="c.day"
+            type="button"
+            class="cell"
+            :class="[`l${c.level}`, { future: c.future, sel: selectedDay === c.day }]"
+            :aria-label="c.day"
+            @click="selectedDay = c.day"
+            @dblclick="c.ms && $router.push(`/day/${c.day}`)"
+          />
+        </div>
+        <p class="caption">
+          {{ selectedDayText }}
+          <RouterLink v-if="selectedDay && days.get(selectedDay)" :to="`/day/${selectedDay}`" class="open"
+            >открыть день</RouterLink
+          >
+        </p>
       </div>
-      <div class="heat" role="img" aria-label="Календарь прослушиваний за 18 недель">
-        <button
-          v-for="c in calendar"
-          :key="c.day"
-          type="button"
-          class="cell"
-          :class="[`l${c.level}`, { future: c.future, sel: selectedDay === c.day }]"
-          :aria-label="c.day"
-          @click="selectedDay = c.day"
-          @dblclick="c.ms && $router.push(`/day/${c.day}`)"
-        />
-      </div>
-      <p class="caption">
-        {{ selectedDayText }}
-        <RouterLink v-if="selectedDay && days.get(selectedDay)" :to="`/day/${selectedDay}`" class="open">открыть день</RouterLink>
-      </p>
     </div>
 
-    <div class="section-title"><span>Когда слушаешь</span><span class="muted small">по часам</span></div>
-    <div class="card">
-      <div class="hours">
-        <button
-          v-for="(v, h) in hours"
-          :key="h"
-          type="button"
-          class="hbar"
-          :class="{ sel: selectedHour === h }"
-          :aria-label="`${h}:00`"
-          @click="selectedHour = selectedHour === h ? null : h"
-        >
-          <i :style="{ height: `${Math.max(v ? 4 : 0, (v / hourMax) * 100)}%` }" />
-        </button>
+    <div class="blk">
+      <div class="section-title"><span>Когда слушаешь</span><span class="muted small">по часам</span></div>
+      <div class="card">
+        <div class="hours">
+          <button
+            v-for="(v, h) in hours"
+            :key="h"
+            type="button"
+            class="hbar"
+            :class="{ sel: selectedHour === h }"
+            :aria-label="`${h}:00`"
+            @click="selectedHour = selectedHour === h ? null : h"
+          >
+            <i :style="{ height: `${Math.max(v ? 4 : 0, (v / hourMax) * 100)}%` }" />
+          </button>
+        </div>
+        <div class="axis num"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div>
+        <p class="caption">{{ hourText }}</p>
       </div>
-      <div class="axis num"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div>
-      <p class="caption">{{ hourText }}</p>
     </div>
 
-    <template v-if="top.length">
+    <div v-if="top.length" class="blk">
       <div class="section-title"><span>Топ треков</span></div>
       <button
         v-for="(r, i) in top"
@@ -230,9 +237,9 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
         </span>
         <span class="n num">{{ r.plays }}×</span>
       </button>
-    </template>
+    </div>
 
-    <template v-if="topArtists.length">
+    <div v-if="topArtists.length" class="blk">
       <div class="section-title"><span>Исполнители</span></div>
       <div class="card artists">
         <div v-for="[name, n] in topArtists" :key="name" class="arow">
@@ -241,7 +248,7 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
           <span class="num">{{ n }}</span>
         </div>
       </div>
-    </template>
+    </div>
 
     <div v-if="totals && !totals.starts" class="empty">
       <h3>История начнётся с первого трека</h3>
@@ -289,6 +296,53 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
 .small {
   font-size: 12.5px;
   font-weight: 500;
+}
+
+/* ---------- окно компьютера: числа в ряд, карточки в две колонки ---------- */
+:root.desktop .tiles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+:root.desktop .tile,
+:root.desktop .card {
+  background: var(--glass-card);
+  box-shadow: var(--glass-hi);
+}
+:root.desktop .tile {
+  padding: 16px 18px;
+  border-radius: 20px;
+}
+:root.desktop .tile b {
+  margin-top: 8px;
+  font: 600 26px/1.1 var(--f-display);
+  letter-spacing: -0.035em;
+}
+:root.desktop .card {
+  border-radius: 20px;
+  padding: 16px 16px 12px;
+}
+@container (min-width: 880px) {
+  :root.desktop .ov {
+    columns: 2;
+    column-gap: 28px;
+    padding-inline: var(--page-gutter);
+    /* Внутри колонок поля считаются от колонки */
+    --gutter: 0px;
+  }
+  :root.desktop .periods,
+  :root.desktop .tiles,
+  :root.desktop .empty {
+    column-span: all;
+  }
+  :root.desktop .tiles {
+    margin-bottom: 4px;
+  }
+  :root.desktop .blk {
+    break-inside: avoid;
+  }
+  :root.desktop .blk:first-of-type .section-title {
+    padding-top: 22px;
+  }
 }
 .card {
   margin: 0 var(--gutter);

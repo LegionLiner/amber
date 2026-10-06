@@ -169,62 +169,65 @@ const tagsDiffer = computed(() => {
       </div>
     </div>
 
-    <section class="block">
-      <h2 class="section-title">История</h2>
-      <div class="tiles">
-        <div class="tile">
-          <small>Прослушиваний</small><b>{{ t.plays }}</b>
-        </div>
-        <div class="tile">
-          <small>Вместе</small><b>{{ formatListen(t.listenedMs) }}</b>
-        </div>
-        <div class="tile">
-          <small>Первое</small><b class="sm">{{ relativeDay(t.firstPlayedAt) }}</b>
-        </div>
-        <div class="tile">
-          <small>Последнее</small><b class="sm">{{ relativeDay(t.lastPlayedAt) }}</b>
-        </div>
-      </div>
-      <div v-if="t.plays" class="chart">
-        <div class="chart-title">По неделям, 12 недель</div>
-        <div class="bars">
-          <span v-for="(n, i) in weeks" :key="i" :style="{ height: `${(n / weekMax) * 100}%` }" :title="`${n}`" />
-        </div>
-        <div class="parts">
-          <div v-for="p in dayparts" :key="p.label" class="part">
-            <span>{{ p.label }}</span>
-            <i><b :style="{ width: `${p.pct}%` }" /></i>
-            <span class="num">{{ p.pct }}%</span>
+    <!-- .blocks: на широком окне компьютера разделы расходятся по двум колонкам -->
+    <div class="blocks">
+      <section class="block">
+        <h2 class="section-title">История</h2>
+        <div class="tiles">
+          <div class="tile">
+            <small>Прослушиваний</small><b>{{ t.plays }}</b>
+          </div>
+          <div class="tile">
+            <small>Вместе</small><b>{{ formatListen(t.listenedMs) }}</b>
+          </div>
+          <div class="tile">
+            <small>Первое</small><b class="sm">{{ relativeDay(t.firstPlayedAt) }}</b>
+          </div>
+          <div class="tile">
+            <small>Последнее</small><b class="sm">{{ relativeDay(t.lastPlayedAt) }}</b>
           </div>
         </div>
-      </div>
-      <p v-if="t.skips" class="muted small pad">Пропущен {{ t.skips }} раз.</p>
-    </section>
+        <div v-if="t.plays" class="chart">
+          <div class="chart-title">По неделям, 12 недель</div>
+          <div class="bars">
+            <span v-for="(n, i) in weeks" :key="i" :style="{ height: `${(n / weekMax) * 100}%` }" :title="`${n}`" />
+          </div>
+          <div class="parts">
+            <div v-for="p in dayparts" :key="p.label" class="part">
+              <span>{{ p.label }}</span>
+              <i><b :style="{ width: `${p.pct}%` }" /></i>
+              <span class="num">{{ p.pct }}%</span>
+            </div>
+          </div>
+        </div>
+        <p v-if="t.skips" class="muted small pad">Пропущен {{ t.skips }} раз.</p>
+      </section>
 
-    <section class="block">
-      <h2 class="section-title">Заметка</h2>
-      <textarea
-        id="track-note"
-        v-model="note"
-        class="note"
-        rows="3"
-        placeholder="Почему этот трек важен, с чем связан"
-        @blur="saveNote"
-      />
-    </section>
+      <section class="block">
+        <h2 class="section-title">Заметка</h2>
+        <textarea
+          id="track-note"
+          v-model="note"
+          class="note"
+          rows="3"
+          placeholder="Почему этот трек важен, с чем связан"
+          @blur="saveNote"
+        />
+      </section>
 
-    <section class="block">
-      <h2 class="section-title">Файл</h2>
-      <dl class="info">
-        <template v-for="[k, v] in fileRows" :key="k">
-          <dt>{{ k }}</dt>
-          <dd>{{ v }}</dd>
-        </template>
-      </dl>
-      <p v-if="tagsDiffer" class="muted small pad">
-        В тегах файла: «{{ t.tags.title || 'пусто' }}» — {{ t.tags.artist || 'исполнитель пуст' }}. Показано по имени файла.
-      </p>
-    </section>
+      <section class="block">
+        <h2 class="section-title">Файл</h2>
+        <dl class="info">
+          <template v-for="[k, v] in fileRows" :key="k">
+            <dt>{{ k }}</dt>
+            <dd>{{ v }}</dd>
+          </template>
+        </dl>
+        <p v-if="tagsDiffer" class="muted small pad">
+          В тегах файла: «{{ t.tags.title || 'пусто' }}» — {{ t.tags.artist || 'исполнитель пуст' }}. Показано по имени файла.
+        </p>
+      </section>
+    </div>
     <div class="bottom-space" />
   </div>
   <div v-else class="empty"><h3>Трек не найден</h3></div>
@@ -391,5 +394,80 @@ const tagsDiffer = computed(() => {
   margin: 0;
   word-break: break-word;
   user-select: text;
+}
+
+/* ---------- окно компьютера: шапка в строку, разделы в две колонки, карточки — стекло ---------- */
+:root.desktop .bar {
+  padding-inline: calc(var(--gutter) - 10px);
+}
+:root.desktop .head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 1fr repeat(5, auto);
+  column-gap: 30px;
+  justify-items: start;
+  text-align: left;
+  padding: 4px var(--gutter) 10px;
+}
+:root.desktop .head > * {
+  grid-column: 2;
+}
+:root.desktop .cv {
+  grid-column: 1;
+  grid-row: 1 / 7;
+  width: clamp(168px, 19cqw, 232px);
+}
+:root.desktop .title {
+  grid-row: 2;
+  margin-top: 0;
+  font-size: clamp(30px, 3.8cqw, 50px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  padding-block: 0.05em;
+}
+:root.desktop .artist {
+  grid-row: 3;
+  margin-top: 8px;
+}
+:root.desktop .rate {
+  grid-row: 4;
+}
+:root.desktop .head > .small {
+  grid-row: 5;
+}
+:root.desktop .btns {
+  grid-row: 6;
+  margin-top: 16px;
+}
+:root.desktop .tile,
+:root.desktop .chart,
+:root.desktop .note,
+:root.desktop .info {
+  background: var(--glass-card);
+  box-shadow: var(--glass-hi);
+}
+:root.desktop .info {
+  padding: 16px 18px;
+  border-radius: 18px;
+  gap: 10px 22px;
+}
+:root.desktop .tiles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@container (min-width: 900px) {
+  :root.desktop .blocks {
+    columns: 2;
+    column-gap: 28px;
+    padding-inline: var(--page-gutter);
+    --gutter: 0px;
+  }
+  :root.desktop .block {
+    break-inside: avoid;
+    margin-top: 0;
+  }
+  :root.desktop .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

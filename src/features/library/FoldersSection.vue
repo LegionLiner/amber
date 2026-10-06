@@ -33,19 +33,21 @@ watch(
 <template>
   <div ref="scrollEl" class="scroll screen">
     <HeadSpace />
-    <button
-      v-for="f in top"
-      :key="f.path"
-      type="button"
-      class="row"
-      @click="router.push({ path: '/folder', query: { path: f.path } })"
-    >
-      <span class="ic"><IconFolder /></span>
-      <span class="text">
-        <span class="t ellipsis">{{ f.name }}</span>
-        <span class="s ellipsis">{{ f.path }} · {{ countLabel(f.total, ['трек', 'трека', 'треков']) }}</span>
-      </span>
-    </button>
+    <div class="tile-grid">
+      <button
+        v-for="f in top"
+        :key="f.path"
+        type="button"
+        class="row"
+        @click="router.push({ path: '/folder', query: { path: f.path } })"
+      >
+        <span class="ic"><IconFolder /></span>
+        <span class="text">
+          <span class="t ellipsis">{{ f.name }}</span>
+          <span class="s ellipsis">{{ f.path }} · {{ countLabel(f.total, ['трек', 'трека', 'треков']) }}</span>
+        </span>
+      </button>
+    </div>
     <div class="bottom-space" />
   </div>
 </template>

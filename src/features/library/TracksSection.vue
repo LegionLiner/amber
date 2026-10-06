@@ -6,7 +6,8 @@ import TrackList from '@/components/TrackList.vue'
 import AlphaScroller from '@/components/AlphaScroller.vue'
 import SortSheet from '@/components/SortSheet.vue'
 import HeadSpace from '@/components/HeadSpace.vue'
-import { metaFor } from './rowMeta'
+import { detailFor, metaFor } from './rowMeta'
+import { isDesktop } from '@/native/desktop/bridge'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useSettings, type SortPref } from '@/stores/settings'
@@ -25,6 +26,8 @@ const pref = computed(() => settings.sortFor(SCREEN, { key: 'title', dir: 'asc' 
 const seed = ref(Date.now() % 100000)
 const sorted = computed(() => sortTracks(library.tracks, pref.value.key as TrackSortKey, pref.value.dir, seed.value))
 const meta = computed(() => metaFor(pref.value.key))
+/** Окно компьютера: список — таблицей с альбомом и колонкой по текущей сортировке */
+const detail = computed(() => (isDesktop ? detailFor(pref.value.key) : null))
 const sortLabel = computed(() => TRACK_SORTS.find((s) => s.key === pref.value.key)?.label ?? '')
 const source: PlaySource = { type: 'library', title: 'Все треки' }
 
@@ -60,7 +63,15 @@ function shuffleAll() {
 </script>
 
 <template>
-  <TrackList ref="list" :tracks="sorted" :source="source" :meta="meta" :class="{ 'with-alpha': alphaNames }">
+  <TrackList
+    ref="list"
+    :tracks="sorted"
+    :source="source"
+    :meta="meta"
+    :detail="detail?.of"
+    :extra-label="detail?.label"
+    :class="{ 'with-alpha': alphaNames }"
+  >
     <template #header>
       <HeadSpace />
       <div class="toolbar">
@@ -83,7 +94,8 @@ function shuffleAll() {
 
 <style scoped>
 /* Справа буквенная полоса: кнопка «⋯» строки не должна оказываться под ней */
-.with-alpha :deep(.row) {
+.with-alpha :deep(.row),
+.with-alpha :deep(.thead) {
   padding-right: calc(var(--gutter) + 14px);
 }
 .toolbar {

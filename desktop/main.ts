@@ -311,7 +311,7 @@ function createWindow() {
     icon: appIcon(),
     backgroundColor: '#0e0d0c',
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0e0d0c', symbolColor: '#f5f1ea', height: 36 },
+    titleBarOverlay: { color: '#0e0d0c', symbolColor: '#f5f1ea', height: 44 },
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -498,7 +498,7 @@ function setupIpc() {
   })
   ipcMain.on('app:titlebar', (_e, c: { bg: string; ink: string }) => {
     try {
-      win?.setTitleBarOverlay({ color: c.bg, symbolColor: c.ink, height: 36 })
+      win?.setTitleBarOverlay({ color: c.bg, symbolColor: c.ink, height: 44 })
       win?.setBackgroundColor(c.bg)
     } catch {
       /* не Windows */

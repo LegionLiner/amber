@@ -5,7 +5,9 @@ import IconSort from '~icons/solar/sort-vertical-linear'
 import TrackList from '@/components/TrackList.vue'
 import SortSheet from '@/components/SortSheet.vue'
 import HeadSpace from '@/components/HeadSpace.vue'
-import { metaFor } from './rowMeta'
+import { detailFor, metaFor } from './rowMeta'
+import { isDesktop } from '@/native/desktop/bridge'
+import { relativeDay } from '@/domain/format'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useSettings, type SortPref } from '@/stores/settings'
@@ -30,6 +32,16 @@ const sorted = computed(() => {
   return sortTracks(list, pref.value.key as TrackSortKey, pref.value.dir)
 })
 const meta = computed(() => metaFor(pref.value.key === 'favorited' ? 'rating' : pref.value.key))
+/** Окно компьютера: список — таблицей; третья колонка — по сортировке (по умолчанию — когда добавлен в избранное) */
+const detail = computed(() => {
+  if (!isDesktop) return null
+  if (pref.value.key !== 'favorited') return detailFor(pref.value.key)
+  const base = detailFor('added')
+  return {
+    label: 'В избранном',
+    of: (t: Parameters<typeof base.of>[0]) => ({ ...base.of(t), added: t.favoriteAt ? relativeDay(t.favoriteAt) : '—' }),
+  }
+})
 const source: PlaySource = { type: 'favorites', title: 'Избранное' }
 
 const list = ref<InstanceType<typeof TrackList> | null>(null)
@@ -44,7 +56,7 @@ function openSort() {
 </script>
 
 <template>
-  <TrackList ref="list" :tracks="sorted" :source="source" :meta="meta">
+  <TrackList ref="list" :tracks="sorted" :source="source" :meta="meta" :detail="detail?.of" :extra-label="detail?.label">
     <template #header>
       <HeadSpace />
       <div class="toolbar">

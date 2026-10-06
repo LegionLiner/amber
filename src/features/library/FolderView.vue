@@ -7,10 +7,12 @@ import CollectionPage from '@/components/CollectionPage.vue'
 import { useLibrary } from '@/stores/library'
 import { allTracksIn, findFolder } from '@/domain/groups'
 import { countLabel } from '@/domain/format'
+import { tableFor } from './rowMeta'
 
 const route = useViewRoute()
 const router = useRouter()
 const library = useLibrary()
+const table = tableFor('added')
 const path = computed(() => String(route.query.path ?? ''))
 const node = computed(() => findFolder(library.folderTree, path.value))
 /** Играем папку целиком, вместе с вложенными */
@@ -25,6 +27,8 @@ const tracks = computed(() => (node.value ? allTracksIn(node.value) : []))
     :subtitle="`${node.path || '/'} · ${countLabel(node.total, ['трек', 'трека', 'треков'])}`"
     :tracks="tracks"
     :source="{ type: 'folder', id: node.path, title: node.name }"
+    :detail="table?.of"
+    :extra-label="table?.label"
   >
     <template #extra>
       <div v-if="node.children.length" class="subs">

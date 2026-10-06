@@ -20,6 +20,8 @@ import type { Track } from '@/domain/track'
 import { albumIdOf } from '@/domain/groups'
 import type { PlaySource } from '@/native/types'
 import { onPageShown } from '@/app/paging'
+import { isDesktop } from '@/native/desktop/bridge'
+import { GLOBAL_SEARCH_ID, searchQuery } from '@/app/search-query'
 
 const library = useLibrary()
 const player = usePlayer()
@@ -28,7 +30,9 @@ const ui = useUi()
 const router = useRouter()
 
 const input = ref<HTMLInputElement | null>(null)
-const query = ref('')
+const query = searchQuery
+/** Куда ставить курсор: на компьютере поле запроса — в строке заголовка окна */
+const field = () => (isDesktop ? document.getElementById(GLOBAL_SEARCH_ID) : input.value)
 const q = refDebounced(query, 120)
 const showAll = ref(false)
 
@@ -100,7 +104,7 @@ let focusedOnce = false
 onPageShown(() => {
   if (!focusedOnce) {
     focusedOnce = true
-    setTimeout(() => input.value?.focus(), 250)
+    setTimeout(() => field()?.focus(), 250)
   }
 })
 watch(
@@ -108,18 +112,18 @@ watch(
   (r) => {
     if (r.tab !== 'search') return
     query.value = ''
-    input.value?.focus()
+    field()?.focus()
   },
 )
 
 /* Обработчики из нескольких действий — функциями: в шаблоне без «;» компилятор Vue их не разберёт */
 function submit() {
   remember()
-  input.value?.blur()
+  field()?.blur()
 }
 function clearQuery() {
   query.value = ''
-  input.value?.focus()
+  field()?.focus()
 }
 function go(to: Parameters<typeof router.push>[0]) {
   remember()
@@ -131,7 +135,7 @@ function go(to: Parameters<typeof router.push>[0]) {
   <div class="scroll screen">
     <header class="hdr glass-hdr">
       <h1 class="display title">Поиск</h1>
-      <label class="field">
+      <label v-if="!isDesktop" class="field">
         <IconSearch class="ic" />
         <input
           id="search-input"
@@ -342,6 +346,20 @@ function go(to: Parameters<typeof router.push>[0]) {
 .clear svg {
   width: 20px;
   height: 20px;
+}
+/* Компьютер: запрос набирают в строке заголовка — здесь остаются название и загрузка с YouTube, в одну строку */
+:root.desktop .hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+}
+:root.desktop .title {
+  margin: 6px 0;
+}
+:root.desktop .yt-btn {
+  margin-top: 0;
 }
 .hint {
   padding: 24px var(--gutter);

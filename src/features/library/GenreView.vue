@@ -4,10 +4,11 @@ import { useViewRoute } from '@/app/view-route'
 import CollectionPage from '@/components/CollectionPage.vue'
 import { useLibrary } from '@/stores/library'
 import { sortTracks } from '@/domain/sort'
-import { metaFor } from './rowMeta'
+import { metaFor, tableFor } from './rowMeta'
 
 const route = useViewRoute()
 const library = useLibrary()
+const table = tableFor('plays')
 const id = computed(() => decodeURIComponent(String(route.params.id ?? '')))
 const genre = computed(() => library.genres.find((g) => g.id === id.value))
 const tracks = computed(() => (genre.value ? sortTracks(genre.value.tracks, 'rating', 'desc') : []))
@@ -21,6 +22,8 @@ const tracks = computed(() => (genre.value ? sortTracks(genre.value.tracks, 'rat
     :tracks="tracks"
     :source="{ type: 'genre', id: genre.id, title: genre.name }"
     :meta="metaFor('rating')"
+    :detail="table?.of"
+    :extra-label="table?.label"
   />
   <div v-else class="empty"><h3>Жанр не найден</h3></div>
 </template>

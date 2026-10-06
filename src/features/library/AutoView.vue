@@ -6,7 +6,7 @@ import { useLibrary } from '@/stores/library'
 import { loadAutoContext } from '@/data/repos/auto'
 import { AUTO_PLAYLISTS, buildAuto, type AutoId } from '@/domain/auto'
 import type { Track } from '@/domain/track'
-import { metaFor } from './rowMeta'
+import { metaFor, tableFor } from './rowMeta'
 
 const route = useViewRoute()
 const library = useLibrary()
@@ -24,13 +24,16 @@ async function load() {
 watch([id, () => library.tracks], load, { immediate: true })
 onActivated(load)
 
-const meta = computed(() => {
-  if (id.value === 'eternal' || id.value === 'onRepeat') return metaFor('plays')
-  if (id.value === 'recentlyAdded') return metaFor('added')
-  if (id.value === 'forgotten') return metaFor('lastPlayed')
-  if (id.value === 'skipped') return metaFor('skips')
-  return metaFor('rating')
+/** По чему собрана подборка — то и видно в строке (а в окне компьютера — в третьей колонке таблицы) */
+const sortKey = computed(() => {
+  if (id.value === 'eternal' || id.value === 'onRepeat') return 'plays'
+  if (id.value === 'recentlyAdded') return 'added'
+  if (id.value === 'forgotten') return 'lastPlayed'
+  if (id.value === 'skipped') return 'skips'
+  return 'rating'
 })
+const meta = computed(() => metaFor(sortKey.value))
+const table = computed(() => tableFor(sortKey.value === 'rating' ? 'plays' : sortKey.value))
 
 const EMPTY: Partial<Record<AutoId, string>> = {
   now: 'Подборка появится, когда наберётся история: нужно хотя бы три прослушивания трека в это время суток.',
@@ -49,6 +52,8 @@ const EMPTY: Partial<Record<AutoId, string>> = {
     :tracks="tracks"
     :source="{ type: 'smart', id: def.id, title: def.title }"
     :meta="meta"
+    :detail="table?.of"
+    :extra-label="table?.label"
   >
     <template #extra>
       <p class="hint muted">{{ loaded && !tracks.length ? (EMPTY[def.id] ?? 'Пока пусто.') : def.hint }}</p>

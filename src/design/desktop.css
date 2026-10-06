@@ -1,42 +1,138 @@
 /*
  * Amber на компьютере (класс .desktop на <html>, ставит app/desktop.ts).
- * Экраны те же, что на телефоне; здесь только то, что меняется в широком окне с мышью:
- * размеры каркаса, колонка содержимого, полосы прокрутки, наведение, шторки диалогами, очередь справа.
+ * Экраны те же, что на телефоне; здесь то, что меняется в широком окне с мышью.
+ *
+ * Окно собрано из плавающих стеклянных панелей над живым фоном в цветах обложки (DesktopAmbient):
+ * строка заголовка, меню, сцена с экранами, панель «Сейчас играет» и капсула плеера поверх сцены.
+ * Между панелями — зазоры, через которые виден фон; у стекла блик по верхней кромке и тонкая грань.
+ * Свет один и тот же везде — сверху: блик сверху, тень вниз.
  */
 :root.desktop {
-  /* Полоса заголовка окна: её можно таскать, справа кнопки Windows */
-  --safe-top: 36px;
+  --title-h: 44px;
+  /* Панели стоят под строкой заголовка: экранам отступ под неё больше не нужен */
+  --safe-top: 6px;
   --safe-bottom: 0px;
-  --side-w: 236px;
-  --bar-h: 80px;
+  --side-w: 252px;
+  --now-w: 332px;
+  --pane-gap: 10px;
+  --pane-r: 22px;
+  --dock-h: 72px;
+  /* Место под капсулой плеера в конце каждого списка */
+  --bar-h: calc(var(--dock-h) + 14px);
   --nav-h: 0px;
   --mini-h: 0px;
+  /* Колонка содержимого: шире прежней — сцена и так сужается панелями по бокам */
+  --content-max: 1240px;
 }
 
 /*
- * Колонка содержимого: на широком окне экран не растягивается на всю ширину, а встаёт по центру.
- * Отступ считается от ширины области экранов (.pages — контейнер), поэтому одинаков у всех вложенных блоков
+ * Колонка содержимого: на широком окне экран не растягивается на всю ширину сцены, а встаёт по центру.
+ * Отступ считается от ширины сцены (.pages — контейнер), поэтому одинаков у всех вложенных блоков
  */
 :root.desktop .pages {
-  --gutter: max(28px, calc((100cqw - 1080px) / 2));
+  --gutter: max(36px, calc((100cqw - var(--content-max)) / 2));
 }
-/* Панель плеера лежит поверх экранов: в конце списка место под неё */
 :root.desktop .bottom-space {
-  height: calc(var(--bar-h) + 32px);
+  height: calc(var(--bar-h) + 40px);
+}
+
+/* ---------- стекло ---------- */
+:root.desktop {
+  --glass-pane: color-mix(in srgb, var(--surface) 46%, transparent);
+  --glass-stage: color-mix(in srgb, var(--bg) 40%, transparent);
+  --glass-head: color-mix(in srgb, var(--bg) 46%, transparent);
+  --glass-sheet: color-mix(in srgb, var(--surface) 76%, transparent);
+  --glass-dock: color-mix(in srgb, var(--surface-2) 62%, transparent);
+  --glass-card: color-mix(in srgb, var(--ink) 4.5%, transparent);
+  --glass-card-hover: color-mix(in srgb, var(--ink) 8%, transparent);
+  --glass-blur: blur(30px) saturate(180%);
+  --glass-edge: color-mix(in srgb, var(--ink) 9%, transparent);
+  /* Блик сверху и тонкая грань по контуру — стекло читается и без размытия */
+  --glass-hi: inset 0 1px 0 color-mix(in srgb, #fff 11%, transparent), inset 0 0 0 1px color-mix(in srgb, #fff 4.5%, transparent);
+  --shadow-pane: 0 28px 60px -36px rgba(0, 0, 0, 0.75);
+  --shadow-float: 0 22px 50px -18px rgba(0, 0, 0, 0.6), 0 2px 8px -2px rgba(0, 0, 0, 0.35);
+}
+:root.desktop[data-theme='light'] {
+  --glass-pane: color-mix(in srgb, var(--surface) 62%, transparent);
+  --glass-stage: color-mix(in srgb, var(--bg) 56%, transparent);
+  --glass-head: color-mix(in srgb, var(--bg) 58%, transparent);
+  --glass-sheet: color-mix(in srgb, var(--surface) 84%, transparent);
+  --glass-dock: color-mix(in srgb, var(--surface) 72%, transparent);
+  --glass-card: color-mix(in srgb, var(--surface) 62%, transparent);
+  --glass-card-hover: color-mix(in srgb, var(--surface) 88%, transparent);
+  --glass-edge: rgba(255, 255, 255, 0.7);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  --shadow-pane: 0 28px 60px -36px rgba(90, 60, 30, 0.35);
+  --shadow-float: 0 22px 50px -20px rgba(90, 60, 30, 0.38), 0 2px 8px -2px rgba(90, 60, 30, 0.16);
+}
+/* «Стекло: меньше» — без размытия и плотнее; панели и зазоры остаются */
+:root.desktop[data-glass='low'] {
+  --glass-pane: var(--surface);
+  --glass-stage: var(--bg);
+  --glass-head: var(--bg);
+  --glass-sheet: var(--surface);
+  --glass-dock: var(--surface-2);
+  --glass-card: var(--surface);
+  --glass-card-hover: var(--surface-2);
+  --glass-blur: none;
+}
+
+/* Сцена: тонированное стекло без размытия — за ней и так мягкий фон, размывать нечего */
+:root.desktop .shell.wide .pages {
+  border-radius: var(--pane-r);
+  background: var(--glass-stage);
+  box-shadow: var(--glass-hi);
 }
 
 /* Полосы прокрутки видны, но тонкие: колесо и перетаскивание мышью */
 :root.desktop .scroll,
 :root.desktop .sheet-body {
   scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-color: color-mix(in srgb, var(--ink) 14%, transparent) transparent;
 }
 
-/* ---- наведение мышью ---- */
+/*
+ * Закреплённые шапки (заголовки разделов, поиск, подбор треков): содержимое уходит под них размытым.
+ * Обычные шапки экранов прокручиваются вместе с ним — им своя полоса не нужна.
+ */
+:root.desktop .sec-head,
+:root.desktop .glass-hdr {
+  background: var(--glass-head);
+  border-bottom: 1px solid var(--glass-edge);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+/* ---------- типографика ---------- */
+/* Заголовки разделов и экранов — крупнее и плотнее: на большом окне им нужен вес */
+:root.desktop .sec-head .title,
+:root.desktop .hdr .title {
+  font-size: 31px;
+  letter-spacing: -0.035em;
+}
+:root.desktop .section-title {
+  padding-top: 30px;
+  padding-bottom: 12px;
+  font-size: 18px;
+  letter-spacing: -0.012em;
+}
+:root.desktop .section-title .more-link {
+  padding: 6px 10px;
+  margin: -6px -10px;
+  border-radius: 8px;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+:root.desktop .section-title .more-link:hover {
+  background: var(--chip);
+  color: var(--ink);
+}
+
+/* ---------- наведение и нажатие ---------- */
 /*
  * Горизонтальные ленты (чипсы, альбомы в поиске, контексты, ленты хроники) на телефоне листаются
- * от края до края экрана. В окне компьютера они стоят в колонке содержимого — как всё остальное,
- * а не уезжают под правое поле до края окна
+ * от края до края экрана. В окне компьютера они стоят в колонке содержимого — как всё остальное
  */
 :root.desktop .hscroll {
   margin-inline: var(--gutter);
@@ -50,19 +146,158 @@
 :root.desktop .pill:not(.on):hover {
   background: var(--chip-strong);
 }
+:root.desktop .btn {
+  transition:
+    transform var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    filter var(--t-fast) var(--ease);
+}
 :root.desktop .btn:hover:not(:disabled) {
   filter: brightness(1.08);
+  transform: translateY(-1px);
 }
-:root.desktop [data-morph-card]:hover .cover {
-  filter: brightness(1.08);
+:root.desktop .btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.975);
+}
+/* Главное действие светится своим цветом, а не чёрной тенью */
+:root.desktop .btn.primary {
+  box-shadow: 0 10px 24px -12px rgba(var(--amber-rgb), 0.75);
+}
+:root.desktop .btn.primary:hover:not(:disabled) {
+  box-shadow: 0 14px 30px -12px rgba(var(--amber-rgb), 0.9);
 }
 :root.desktop .sheet-item:hover {
   background: var(--chip);
 }
 
-/* ---- слои поверх экранов ---- */
+/*
+ * Карточка с обложкой (альбомы, исполнители, полки): под курсором приподнимается, обложка светлеет,
+ * тень становится глубже. Обложка летит на страницу альбома — это остаётся как было (app/motion.ts)
+ */
+:root.desktop [data-morph-card] .cover,
+:root.desktop .shelf .card .cover {
+  transition:
+    transform var(--t-mid) var(--ease-out),
+    filter var(--t-fast) var(--ease),
+    box-shadow var(--t-mid) var(--ease-out);
+}
+:root.desktop [data-morph-card]:hover .cover,
+:root.desktop .shelf .card:hover .cover {
+  transform: translateY(-4px);
+  filter: brightness(1.08);
+  box-shadow: 0 18px 30px -16px rgba(0, 0, 0, 0.7);
+}
+:root.desktop [data-morph-card]:active .cover,
+:root.desktop .shelf .card:active .cover {
+  transform: translateY(-1px) scale(0.985);
+}
 
-/* Шторки — диалогом по центру снизу, а не на всю ширину */
+/*
+ * Строки треков: подсветка — скруглённой плашкой внутри колонки, а не полосой от края до края окна.
+ * Кнопка «⋯» проявляется под курсором и при переходе клавишей Tab: в покое строки чище.
+ * (На телефоне она видна всегда — там наведения нет.)
+ */
+:root.desktop .wrap > .row {
+  transition:
+    transform 220ms var(--ease-out),
+    background var(--t-fast) var(--ease);
+}
+:root.desktop .wrap > .row::before {
+  content: '';
+  position: absolute;
+  inset: 3px calc(var(--gutter) - 12px);
+  z-index: -1;
+  border-radius: 12px;
+  background: transparent;
+  transition: background var(--t-fast) var(--ease);
+}
+:root.desktop .wrap > .row:hover::before {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+:root.desktop .wrap > .row:active:not(.dragging) {
+  background: transparent;
+}
+:root.desktop .wrap > .row:active::before {
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
+}
+:root.desktop .wrap > .row.active::before {
+  background: rgba(var(--amber-rgb), 0.07);
+}
+:root.desktop .wrap > .row.lifted::before {
+  background: transparent;
+}
+:root.desktop .wrap > .row .more {
+  opacity: 0;
+  transition:
+    opacity var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+:root.desktop .wrap > .row:hover .more,
+:root.desktop .wrap > .row:focus-within .more,
+:root.desktop .wrap > .row.active .more {
+  opacity: 1;
+}
+:root.desktop .wrap > .row .more:hover {
+  color: var(--ink);
+}
+:root.desktop .queue .row {
+  background: transparent;
+}
+:root.desktop .queue .row:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+/* ---------- переходы между экранами ---------- */
+/*
+ * Сцена полупрозрачная, поэтому экраны не прячут друг друга сплошной заливкой, как на телефоне:
+ * уходящий гаснет со сдвигом, новый проявляется навстречу. Направление то же: вглубь — справа налево
+ */
+:root.desktop .rt-forward-enter-active,
+:root.desktop .rt-forward-leave-active,
+:root.desktop .rt-back-enter-active,
+:root.desktop .rt-back-leave-active,
+:root.desktop .rt-tab-enter-active,
+:root.desktop .rt-tab-leave-active,
+:root.desktop .rt-morph-enter-active,
+:root.desktop .rt-morph-leave-active,
+:root.desktop .rt-fade-enter-active,
+:root.desktop .rt-fade-leave-active {
+  background: transparent;
+  box-shadow: none;
+}
+:root.desktop .rt-forward-enter-active,
+:root.desktop .rt-back-enter-active {
+  transition:
+    transform 360ms var(--ease-out) 60ms,
+    opacity 260ms var(--ease) 60ms;
+}
+:root.desktop .rt-forward-leave-active,
+:root.desktop .rt-back-leave-active {
+  transition:
+    transform 200ms var(--ease),
+    opacity 140ms linear;
+}
+:root.desktop .rt-forward-enter-from {
+  transform: translateX(44px);
+  opacity: 0;
+}
+:root.desktop .rt-forward-leave-to {
+  transform: translateX(-22px);
+  opacity: 0;
+}
+:root.desktop .rt-back-enter-from {
+  transform: translateX(-44px);
+  opacity: 0;
+}
+:root.desktop .rt-back-leave-to {
+  transform: translateX(22px);
+  opacity: 0;
+}
+
+/* ---------- слои поверх экранов ---------- */
+
+/* Шторки — стеклянным диалогом по центру снизу, а не на всю ширину */
 :root.desktop .sheet {
   left: 50%;
   right: auto;
@@ -70,49 +305,50 @@
   translate: -50% 0;
   bottom: 24px;
   max-height: calc(100vh - 96px);
-  border-radius: var(--r-xl);
+  border-radius: 26px;
   padding-bottom: 10px;
+  background: var(--glass-sheet);
+  border: 0;
+  box-shadow: var(--glass-hi), var(--shadow-float);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
 
-/* Очередь — панель справа над экранами, плеер внизу остаётся виден */
+/* Очередь — плавающая панель справа, на месте панели «Сейчас играет» */
 :root.desktop .queue {
-  left: auto;
+  inset: var(--title-h) var(--pane-gap) var(--pane-gap) auto;
   width: 400px;
-  bottom: var(--bar-h);
-  border-left: 1px solid var(--line);
-  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.28);
+  border-radius: var(--pane-r);
+  overflow: hidden;
+  background: var(--glass-sheet);
+  box-shadow: var(--glass-hi), var(--shadow-float);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  transition:
+    transform var(--t-mid) var(--ease-out),
+    opacity var(--t-fast) var(--ease);
 }
 :root.desktop .queue.queue-enter-from,
 :root.desktop .queue.queue-leave-to {
-  transform: translateX(100%);
+  transform: translateX(40px);
+  opacity: 0;
 }
 
-/*
- * Большой плеер: верхняя и нижняя полосы — на всю ширину окна, кнопки по краям, как в программах для ПК;
- * обложка, название и управление — колонкой по центру
- */
-:root.desktop .full .content {
-  padding: calc(var(--safe-top) + 6px) 28px 20px;
-}
-:root.desktop .full .content > :not(.top):not(.bottom) {
-  width: 100%;
-  max-width: 560px;
-  margin-inline: auto;
-}
-:root.desktop .full .top {
-  grid-template-columns: 44px 1fr 44px;
-}
-:root.desktop .full .bottom {
-  margin-top: 18px;
-}
-
-/* Сообщения — над панелью плеера, по центру */
+/* Сообщения — над капсулой плеера, по центру сцены */
 :root.desktop .toasts {
-  bottom: calc(var(--bar-h) + 16px) !important;
+  bottom: calc(var(--bar-h) + var(--pane-gap) + 14px) !important;
   left: 50%;
   right: auto;
   width: min(480px, calc(100vw - 48px));
   translate: -50% 0;
+}
+:root.desktop .toast {
+  background: var(--glass-sheet) !important;
+  color: var(--ink) !important;
+  border: 0;
+  box-shadow: var(--glass-hi), var(--shadow-float);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
 
 /* Подборки в «Плейлистах» — столько колонок, сколько влезает */
@@ -126,78 +362,194 @@
   margin-inline: auto;
 }
 
+/* Окно без панелей (приветствие, большой плеер): сверху место под полосу заголовка окна */
+:root.desktop .welcome,
+:root.desktop .full {
+  --safe-top: 40px;
+}
+
+/* Плашка наведения у строки трека рисуется под её содержимым — в своём слое */
+:root.desktop .wrap {
+  isolation: isolate;
+}
+
 /*
- * Стекло. На телефоне фон сплошной, на компьютере за окном живые пятна в цветах обложки (DesktopAmbient),
- * и всё, что лежит поверх экранов, — матовое: меню, панель плеера, заголовки разделов, шторки, очередь.
- * «Стекло: меньше» в оформлении — без размытия и плотнее.
+ * Большой плеер. На телефоне это колонка по центру; в окне компьютера — две половины:
+ * слева крупная обложка (соседние треки карусели выглядывают по бокам и гаснут к краям),
+ * справа название, оценка, волна перемотки, управление, строки текста и ближайшая очередь.
+ * Верхняя и нижняя полосы — на всю ширину окна. В узком окне остаётся колонка.
  */
-:root.desktop {
-  --glass-pane: color-mix(in srgb, var(--surface) 52%, transparent);
-  --glass-head: color-mix(in srgb, var(--bg) 42%, transparent);
-  --glass-sheet: color-mix(in srgb, var(--surface) 74%, transparent);
-  --glass-blur: blur(28px) saturate(175%);
-  --glass-edge: color-mix(in srgb, var(--ink) 9%, transparent);
+:root.desktop .full .content {
+  padding: calc(var(--safe-top) + 6px) 28px 20px;
 }
-:root.desktop[data-theme='light'] {
-  --glass-pane: color-mix(in srgb, var(--surface) 58%, transparent);
-  --glass-head: color-mix(in srgb, var(--bg) 52%, transparent);
-  --glass-sheet: color-mix(in srgb, var(--surface) 80%, transparent);
-  --glass-edge: rgba(255, 255, 255, 0.7);
+:root.desktop .full .top {
+  grid-template-columns: 44px 1fr 44px;
 }
-:root.desktop .side,
-:root.desktop .pbar,
-:root.desktop .queue,
-:root.desktop .sheet {
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+:root.desktop .full .bottom {
+  margin-top: 18px;
 }
-:root.desktop .side {
-  background: var(--glass-pane);
-  border-right-color: var(--glass-edge);
+:root.desktop .full .fx {
+  display: none;
 }
-:root.desktop .pbar {
-  background: var(--glass-pane);
-  border-top-color: var(--glass-edge);
-  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.12);
+@media (max-width: 979px) {
+  :root.desktop .full .content > :not(.top):not(.bottom) {
+    width: 100%;
+    max-width: 560px;
+    margin-inline: auto;
+  }
 }
-:root.desktop .queue {
-  background: var(--glass-sheet);
-  border-left-color: var(--glass-edge);
+@media (min-width: 980px) {
+  :root.desktop .full .content {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto auto auto minmax(0, 1fr) auto;
+    column-gap: clamp(36px, 5.5vw, 96px);
+    padding-inline: clamp(28px, 4vw, 64px);
+  }
+  :root.desktop .full .top,
+  :root.desktop .full .bottom {
+    grid-column: 1 / -1;
+  }
+  :root.desktop .full .top {
+    grid-row: 1;
+  }
+  :root.desktop .full .bottom {
+    grid-row: 9;
+  }
+  :root.desktop .full .art-wrap {
+    grid-column: 1;
+    grid-row: 2 / 9;
+    place-items: center end;
+    padding: 24px 0;
+    overflow: hidden;
+    /* Соседние обложки карусели гаснут к краям половины, а не обрываются */
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 100%);
+    mask-image: linear-gradient(90deg, transparent, #000 14%, #000 100%);
+  }
+  :root.desktop .full .art {
+    width: min(100%, 66vh, 620px);
+  }
+  :root.desktop .full .info,
+  :root.desktop .full .rate,
+  :root.desktop .full .seek,
+  :root.desktop .full .controls,
+  :root.desktop .full .fx {
+    grid-column: 2;
+    width: min(100%, 540px);
+    justify-self: start;
+  }
+  :root.desktop .full .info {
+    grid-row: 3;
+  }
+  :root.desktop .full .rate {
+    grid-row: 4;
+  }
+  :root.desktop .full .seek {
+    grid-row: 5;
+  }
+  :root.desktop .full .controls {
+    grid-row: 6;
+  }
+  :root.desktop .full .fx {
+    display: flex;
+    grid-row: 7;
+    margin-top: 22px;
+  }
+  :root.desktop .full .info h2 {
+    font-size: clamp(26px, 2.6vw, 38px);
+    line-height: 1.1;
+    letter-spacing: -0.035em;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-wrap: balance;
+    padding-block: 0.05em;
+  }
+  :root.desktop .full .info p {
+    font-size: 15px;
+  }
 }
-:root.desktop .sheet {
-  background: var(--glass-sheet);
-  border: 1px solid var(--glass-edge);
+/* Невысокое окно: очередь в большом плеере уступает место управлению */
+@media (min-width: 980px) and (max-height: 860px) {
+  :root.desktop .full .fx .next {
+    display: none;
+  }
 }
+
+/* Поле страницы отдельной переменной: блок может обнулить --gutter у вложенного, а своё поле взять отсюда */
+:root.desktop .pages {
+  --page-gutter: max(36px, calc((100cqw - var(--content-max)) / 2));
+}
+
 /*
- * Закреплённые шапки (заголовки разделов, поиск, подбор треков): содержимое уходит под них размытым.
- * Обычные шапки экранов прокручиваются вместе с ним — им своя полоса не нужна, иначе под ней
- * остаётся пустая щель до первого блока.
+ * Списки-строки медиатеки (жанры, папки, плейлисты) на телефоне идут столбцом. В окне компьютера это
+ * сетка стеклянных плашек в несколько колонок: одна узкая колонка слева оставляла сцену пустой
  */
-:root.desktop .sec-head,
-:root.desktop .glass-hdr {
-  background: var(--glass-head);
-  border-bottom: 1px solid var(--glass-edge);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
+.tile-grid {
+  display: contents;
 }
-:root.desktop .toast {
-  background: var(--glass-sheet) !important;
+:root.desktop .tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  padding: 6px var(--gutter);
+}
+:root.desktop .tile-grid > .row,
+:root.desktop .grp-items > .row {
+  width: auto;
+  min-width: 0;
+  padding: 10px 14px 10px 10px;
+  border-radius: 18px;
+  background: var(--glass-card);
+  box-shadow: var(--glass-hi);
+  transition:
+    transform var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+:root.desktop .tile-grid > .row:hover,
+:root.desktop .grp-items > .row:hover {
+  background: var(--glass-card-hover);
+  transform: translateY(-2px);
+}
+:root.desktop .tile-grid > .row:active,
+:root.desktop .grp-items > .row:active {
+  transform: scale(0.985);
+}
+
+/* Вкладки разделов: без подложек у неактивных — текстом; активную по-прежнему ведёт скользящая плашка */
+:root.desktop .sec-head .chips {
+  --chip: transparent;
+  gap: 4px;
+}
+:root.desktop .sec-head .chip:not(.on):hover {
+  background: color-mix(in srgb, var(--ink) 7%, transparent) !important;
   color: var(--ink) !important;
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-edge);
 }
-/* Строки списков без своей заливки — через них виден фон окна (у строк треков её нет и так) */
-:root.desktop .queue .row {
-  background: transparent;
+
+/* Очередь занимает то же место, что панель «Сейчас играет» */
+:root.desktop .queue {
+  width: var(--now-w);
 }
-:root.desktop .vrow .row:hover,
-:root.desktop .queue .row:hover {
-  background: color-mix(in srgb, var(--ink) 6%, transparent);
+
+/*
+ * Настройки и другие экраны из карточек-разделов: стекло вместо сплошной заливки, а на широкой сцене —
+ * две колонки (раздел не рвётся между ними): строки с переключателями перестают тянуться на всё окно
+ */
+:root.desktop .form .group {
+  background: var(--glass-card);
+  box-shadow: var(--glass-hi);
+  border-radius: 22px;
 }
-:root.desktop[data-glass='low'] {
-  --glass-pane: var(--surface);
-  --glass-head: var(--bg);
-  --glass-sheet: var(--surface);
-  --glass-blur: none;
+@container (min-width: 1040px) {
+  :root.desktop .groups {
+    columns: 2;
+    column-gap: 14px;
+    padding-inline: var(--page-gutter);
+    --gutter: 0px;
+  }
+  :root.desktop .groups > .group,
+  :root.desktop .groups > * {
+    break-inside: avoid;
+  }
 }

@@ -1,4 +1,5 @@
 import { all, db } from '../db'
+import { IN_LIBRARY } from './spotify'
 import type { SqlValue } from '@/native/types'
 
 /**
@@ -56,14 +57,14 @@ export async function deleteEra(id: number): Promise<void> {
 
 export async function historyBounds(): Promise<{ first: string | null; last: string | null }> {
   const [r] = await all<{ first: string | null; last: string | null }>(
-    `SELECT MIN(local_day) AS first, MAX(local_day) AS last FROM play_events WHERE counted = 1`,
+    `SELECT MIN(local_day) AS first, MAX(local_day) AS last FROM stat_plays WHERE counted = 1`,
   )
   return r ?? { first: null, last: null }
 }
 
 /** Сколько засчитано по сезонам/отрезкам сразу: для списка эпох */
 export function playsByDay(): Promise<{ day: string; plays: number; listenedMs: number }[]> {
-  return all(`SELECT local_day AS day, SUM(counted) AS plays, SUM(listened_ms) AS listenedMs FROM play_events GROUP BY local_day`)
+  return all(`SELECT local_day AS day, SUM(counted) AS plays, SUM(listened_ms) AS listenedMs FROM stat_plays GROUP BY local_day`)
 }
 
 export interface SignatureTrack {
@@ -90,23 +91,23 @@ export async function periodStats(from: string, to: string): Promise<PeriodStats
       `SELECT COALESCE(SUM(counted), 0) AS plays, COALESCE(SUM(listened_ms), 0) AS listenedMs,
          COUNT(DISTINCT CASE WHEN counted = 1 THEN track_key END) AS tracks,
          COUNT(DISTINCT CASE WHEN counted = 1 THEN local_day END) AS days
-       FROM play_events WHERE local_day BETWEEN ? AND ?`,
+       FROM stat_plays WHERE local_day BETWEEN ? AND ?`,
       p,
     ),
     all<{ key: string; plays: number; listenedMs: number }>(
-      `SELECT track_key AS key, SUM(counted) AS plays, SUM(listened_ms) AS listenedMs FROM play_events
-       WHERE local_day BETWEEN ? AND ? GROUP BY track_key HAVING SUM(counted) > 0
+      `SELECT track_key AS key, SUM(counted) AS plays, SUM(listened_ms) AS listenedMs FROM stat_plays
+       WHERE local_day BETWEEN ? AND ? AND ${IN_LIBRARY} GROUP BY track_key HAVING SUM(counted) > 0
        ORDER BY plays DESC, listenedMs DESC LIMIT 50`,
       p,
     ),
     all<{ key: string; total: number }>(
-      `SELECT track_key AS key, SUM(counted) AS total FROM play_events GROUP BY track_key HAVING SUM(counted) > 0`,
+      `SELECT track_key AS key, SUM(counted) AS total FROM stat_plays GROUP BY track_key HAVING SUM(counted) > 0`,
     ),
     all<{ key: string }>(
-      `SELECT track_key AS key FROM play_events WHERE counted = 1 GROUP BY track_key HAVING MIN(local_day) BETWEEN ? AND ?`,
+      `SELECT track_key AS key FROM stat_plays WHERE counted = 1 GROUP BY track_key HAVING MIN(local_day) BETWEEN ? AND ?`,
       p,
     ),
-    all<{ n: number }>(`SELECT COALESCE(SUM(counted), 0) AS n FROM play_events`),
+    all<{ n: number }>(`SELECT COALESCE(SUM(counted), 0) AS n FROM stat_plays`),
   ])
   const t = tot[0] ?? { plays: 0, listenedMs: 0, tracks: 0, days: 0 }
   const totalAll = grand[0]?.n ?? 0

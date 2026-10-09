@@ -1,4 +1,5 @@
 import { all, batch, db } from '../db'
+import { IN_LIBRARY } from './spotify'
 import type { SqlValue } from '@/native/types'
 
 /**
@@ -120,11 +121,11 @@ export async function contextStats(c: ContextRow): Promise<ContextStats> {
   const w = contextWhere(c)
   const [tot, top] = await Promise.all([
     all<{ plays: number; listenedMs: number }>(
-      `SELECT COALESCE(SUM(counted), 0) AS plays, COALESCE(SUM(listened_ms), 0) AS listenedMs FROM play_events pe WHERE ${w.sql}`,
+      `SELECT COALESCE(SUM(counted), 0) AS plays, COALESCE(SUM(listened_ms), 0) AS listenedMs FROM stat_plays pe WHERE ${w.sql}`,
       w.params,
     ),
     all<{ key: string; plays: number }>(
-      `SELECT track_key AS key, SUM(counted) AS plays FROM play_events pe WHERE ${w.sql}
+      `SELECT track_key AS key, SUM(counted) AS plays FROM stat_plays pe WHERE ${w.sql} AND ${IN_LIBRARY}
        GROUP BY track_key HAVING SUM(counted) > 0 ORDER BY plays DESC, SUM(listened_ms) DESC LIMIT 40`,
       w.params,
     ),

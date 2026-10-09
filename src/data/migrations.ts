@@ -290,6 +290,52 @@ export const MIGRATIONS: Migration[] = [
       ...syncTriggers(5),
     ],
   },
+  {
+    version: 6,
+    statements: [
+      // История из Spotify (src/data/repos/spotify.ts). Живёт отдельно от play_events: её можно выключить
+      // одним переключателем и удалить целиком, а синхронизация и бэкап её не трогают.
+      // Трек Spotify → файл медиатеки (track_key) сопоставляется заново после каждого сканирования,
+      // поэтому в KEY_COLUMNS (rekey.ts) этой таблицы нет. duration_ms — оценка по истории
+      `CREATE TABLE spotify_tracks (
+        uri TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL,
+        album TEXT,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        track_key TEXT
+      )`,
+      `CREATE TABLE spotify_plays (
+        id INTEGER PRIMARY KEY,
+        uri TEXT NOT NULL,
+        started_at INTEGER NOT NULL,
+        ended_at INTEGER NOT NULL,
+        tz_offset INTEGER NOT NULL,
+        local_day TEXT NOT NULL,
+        local_hour INTEGER NOT NULL,
+        weekday INTEGER NOT NULL,
+        listened_ms INTEGER NOT NULL,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        end_reason TEXT NOT NULL,
+        counted INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (uri, started_at)
+      )`,
+      `CREATE INDEX ix_spotify_plays_started ON spotify_plays(started_at)`,
+      `CREATE INDEX ix_spotify_plays_day ON spotify_plays(local_day)`,
+      // Всё, что показывает статистика: свои прослушивания + Spotify, если он включён в настройках.
+      // Трек, которого нет в медиатеке, остаётся со своим 'spotify:…': он идёт в общее время и счётчики,
+      // а в списках треков не показывается
+      `CREATE VIEW stat_plays AS
+        SELECT track_key, started_at, ended_at, tz_offset, local_day, local_hour, weekday,
+          listened_ms, duration_ms, end_reason, counted, source_type, output
+        FROM play_events
+        UNION ALL
+        SELECT COALESCE(t.track_key, p.uri), p.started_at, p.ended_at, p.tz_offset, p.local_day,
+          p.local_hour, p.weekday, p.listened_ms, p.duration_ms, p.end_reason, p.counted, 'spotify', 'Spotify'
+        FROM spotify_plays p LEFT JOIN spotify_tracks t ON t.uri = p.uri
+        WHERE EXISTS (SELECT 1 FROM settings WHERE key = 'spotify:on' AND value = '1')`,
+    ],
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version

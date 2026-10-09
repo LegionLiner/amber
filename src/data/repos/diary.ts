@@ -1,4 +1,5 @@
 import { all, db } from '../db'
+import { IN_LIBRARY } from './spotify'
 
 /**
  * Дневник: каждый день с музыкой получает запись сам (время, трек дня, открытия),
@@ -31,7 +32,7 @@ export async function diaryFeed(beforeDay: string, limit = 20): Promise<DiaryDay
   const days = await all<DayRow>(
     `SELECT local_day AS day, SUM(listened_ms) AS listenedMs, SUM(counted) AS plays,
        COUNT(DISTINCT track_key) AS tracks, MIN(started_at) AS firstAt, MAX(started_at) AS lastAt
-     FROM play_events WHERE local_day < ? GROUP BY local_day ORDER BY local_day DESC LIMIT ?`,
+     FROM stat_plays WHERE local_day < ? GROUP BY local_day ORDER BY local_day DESC LIMIT ?`,
     [beforeDay, limit],
   )
   if (!days.length) return []
@@ -42,13 +43,13 @@ export async function diaryFeed(beforeDay: string, limit = 20): Promise<DiaryDay
       `SELECT day, key FROM (
          SELECT local_day AS day, track_key AS key,
            ROW_NUMBER() OVER (PARTITION BY local_day ORDER BY SUM(counted) DESC, SUM(listened_ms) DESC) AS r
-         FROM play_events WHERE local_day IN (${marks}) GROUP BY local_day, track_key
+         FROM stat_plays WHERE local_day IN (${marks}) AND ${IN_LIBRARY} GROUP BY local_day, track_key
        ) WHERE r = 1`,
       list,
     ),
     all<{ day: string; n: number }>(
       `SELECT day, COUNT(*) AS n FROM (
-         SELECT track_key, MIN(local_day) AS day FROM play_events WHERE counted = 1 GROUP BY track_key
+         SELECT track_key, MIN(local_day) AS day FROM stat_plays WHERE counted = 1 GROUP BY track_key
        ) WHERE day IN (${marks}) GROUP BY day`,
       list,
     ),
@@ -79,8 +80,8 @@ export function dayTracks(day: string): Promise<DayTrack[]> {
   return all<DayTrack>(
     `SELECT p.track_key AS key, SUM(p.counted) AS plays, SUM(p.listened_ms) AS listenedMs, MIN(p.started_at) AS firstAt,
        CASE WHEN f.first_day = ? THEN 1 ELSE 0 END AS isNew
-     FROM play_events p
-     LEFT JOIN (SELECT track_key, MIN(local_day) AS first_day FROM play_events WHERE counted = 1 GROUP BY track_key) f
+     FROM stat_plays p
+     LEFT JOIN (SELECT track_key, MIN(local_day) AS first_day FROM stat_plays WHERE counted = 1 GROUP BY track_key) f
        ON f.track_key = p.track_key
      WHERE p.local_day = ?
      GROUP BY p.track_key ORDER BY plays DESC, listenedMs DESC`,
@@ -112,7 +113,7 @@ export interface OnThisDay {
 export async function onThisDay(today: string): Promise<OnThisDay[]> {
   const md = today.slice(5)
   const rows = await all<OnThisDay>(
-    `SELECT local_day AS day, track_key AS key, SUM(counted) AS plays FROM play_events
+    `SELECT local_day AS day, track_key AS key, SUM(counted) AS plays FROM stat_plays
      WHERE substr(local_day, 6) = ? AND local_day < ?
      GROUP BY local_day, track_key HAVING SUM(counted) > 0
      ORDER BY local_day DESC, plays DESC`,
@@ -122,8 +123,8 @@ export async function onThisDay(today: string): Promise<OnThisDay[]> {
   const d = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 2, Number(today.slice(8, 10)))
   const monthAgo = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   return all<OnThisDay>(
-    `SELECT local_day AS day, track_key AS key, SUM(counted) AS plays FROM play_events
-     WHERE local_day = ? GROUP BY track_key HAVING SUM(counted) > 0 ORDER BY plays DESC LIMIT 10`,
+    `SELECT local_day AS day, track_key AS key, SUM(counted) AS plays FROM stat_plays
+     WHERE local_day = ? AND ${IN_LIBRARY} GROUP BY track_key HAVING SUM(counted) > 0 ORDER BY plays DESC LIMIT 10`,
     [monthAgo],
   )
 }
@@ -143,20 +144,20 @@ const TRACK_MARKS = [25, 50, 100, 250, 500]
 export async function milestones(): Promise<Milestone[]> {
   const [plays, tracks] = await Promise.all([
     all<{ n: number; at: number }>(
-      `SELECT n, at FROM (SELECT ROW_NUMBER() OVER (ORDER BY started_at) AS n, started_at AS at FROM play_events WHERE counted = 1)
+      `SELECT n, at FROM (SELECT ROW_NUMBER() OVER (ORDER BY started_at) AS n, started_at AS at FROM stat_plays WHERE counted = 1)
        WHERE n IN (${PLAY_MARKS.join(',')})`,
     ),
     all<{ key: string; n: number; at: number }>(
       `SELECT key, n, at FROM (
          SELECT track_key AS key, started_at AS at, ROW_NUMBER() OVER (PARTITION BY track_key ORDER BY started_at) AS n
-         FROM play_events WHERE counted = 1
+         FROM stat_plays WHERE counted = 1 AND ${IN_LIBRARY}
        ) WHERE n IN (${TRACK_MARKS.join(',')})`,
     ),
   ])
   const hours: Milestone[] = []
   for (const h of HOUR_MARKS) {
     const [r] = await all<{ at: number | null }>(
-      `SELECT MIN(at) AS at FROM (SELECT started_at AS at, SUM(listened_ms) OVER (ORDER BY started_at) AS cum FROM play_events)
+      `SELECT MIN(at) AS at FROM (SELECT started_at AS at, SUM(listened_ms) OVER (ORDER BY started_at) AS cum FROM stat_plays)
        WHERE cum >= ?`,
       [h * 3_600_000],
     )

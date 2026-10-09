@@ -32,7 +32,7 @@ export function loadTrackRows(): Promise<TrackRow[]> {
         MIN(CASE WHEN counted = 1 THEN started_at END) AS first_at,
         MAX(CASE WHEN counted = 1 THEN started_at END) AS last_at,
         MAX(started_at) AS last_started
-      FROM play_events
+      FROM stat_plays
       GROUP BY track_key
     ) s ON s.track_key = t.key
     WHERE t.missing_since IS NULL AND t.key NOT IN (SELECT key FROM dismissed WHERE kind = 'hidden')
@@ -100,7 +100,10 @@ export async function saveRating(key: string, rating: number | null, rankScore: 
 
 /** Пересчитать «засчитано» во всей истории после смены правила */
 export async function recountAll(rule: CountingRule): Promise<void> {
-  await batch([{ sql: `UPDATE play_events SET counted = ${countedSqlExpr(rule)} WHERE end_reason IS NOT NULL` }])
+  await batch([
+    { sql: `UPDATE play_events SET counted = ${countedSqlExpr(rule)} WHERE end_reason IS NOT NULL` },
+    { sql: `UPDATE spotify_plays SET counted = ${countedSqlExpr(rule)}` },
+  ])
 }
 
 /**

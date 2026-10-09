@@ -3,6 +3,7 @@ import { computed, ref, shallowRef } from 'vue'
 import { MusicCore } from '@/native/music-core'
 import type { DamagedFile, PlayLoggedEvent, ScanProgress, ScanResult } from '@/native/types'
 import { loadAnalysis, loadTrackRows, saveRating, upsertTrackUser } from '@/data/repos/library'
+import { hasSpotify, rematchSpotify } from '@/data/repos/spotify'
 import { toTrack, type Track } from '@/domain/track'
 import { buildFolderTree, groupAlbums, groupArtists, groupGenres } from '@/domain/groups'
 import { scoreForRating } from '@/domain/rating'
@@ -60,6 +61,8 @@ export const useLibrary = defineStore('library', () => {
       settings.s.scan.lastScanAt = Date.now()
       if (full) settings.s.scan.version = SCANNER_VERSION
       await load()
+      // Новые и переименованные файлы: история Spotify могла найти свои треки
+      if ((await hasSpotify()) && (await rematchSpotify(tracks.value, settings.s.counting))) await load()
       void scheduleAnalysis()
       return res
     } finally {

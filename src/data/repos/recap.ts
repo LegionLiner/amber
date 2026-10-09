@@ -18,11 +18,11 @@ export async function buildRecap(from: string, to: string): Promise<Recap> {
   const [stats, hours, busiest, favs, days] = await Promise.all([
     periodStats(from, to),
     all<{ hour: number; ms: number }>(
-      `SELECT local_hour AS hour, SUM(listened_ms) AS ms FROM play_events WHERE local_day BETWEEN ? AND ? GROUP BY local_hour`,
+      `SELECT local_hour AS hour, SUM(listened_ms) AS ms FROM stat_plays WHERE local_day BETWEEN ? AND ? GROUP BY local_hour`,
       [from, to],
     ),
     all<{ day: string; listenedMs: number }>(
-      `SELECT local_day AS day, SUM(listened_ms) AS listenedMs FROM play_events WHERE local_day BETWEEN ? AND ?
+      `SELECT local_day AS day, SUM(listened_ms) AS listenedMs FROM stat_plays WHERE local_day BETWEEN ? AND ?
        GROUP BY local_day ORDER BY listenedMs DESC LIMIT 1`,
       [from, to],
     ),
@@ -32,7 +32,7 @@ export async function buildRecap(from: string, to: string): Promise<Recap> {
       [from, to],
     ),
     all<{ day: string }>(
-      `SELECT DISTINCT local_day AS day FROM play_events WHERE counted = 1 AND local_day BETWEEN ? AND ? ORDER BY day`,
+      `SELECT DISTINCT local_day AS day FROM stat_plays WHERE counted = 1 AND local_day BETWEEN ? AND ? ORDER BY day`,
       [from, to],
     ),
   ])
@@ -54,7 +54,7 @@ export async function buildRecap(from: string, to: string): Promise<Recap> {
 /** Месяцы и годы, за которые есть что вспомнить */
 export async function recapPeriods(): Promise<{ months: string[]; years: string[] }> {
   const rows = await all<{ m: string }>(
-    `SELECT DISTINCT substr(local_day, 1, 7) AS m FROM play_events WHERE counted = 1 ORDER BY m DESC`,
+    `SELECT DISTINCT substr(local_day, 1, 7) AS m FROM stat_plays WHERE counted = 1 ORDER BY m DESC`,
   )
   const months = rows.map((r) => r.m)
   const years = [...new Set(months.map((m) => m.slice(0, 4)))]

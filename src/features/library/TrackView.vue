@@ -44,7 +44,7 @@ watch(
   async ([k]) => {
     events.value = k
       ? await all<Ev>(
-          `SELECT started_at AS startedAt, counted, local_hour AS localHour FROM play_events WHERE track_key = ? ORDER BY started_at`,
+          `SELECT started_at AS startedAt, counted, local_hour AS localHour FROM stat_plays WHERE track_key = ? ORDER BY started_at`,
           [k],
         )
       : []

@@ -15,6 +15,8 @@ import { weeklyHousekeeping } from './housekeeping'
 import { setupDesktop } from './desktop'
 import { setupVoice } from './voice'
 import { useSync } from '@/stores/sync'
+import { formatDate } from '@/domain/format'
+import type { DbRecovery } from '@/native/types'
 
 /**
  * Запуск приложения:
@@ -34,6 +36,7 @@ export async function boot(): Promise<void> {
     () => [settings.s.theme, settings.s.glass, settings.s.motion],
     () => applyAppearance(settings.s),
   )
+  if (info.dbRecovery) useUi().toast(recoveryText(info.dbRecovery), undefined, 15_000)
 
   await MusicCore.configure({ counting: settings.s.counting })
   watch(
@@ -87,6 +90,16 @@ export async function boot(): Promise<void> {
       void weeklyHousekeeping().catch((e) => console.warn('housekeeping failed', e))
       void runAutoBackup().catch((e) => console.warn('auto-backup failed', e))
     })
+}
+
+/** База оказалась повреждена и движок её восстановил (web-db.ts, Database.kt): сказать, что произошло */
+function recoveryText(r: DbRecovery): string {
+  const kept = r.brokenFile ? ` Повреждённый файл сохранён как ${r.brokenFile}.` : ''
+  if (r.restoredFrom != null) {
+    const time = new Date(r.restoredFrom).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    return `База была повреждена (например, питание пропало посреди записи). Восстановлена копия от ${formatDate(r.restoredFrom)}, ${time}.${kept}`
+  }
+  return `База была повреждена, а целой копии не нашлось — начата новая. Историю можно вернуть: Настройки → Данные → Импорт из JSON или синхронизация.${kept}`
 }
 
 function setupBackButton() {

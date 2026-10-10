@@ -29,6 +29,15 @@ export interface DeviceInfo {
   appVersion: string
   /** Абсолютный путь к папке с обложками (file://…), для convertFileSrc */
   coversDir: string
+  /** База при запуске оказалась повреждена и восстановлена: сообщается один раз */
+  dbRecovery?: DbRecovery
+}
+
+export interface DbRecovery {
+  /** Время копии, из которой восстановлено; null — копии не было, база начата заново */
+  restoredFrom: number | null
+  /** Куда отложен повреждённый файл (он не удаляется) */
+  brokenFile: string | null
 }
 
 export type PermissionState = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale'

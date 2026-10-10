@@ -333,6 +333,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       model: navigator.userAgent,
       appVersion: APP_VERSION,
       coversDir: '',
+      dbRecovery: (await this.dbReady).takeRecovery() ?? undefined,
     }
   }
 

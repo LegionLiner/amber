@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('amberDesktop', {
 
   readDb: () => invoke('db:read'),
   writeDb: (data: Uint8Array) => invoke('db:write', data),
+  readDbBackup: () => invoke('db:readBackup'),
+  quarantineDb: () => invoke('db:quarantine'),
   onFlush: (cb: () => Promise<void>) =>
     void ipcRenderer.on('app:flush', () => {
       void cb().finally(() => ipcRenderer.send('app:flushed'))

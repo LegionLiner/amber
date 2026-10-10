@@ -6,6 +6,7 @@ import { Readable } from 'node:stream'
 import { thumbIcons } from './icons'
 import { setYoutubeDataDir, youtubeDownload, youtubeInfo } from './youtube'
 import { voiceModelPath } from './voice'
+import { DbFile } from './db-file'
 
 /**
  * Amber для компьютера: главный процесс Electron.
@@ -210,24 +211,11 @@ function watchFolders() {
 
 /* ---------------- база ---------------- */
 
-const dbPath = () => path.join(userData(), 'amber.sqlite')
-let dbWrite: Promise<void> = Promise.resolve()
-let backedUp = false
-
-/** Запись базы целиком: во временный файл, потом подмена. Перед первой записью за запуск — копия .bak */
-function writeDb(bytes: Uint8Array): Promise<void> {
-  dbWrite = dbWrite.then(async () => {
-    const file = dbPath()
-    if (!backedUp && fs.existsSync(file)) {
-      await fsp.copyFile(file, `${file}.bak`).catch(() => undefined)
-      backedUp = true
-    }
-    const tmp = `${file}.tmp`
-    await fsp.writeFile(tmp, bytes)
-    await fsp.rename(tmp, file)
-  })
-  return dbWrite
-}
+/** amber.sqlite: запись с fsync, копия .bak, восстановление после повреждения — desktop/db-file.ts */
+const dbFile = new DbFile(
+  () => path.join(userData(), 'amber.sqlite'),
+  (...parts) => log(...parts),
+)
 
 /* ---------------- журнал ---------------- */
 
@@ -356,7 +344,7 @@ function createWindow() {
       const done = () => {
         if (flushed) return
         flushed = true
-        void dbWrite.finally(() => app.quit())
+        void dbFile.settled().then(() => app.quit())
       }
       ipcMain.once('app:flushed', done)
       setTimeout(done, 3000)
@@ -453,14 +441,10 @@ function setupIpc() {
     if (allowed(p)) shell.showItemInFolder(p)
   })
 
-  ipcMain.handle('db:read', async () => {
-    try {
-      return new Uint8Array(await fsp.readFile(dbPath()))
-    } catch {
-      return null
-    }
-  })
-  ipcMain.handle('db:write', (_e, data: Uint8Array) => writeDb(data))
+  ipcMain.handle('db:read', () => dbFile.read())
+  ipcMain.handle('db:write', (_e, data: Uint8Array) => dbFile.write(data))
+  ipcMain.handle('db:readBackup', () => dbFile.readBackup())
+  ipcMain.handle('db:quarantine', () => dbFile.quarantine())
 
   ipcMain.handle('dialog:folder', async (_e, title: string) => {
     const r = await dialog.showOpenDialog(win!, { title, properties: ['openDirectory', 'createDirectory'] })

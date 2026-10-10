@@ -47,6 +47,10 @@ export interface DesktopBridge {
   // база
   readDb(): Promise<Uint8Array | null>
   writeDb(data: Uint8Array): Promise<void>
+  /** Копия базы с прошлого запуска (amber.sqlite.bak), если она цела */
+  readDbBackup(): Promise<{ data: Uint8Array; at: number } | null>
+  /** Повреждённую базу — в сторону (amber.sqlite.broken-…); возвращает новое имя файла */
+  quarantineDb(): Promise<string | null>
   /** Окно закрывается: дописать базу и сообщить done() */
   onFlush(cb: () => Promise<void>): void
 

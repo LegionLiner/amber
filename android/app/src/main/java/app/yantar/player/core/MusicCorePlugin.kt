@@ -134,15 +134,18 @@ class MusicCorePlugin : Plugin() {
         } catch (_: Exception) {
             ""
         }
-        call.resolve(
-            JSObject()
-                .put("platform", "android")
-                .put("sdkInt", Build.VERSION.SDK_INT)
-                .put("manufacturer", Build.MANUFACTURER)
-                .put("model", Build.MODEL)
-                .put("appVersion", version)
-                .put("coversDir", Covers.dir(context).absolutePath),
-        )
+        val info = JSObject()
+            .put("platform", "android")
+            .put("sdkInt", Build.VERSION.SDK_INT)
+            .put("manufacturer", Build.MANUFACTURER)
+            .put("model", Build.MODEL)
+            .put("appVersion", version)
+            .put("coversDir", Covers.dir(context).absolutePath)
+        // База была повреждена и восстановлена при запуске: интерфейс скажет об этом
+        Database.takeRecovery(context)?.let { (at, broken) ->
+            info.put("dbRecovery", JSObject().put("restoredFrom", at ?: JSONObject.NULL).put("brokenFile", broken ?: JSONObject.NULL))
+        }
+        call.resolve(info)
     }
 
     @PluginMethod

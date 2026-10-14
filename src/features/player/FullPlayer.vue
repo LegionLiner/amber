@@ -29,6 +29,11 @@ import SleepSheet from './SleepSheet.vue'
 import PlayerMenuSheet from './PlayerMenuSheet.vue'
 import OutputSheet from './OutputSheet.vue'
 import LyricsSheet from './LyricsSheet.vue'
+import TrackLinks from '@/components/TrackLinks.vue'
+import IconDevices from '~icons/solar/devices-linear'
+import DevicesSheet from '@/features/remote/DevicesSheet.vue'
+import { useSync } from '@/stores/sync'
+import { useRemote } from '@/stores/remote'
 import NowExtras from '@/components/desktop/NowExtras.vue'
 import SpeedSheet from './SpeedSheet.vue'
 import { loadWaveform } from '@/data/repos/library'
@@ -49,6 +54,8 @@ import type { QueueItem } from '@/native/types'
 const player = usePlayer()
 const library = useLibrary()
 const ui = useUi()
+const sync = useSync()
+const remote = useRemote()
 
 const item = computed(() => player.current)
 const track = computed(() => player.currentTrack)
@@ -441,7 +448,20 @@ function togglePlay() {
             <small>Играет из</small>
             <b class="ellipsis">{{ source }}</b>
           </div>
-          <button type="button" class="icon-btn" aria-label="Действия" @pointerdown.stop @click="more"><IconMore /></button>
+          <span class="top-r">
+            <button
+              v-if="sync.signedIn"
+              type="button"
+              class="icon-btn"
+              :class="{ dev: remote.playingElsewhere.length > 0 }"
+              aria-label="Устройства"
+              @pointerdown.stop
+              @click="ui.openSheet(DevicesSheet)"
+            >
+              <IconDevices />
+            </button>
+            <button type="button" class="icon-btn" aria-label="Действия" @pointerdown.stop @click="more"><IconMore /></button>
+          </span>
         </header>
 
         <div
@@ -470,7 +490,10 @@ function togglePlay() {
             <div :key="item.qid" class="names">
               <h2 class="display ellipsis">{{ item.title }}</h2>
               <p class="ellipsis">
-                {{ item.artist }}<template v-if="item.album"> · {{ item.album }}</template>
+                <TrackLinks v-if="track" :track="track" album />
+                <template v-else
+                  >{{ item.artist }}<template v-if="item.album"> · {{ item.album }}</template></template
+                >
               </p>
             </div>
           </Transition>
@@ -725,11 +748,22 @@ function togglePlay() {
 }
 .top {
   display: grid;
-  grid-template-columns: 40px 1fr 40px;
+  /* Края одной ширины: название источника остаётся ровно посередине */
+  grid-template-columns: 84px 1fr 84px;
   align-items: center;
   gap: 8px;
   height: 52px;
   touch-action: none;
+}
+.top > .icon-btn {
+  justify-self: start;
+}
+.top-r {
+  display: flex;
+  justify-content: flex-end;
+}
+.top-r .dev {
+  color: var(--amber-ink);
 }
 .src {
   text-align: center;

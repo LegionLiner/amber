@@ -6,6 +6,10 @@ import IconForward from '~icons/solar/alt-arrow-right-linear'
 import IconSearch from '~icons/solar/magnifer-linear'
 import IconPanel from '~icons/solar/sidebar-minimalistic-linear'
 import IconClose from '~icons/solar/close-circle-bold'
+import IconDevices from '~icons/solar/devices-linear'
+import DevicesSheet from '@/features/remote/DevicesSheet.vue'
+import { useSync } from '@/stores/sync'
+import { useRemote } from '@/stores/remote'
 import { GLOBAL_SEARCH_ID, searchQuery } from '@/app/search-query'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
@@ -24,6 +28,8 @@ const router = useRouter()
 const settings = useSettings()
 const ui = useUi()
 const player = usePlayer()
+const sync = useSync()
+const remote = useRemote()
 
 // vue-router хранит в history.state соседей по истории: по ним видно, есть ли куда идти
 const canBack = ref(false)
@@ -91,6 +97,18 @@ function clear() {
       </label>
     </div>
     <div class="right">
+      <button
+        v-if="sync.signedIn"
+        type="button"
+        class="tb dev"
+        :class="{ on: remote.playingElsewhere.length > 0 }"
+        aria-label="Устройства"
+        :title="remote.playingElsewhere.length ? `Играет на «${remote.playingElsewhere[0]!.name}»` : 'Устройства'"
+        @click="ui.openSheet(DevicesSheet)"
+      >
+        <IconDevices />
+        <i v-if="remote.playingElsewhere.length" class="dot" />
+      </button>
       <button
         v-if="player.hasTrack"
         type="button"
@@ -174,6 +192,20 @@ function clear() {
 }
 .tb.on {
   color: var(--amber-ink);
+}
+.dev {
+  position: relative;
+}
+/* На другом устройстве что-то играет */
+.dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 2px var(--bg);
 }
 /* В узком окне панели «Сейчас играет» нет (ей не хватает места) — нет и её переключателя */
 @media (max-width: 1299px) {

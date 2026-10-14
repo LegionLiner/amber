@@ -5,6 +5,7 @@ import IconHeart from '~icons/solar/heart-bold'
 import IconNext from '~icons/solar/list-arrow-down-linear'
 import IconStar from '~icons/solar/star-bold'
 import CoverArt from './CoverArt.vue'
+import TrackLinks from './TrackLinks.vue'
 import EqBars from './EqBars.vue'
 import { useRowGesture } from '@/composables/useRowGesture'
 import { PAGE_SWIPES } from '@/app/paging'
@@ -111,11 +112,12 @@ const starText = computed(() => {
         <div class="title ellipsis">{{ track.title }}</div>
         <div class="sub ellipsis">
           <IconHeart v-if="track.favoriteAt" class="fav" />
-          {{ sub }}
+          <TrackLinks v-if="table && subtitle == null" :track="track" only="artists" />
+          <template v-else>{{ sub }}</template>
         </div>
       </div>
       <template v-if="table && detail">
-        <span v-if="detail.album != null" class="col ellipsis">{{ detail.album }}</span>
+        <span v-if="detail.album != null" class="col ellipsis"><TrackLinks :track="track" only="album" /></span>
         <span v-if="detail.added != null" class="col ellipsis">{{ detail.added }}</span>
         <span class="col meta num">
           <span v-if="starText" class="stars"><IconStar />{{ starText }}</span>

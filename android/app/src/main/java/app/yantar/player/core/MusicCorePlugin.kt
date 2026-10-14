@@ -623,6 +623,13 @@ class MusicCorePlugin : Plugin() {
         call.resolve(JSObject.fromJSONObject(PlayerHub.snapshotJson()))
     }
 
+    /** Вошли в синхронизацию или вышли: поток событий движка переподключается с новым входом */
+    @PluginMethod
+    fun remoteLink(call: PluginCall) {
+        app.yantar.player.online.RemoteLink.relink()
+        call.resolve()
+    }
+
     @PluginMethod
     fun setFavoriteState(call: PluginCall) = onMain(call) {
         PlayerHub.setFavoriteState(call.getString("key") ?: "", call.getBoolean("value", false) ?: false)

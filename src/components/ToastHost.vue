@@ -2,18 +2,22 @@
 import { computed } from 'vue'
 import { useUi } from '@/stores/ui'
 import { usePlayer } from '@/stores/player'
+import { useRemote } from '@/stores/remote'
 
 const ui = useUi()
 const player = usePlayer()
+const remote = useRemote()
+/** Полоска «играет на …» (RemoteStrip) висит над плеером: сообщения — над ней */
+const strip = computed(() => (remote.strip?.state && !ui.fullPlayer ? 58 : 0))
 const bottom = computed(() =>
   player.hasTrack
-    ? 'calc(var(--nav-h) + var(--mini-h) + var(--safe-bottom) + 18px)'
-    : 'calc(var(--nav-h) + var(--safe-bottom) + 12px)',
+    ? `calc(var(--nav-h) + var(--mini-h) + var(--safe-bottom) + ${18 + strip.value}px)`
+    : `calc(var(--nav-h) + var(--safe-bottom) + ${12 + strip.value}px)`,
 )
 </script>
 
 <template>
-  <div class="toasts" :style="{ bottom }" aria-live="polite">
+  <div class="toasts" :style="{ bottom, '--strip': `${strip}px` }" aria-live="polite">
     <TransitionGroup name="toast">
       <div v-for="t in ui.toasts" :key="t.id" class="toast">
         <span>{{ t.text }}</span>

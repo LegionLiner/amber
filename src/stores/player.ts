@@ -436,6 +436,7 @@ export const usePlayer = defineStore('player', () => {
     buffering,
     position,
     positionMs,
+    positionAt,
     durationMs,
     repeat,
     shuffleMode,

@@ -6,17 +6,21 @@ import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { activeDays, byHour, daily, periodTotals, topTracks, type PeriodTotals } from '@/data/repos/stats'
 import { computeStreaks, todayKey } from '@/domain/streaks'
+import { dayKey, parseDay } from '@/domain/weeks'
 import { countLabel, formatListen, MONTHS } from '@/domain/format'
 import { displayArtist, type Track } from '@/domain/track'
 import { onPageShown } from '@/app/paging'
 
 /** Обзор: время, прослушивания, серия, календарь на 18 недель, часы, топ треков и исполнителей */
-type Period = '7' | '30' | '365' | 'all'
+type Period = '7' | '30' | '90' | '180' | '365' | 'all' | 'custom'
 const PERIODS: { id: Period; label: string }[] = [
   { id: '7', label: '7 дней' },
   { id: '30', label: '30 дней' },
+  { id: '90', label: '3 месяца' },
+  { id: '180', label: '6 месяцев' },
   { id: '365', label: 'Год' },
   { id: 'all', label: 'Всё время' },
+  { id: 'custom', label: 'Свой период' },
 ]
 
 const library = useLibrary()
@@ -24,6 +28,25 @@ const player = usePlayer()
 const period = ref<Period>('30')
 
 const DAY = 86_400_000
+/** Свой период: дни «с» и «по» включительно. По умолчанию — последние 30 дней */
+const from = ref(dayKey(new Date(Date.now() - 29 * DAY)))
+const to = ref(dayKey(new Date()))
+const today = dayKey(new Date())
+
+/** Границы периода в миллисекундах: [since, until). null — даты своего периода ещё не выбраны */
+function range(now: number): { since: number; until: number; span: number } | null {
+  if (period.value === 'all') return { since: 0, until: Number.MAX_SAFE_INTEGER, span: 0 }
+  if (period.value === 'custom') {
+    if (!from.value || !to.value) return null
+    // Перепутали местами — считаем как есть, от меньшего к большему
+    const [a, b] = from.value <= to.value ? [from.value, to.value] : [to.value, from.value]
+    const since = parseDay(a).getTime()
+    const until = parseDay(b).getTime() + DAY
+    return { since, until, span: until - since }
+  }
+  const span = Number(period.value) * DAY
+  return { since: now - span, until: Number.MAX_SAFE_INTEGER, span }
+}
 const totals = ref<PeriodTotals | null>(null)
 const prevTotals = ref<PeriodTotals | null>(null)
 const streak = ref({ current: 0, longest: 0 })
@@ -44,13 +67,15 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', clearOnOutside
 
 async function load() {
   const now = Date.now()
-  const span = period.value === 'all' ? 0 : Number(period.value) * DAY
-  const since = period.value === 'all' ? 0 : now - span
+  const r = range(now)
+  if (!r) return
+  const { since, until, span } = r
   const [t, p, h, tt, ad, cal] = await Promise.all([
-    periodTotals(since),
-    period.value === 'all' ? Promise.resolve(null) : periodTotals(since - span, since),
-    byHour(since),
-    topTracks(since, 10),
+    periodTotals(since, until),
+    // Сравнение — с таким же по длине отрезком прямо перед периодом
+    span ? periodTotals(since - span, since) : Promise.resolve(null),
+    byHour(since, until),
+    topTracks(since, 10, until),
     activeDays(),
     daily(now - 18 * 7 * DAY),
   ])
@@ -69,7 +94,7 @@ async function load() {
 
 onMounted(load)
 onPageShown(load)
-watch(period, load)
+watch([period, from, to], load)
 watch(
   () => library.tracks,
   () => void load(),
@@ -146,6 +171,10 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
 <template>
   <section class="ov">
     <ChipTabs v-model="period" :items="PERIODS" class="periods" />
+    <div v-if="period === 'custom'" class="range">
+      <label><span>С</span><input v-model="from" type="date" class="field" :max="today" aria-label="Начало периода" /></label>
+      <label><span>По</span><input v-model="to" type="date" class="field" :max="today" aria-label="Конец периода" /></label>
+    </div>
     <div v-if="totals" class="tiles">
       <div class="tile">
         <small>Время</small><b>{{ formatListen(totals.listenedMs) }}</b>
@@ -262,6 +291,41 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
   padding: 7px 12px;
   font-size: 12.5px;
 }
+.range {
+  display: flex;
+  gap: 10px;
+  padding: 0 var(--gutter) 12px;
+}
+.range label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.range .field {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 13.5px/1 var(--f-body);
+}
+.range .field:focus-visible {
+  outline: none;
+  border-color: rgba(var(--amber-rgb), 0.6);
+}
+:root.desktop .range .field {
+  background: var(--glass-card);
+}
+:root.desktop .range {
+  max-width: 460px;
+}
 .tiles {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -329,7 +393,11 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
     /* Внутри колонок поля считаются от колонки */
     --gutter: 0px;
   }
+  :root.desktop .range {
+    padding-inline: 0;
+  }
   :root.desktop .periods,
+  :root.desktop .range,
   :root.desktop .tiles,
   :root.desktop .empty {
     column-span: all;

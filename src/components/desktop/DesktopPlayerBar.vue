@@ -19,6 +19,7 @@ import IconMute from '~icons/solar/volume-cross-linear'
 import IconExpand from '~icons/solar/maximize-square-minimalistic-linear'
 import IconMic from '~icons/solar/microphone-linear'
 import CoverArt from '@/components/CoverArt.vue'
+import TrackLinks from '@/components/TrackLinks.vue'
 import BarSlider from './BarSlider.vue'
 import SpeedSheet from '@/features/player/SpeedSheet.vue'
 import LyricsSheet from '@/features/player/LyricsSheet.vue'
@@ -90,9 +91,12 @@ function favorite() {
         </button>
         <div class="names">
           <button type="button" class="t ellipsis" @click="ui.fullPlayer = true">{{ item.title }}</button>
-          <span class="a ellipsis"
-            >{{ item.artist }}<template v-if="item.album"> · {{ item.album }}</template></span
-          >
+          <span class="a ellipsis">
+            <TrackLinks v-if="track" :track="track" album />
+            <template v-else
+              >{{ item.artist }}<template v-if="item.album"> · {{ item.album }}</template></template
+            >
+          </span>
         </div>
         <button
           type="button"

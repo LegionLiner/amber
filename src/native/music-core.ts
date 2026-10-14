@@ -96,6 +96,10 @@ export interface MusicCorePlugin {
   /** Эффекты звука: сила каждого 0..1, отсутствующий — выключен */
   setEffects(options: { effects: Partial<Record<string, number>> }): Promise<void>
 
+  // связь с другими устройствами аккаунта
+  /** Телефон: движок перечитывает вход в синхронизацию и переподключает свой поток событий (после входа и выхода) */
+  remoteLink(): Promise<void>
+
   // вывод звука
   getOutputs(): Promise<OutputsEvent>
   setOutput(options: { deviceId: number | null }): Promise<void>

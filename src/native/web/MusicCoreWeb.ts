@@ -237,6 +237,12 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private fadeOutStart = 0
   private fadeOutDur = 0
   private manualFade = 1
+  /** Номер текущего ручного затухания: новое останавливает прежнее, а не борется с ним за громкость */
+  private fadeSeq = 0
+  /** Пропуск, который ещё уводит звук: следующее нажатие выполняет его сразу (два нажатия — два трека) */
+  private skipAct: (() => Promise<void>) | null = null
+  /** Идёт смена трека в деке (загрузка файла): монитор не начинает переход по позиции старого трека */
+  private switching = 0
   /** Общая громкость приложения (компьютер: ползунок в панели плеера), уже по кривой слуха */
   private master = 1
   private sleepFactor = 1
@@ -303,6 +309,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     if (isDesktop) el.crossOrigin = 'anonymous'
     const deck: Deck = { el, gain: null, url: null, qid: null, pendingStart: false }
     el.addEventListener('playing', () => {
+      // Дека зазвучала, хотя она ни текущая, ни уходящая в переходе: такой звук никто бы уже не остановил
+      if (deck !== this.active && deck !== this.tail) {
+        el.pause()
+        return
+      }
       if (deck !== this.active) return
       if (deck.pendingStart) {
         deck.pendingStart = false
@@ -1320,6 +1331,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   /** Раз в 40 мс, как монитор в Engine.kt */
   private tick() {
     this.accumulate()
+    // Страховки от звука, который никто не остановит: вторая дека вне перехода молчит,
+    // а уходящий трек не играет дальше, если новый уже поставили на паузу
+    if (!this.tail && !this.aux.el.paused) this.aux.el.pause()
+    if (this.tail && !this.txPending && this.active.el.paused) this.finishTail()
+    if (this.switching) return
     if (desktop && !this.active.el.paused && performance.now() - this.queueSavedAt > 10_000) this.persistQueue(true)
     if (this.tail) {
       const now = performance.now()
@@ -1392,7 +1408,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     if (b.qid === next.qid) return
     b.qid = next.qid
     this.setDeckVolume(b, 0)
-    await this.load(b, next)
+    if (!(await this.load(b, next))) return
     const cue = this.cueIn(next, tx)
     if (cue > 0) {
       const apply = () => (b.el.currentTime = cue / 1000)
@@ -1443,6 +1459,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private settle() {
     if (this.tail) this.finishTail()
     this.fadeOutStart = 0
+    this.fadeSeq++
     this.manualFade = 1
     this.applyVolumes()
   }
@@ -1453,18 +1470,25 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     ;(d.el as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = Math.abs(this.pitch - this.speed) > 0.001
   }
 
-  private async load(d: Deck, item: QueueItem) {
+  /** Файл трека в деку. false — пока он загружался, деке уже назначили другой трек: эта загрузка не нужна */
+  private async load(d: Deck, item: QueueItem): Promise<boolean> {
     if (d.url) URL.revokeObjectURL(d.url)
     d.url = null
     const src = await this.srcFor(item.uri)
+    // Два переключения подряд: файл первого может найтись позже второго — он не должен заиграть вместо него
+    if (d.qid !== item.qid) {
+      if (src?.startsWith('blob:')) URL.revokeObjectURL(src)
+      return false
+    }
     if (!src) {
       d.el.removeAttribute('src')
       if (item.uri.startsWith('local://')) this.notifyListeners('folderAccess', {})
-      return
+      return true
     }
     d.url = src
     d.el.src = d.url
     this.applyRate(d)
+    return true
   }
 
   /* ---------------- очередь и управление ---------------- */
@@ -1521,6 +1545,8 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   async skipTo(o: { index: number; play?: boolean }) {
+    // Выбрали трек сами — недоделанный пропуск («следующий») уже не нужен
+    this.skipAct = null
     if (o.index === this.index) return
     this.settle()
     await this.finishEvent('skipped')
@@ -1570,6 +1596,11 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   /** Ручной пропуск с коротким затуханием, как Engine.skip */
   private async skip(next: boolean) {
+    // Прошлое нажатие ещё уводит звук — выполняем его сразу: два быстрых «следующий» дают два трека,
+    // а не два перехода, которые грузят файлы в одну деку наперегонки
+    const pending = this.skipAct
+    this.skipAct = null
+    if (pending) await pending()
     this.settle()
     const a = this.active
     const act = async () => {
@@ -1590,15 +1621,22 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     if (next && this.nextIndex() < 0) return
     const ms = this.audio.crossfade.skipFadeMs
     if (a.el.paused || !ms) return act()
+    this.skipAct = act
     await this.fade(1, 0, ms)
+    // За время затухания его уже выполнило следующее нажатие или отменил выбор трека
+    if (this.skipAct !== act) return
+    this.skipAct = null
     await act()
     void this.fade(0, 1, ms)
   }
 
   private fade(from: number, to: number, ms: number): Promise<void> {
     const t0 = performance.now()
+    const my = ++this.fadeSeq
     return new Promise((resolve) => {
       const step = () => {
+        // Началось другое затухание — это уступает ему
+        if (my !== this.fadeSeq) return resolve()
         const x = Math.min(1, (performance.now() - t0) / ms)
         this.manualFade = from + (to - from) * x
         this.applyVolumes()
@@ -1670,6 +1708,9 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   async setFavoriteState(): Promise<void> {}
+
+  /** На компьютере и в браузере отдельного движка нет: связь держит интерфейс (stores/remote.ts) */
+  async remoteLink(): Promise<void> {}
 
   async setSleepTimer(o: { minutes?: number; endOfTrack?: boolean }): Promise<void> {
     clearTimeout(this.sleepTimer)
@@ -1972,14 +2013,22 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       this.emitState()
       return
     }
-    if (play) await this.ensureGraph()
+    // Деку сразу забирает новый трек: старый замолкает, а более ранний open увидит, что опоздал
     d.qid = item.qid
-    await this.load(d, item)
-    d.pendingStart = true
-    const start = positionMs || item.trimStartMs || 0
-    if (start > 0) d.el.addEventListener('loadedmetadata', () => (d.el.currentTime = start / 1000), { once: true })
-    this.applyVolumes()
-    if (play && d.url) await d.el.play().catch(() => undefined)
+    d.el.pause()
+    this.switching++
+    try {
+      if (play) await this.ensureGraph()
+      if (!(await this.load(d, item))) return
+      d.pendingStart = true
+      const start = positionMs || item.trimStartMs || 0
+      if (start > 0) d.el.addEventListener('loadedmetadata', () => (d.el.currentTime = start / 1000), { once: true })
+      this.applyVolumes()
+      if (play && d.url) await d.el.play().catch(() => undefined)
+    } finally {
+      this.switching--
+    }
+    if (d.qid !== item.qid) return
     this.afterIndexChange()
   }
 

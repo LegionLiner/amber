@@ -1,5 +1,6 @@
 import type { SyncItem } from './kinds'
 import type { SyncResponse } from './engine'
+import type { DeviceState, LiveCommand } from './live'
 
 /** Запросы к серверу Amber (server/). Ошибки — с текстом для человека и видом: нет сети, нужно войти, прочее */
 
@@ -109,13 +110,24 @@ export class SyncApi {
     return this.req<SyncResponse>('POST', '/v1/sync', body, 120000)
   }
 
+  /** Что играет на этом устройстве (null — ничего). live: false — поток событий ещё не открыт, сервер не запомнил */
+  player(state: DeviceState | null) {
+    return this.req<{ ok: boolean; live?: boolean }>('POST', '/v1/player', { state }, 15000)
+  }
+
+  /** Команда другому устройству: пауза, следующий трек, «играй отсюда» */
+  command(to: string, cmd: LiveCommand, args?: unknown) {
+    return this.req<{ ok: boolean }>('POST', '/v1/command', { to, cmd, args }, 15000)
+  }
+
   /**
-   * Поток событий сервера (SSE): «hello» — поток открыт, «changed» — другое устройство прислало изменения.
-   * Возвращается, когда поток закрылся. Сервер раз в 25 с шлёт пустую строку; тишина дольше SILENCE_MS —
+   * Поток событий сервера (SSE): «hello» — поток открыт (с тем, что играет на других устройствах),
+   * «changed» — другое устройство прислало изменения, «player» — что играет на другом устройстве,
+   * «command» — команда этому устройству. Возвращается, когда поток закрылся. Сервер раз в 25 с шлёт пустую строку; тишина дольше SILENCE_MS —
    * соединение мертво (сеть сменилась, телефон спал), рвём его сами.
    * Ошибка вида 'server' — сервер старый и потока не знает.
    */
-  async events(onEvent: (name: string) => void, signal: AbortSignal): Promise<void> {
+  async events(onEvent: (name: string, data: unknown) => void, signal: AbortSignal): Promise<void> {
     const ctl = new AbortController()
     const stop = () => ctl.abort()
     signal.addEventListener('abort', stop)
@@ -128,7 +140,7 @@ export class SyncApi {
       alive()
       let res: Response
       try {
-        res = await fetch(`${this.base}/v1/events`, {
+        res = await fetch(`${this.base}/v1/events?role=ui`, {
           headers: { Accept: 'text/event-stream', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}) },
           cache: 'no-store',
           signal: ctl.signal,
@@ -143,6 +155,8 @@ export class SyncApi {
       const reader = res.body.getReader()
       const dec = new TextDecoder()
       let buf = ''
+      let name = ''
+      let data = ''
       try {
         for (;;) {
           const { done, value } = await reader.read()
@@ -151,7 +165,27 @@ export class SyncApi {
           buf += dec.decode(value, { stream: true })
           const lines = buf.split('\n')
           buf = lines.pop() ?? ''
-          for (const line of lines) if (line.startsWith('event:')) onEvent(line.slice(6).trim())
+          for (const line of lines) {
+            if (line.startsWith('event:')) name = line.slice(6).trim()
+            else if (line.startsWith('data:')) data += line.slice(5).trim()
+            else if (line === '' && name) {
+              // Пустая строка закрывает событие
+              let parsed: unknown = null
+              try {
+                parsed = data ? JSON.parse(data) : null
+              } catch {
+                /* старый сервер или обрезанные данные — событие без данных */
+              }
+              const ev = name
+              name = ''
+              data = ''
+              try {
+                onEvent(ev, parsed)
+              } catch (e) {
+                console.warn('live event failed', ev, e)
+              }
+            }
+          }
         }
       } catch {
         // Оборвалось посреди потока — для вызывающего это просто «поток закрылся»

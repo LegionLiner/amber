@@ -10,7 +10,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Код версии растёт со временем сборки: новые APK ставятся поверх старых без удаления
         versionCode Integer.parseInt(new java.text.SimpleDateFormat('yyMMddHH').format(new Date()))
-        versionName "0.7.0"
+        versionName "0.8.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

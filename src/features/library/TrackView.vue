@@ -17,7 +17,8 @@ import { useUi } from '@/stores/ui'
 import { all } from '@/data/db'
 import { upsertTrackUser } from '@/data/repos/library'
 import { displayArtist } from '@/domain/track'
-import { artistIdOf } from '@/domain/groups'
+import { albumIdOf, artistIdOf } from '@/domain/groups'
+import IconAlbum from '~icons/solar/album-linear'
 import { formatBytes, formatDate, formatDuration, formatListen, relativeDay } from '@/domain/format'
 import { starsLabel } from '@/domain/rating'
 import type { PlaySource } from '@/native/types'
@@ -145,6 +146,11 @@ const tagsDiffer = computed(() => {
         </template>
         <span v-if="!t.artists.length" class="muted">{{ displayArtist(t) }}</span>
       </p>
+      <p v-if="t.album" class="album">
+        <button type="button" class="link" @click="router.push(`/album/${encodeURIComponent(albumIdOf(t))}`)">
+          <IconAlbum />{{ t.album }}
+        </button>
+      </p>
       <div class="rate">
         <RatingStars :model-value="t.rating" :size="32" @update:model-value="(v) => library.setRating(t!.key, v)" />
         <button
@@ -263,6 +269,24 @@ const tagsDiffer = computed(() => {
 .artist {
   margin-top: 6px;
   font-size: 15px;
+}
+.album {
+  margin-top: 4px;
+  font-size: 14px;
+}
+.album .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+}
+.album svg {
+  width: 16px;
+  height: 16px;
+}
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .link {
   color: var(--amber-ink);
@@ -403,7 +427,7 @@ const tagsDiffer = computed(() => {
 :root.desktop .head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: 1fr repeat(5, auto);
+  grid-template-rows: 1fr repeat(6, auto);
   column-gap: 30px;
   justify-items: start;
   text-align: left;
@@ -414,7 +438,7 @@ const tagsDiffer = computed(() => {
 }
 :root.desktop .cv {
   grid-column: 1;
-  grid-row: 1 / 7;
+  grid-row: 1 / 8;
   width: clamp(168px, 19cqw, 232px);
 }
 :root.desktop .title {
@@ -430,14 +454,17 @@ const tagsDiffer = computed(() => {
   grid-row: 3;
   margin-top: 8px;
 }
-:root.desktop .rate {
+:root.desktop .album {
   grid-row: 4;
 }
-:root.desktop .head > .small {
+:root.desktop .rate {
   grid-row: 5;
 }
-:root.desktop .btns {
+:root.desktop .head > .small {
   grid-row: 6;
+}
+:root.desktop .btns {
+  grid-row: 7;
   margin-top: 16px;
 }
 :root.desktop .tile,

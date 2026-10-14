@@ -336,7 +336,7 @@
 
 /* Сообщения — над капсулой плеера, по центру сцены */
 :root.desktop .toasts {
-  bottom: calc(var(--bar-h) + var(--pane-gap) + 14px) !important;
+  bottom: calc(var(--bar-h) + var(--pane-gap) + 14px + var(--strip, 0px)) !important;
   left: 50%;
   right: auto;
   width: min(480px, calc(100vw - 48px));

@@ -38,6 +38,8 @@ class PlaybackService : MediaSessionService() {
         // Без явного addSession Media3 не покажет уведомление: к сессии не подключён ни один контроллер
         addSession(session)
         PlayerHub.session = session
+        // Пока служба жива, другие устройства видят, что играет на телефоне, и могут им управлять
+        app.yantar.player.online.RemoteLink.start()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
@@ -49,6 +51,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        app.yantar.player.online.RemoteLink.stop()
         PlayerHub.session = null
         mediaSession?.release()
         mediaSession = null

@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import type { Db } from './db.ts'
 import { hashPassword, newToken, tokenHash, verifyPassword } from './auth.ts'
+import { COMMANDS, LiveHub, type Role, type Stream } from './live.ts'
 
 /**
  * HTTP API сервера Amber. Всё под /v1:
@@ -14,7 +15,9 @@ import { hashPassword, newToken, tokenHash, verifyPassword } from './auth.ts'
  *   DELETE /v1/devices/:id    выйти на другом устройстве
  *   DELETE /v1/me {password}  удалить аккаунт со всеми данными
  *   POST   /v1/sync           {cursor, changes} → {cursor, changes, more}
- *   GET    /v1/events         поток событий (SSE): «changed» — другое устройство прислало изменения
+ *   GET    /v1/events?role=ui|engine  поток событий (SSE): changed, player, command — см. live.ts
+ *   POST   /v1/player         {state} — что играет на этом устройстве; остальным уходит событие player
+ *   POST   /v1/command        {to, cmd, args} — команда другому устройству: пауза, следующий, «играй отсюда»
  *   GET    /v1/health
  *
  * Синхронизация: устройство отправляет свои изменения и получает чужие после своего курсора.
@@ -55,6 +58,8 @@ const HEARTBEAT_MS = 25_000
 const PAGE = 1000
 const MAX_CHANGES = 2000
 const MAX_ITEM_BYTES = 256 * 1024
+/** Состояние плеера: текущий трек и окно очереди ключами — десятки килобайт с запасом */
+const MAX_STATE_BYTES = 96 * 1024
 
 class HttpError extends Error {
   readonly status: number
@@ -121,16 +126,15 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
     return token
   }
 
-  /** Открытые потоки событий: аккаунт → устройства, которые слушают */
-  const listeners = new Map<string, Set<{ deviceId: string; send: (event: string) => void; end: () => void }>>()
-  function notify(userId: string, exceptDevice: string) {
-    for (const l of listeners.get(userId) ?? []) if (l.deviceId !== exceptDevice) l.send('changed')
-  }
+  /** Открытые потоки событий и что играет на устройствах */
+  const live = new LiveHub()
   // Сервер останавливается — потоки закрываются сами, иначе close() ждал бы их вечно
-  app.addHook('preClose', async () => {
-    for (const set of listeners.values()) for (const l of set) l.end()
-    listeners.clear()
-  })
+  app.addHook('preClose', async () => live.closeAll())
+
+  async function deviceRef(deviceId: string) {
+    const [d] = await db.query<{ name: string; platform: string }>(`SELECT name, platform FROM devices WHERE id = $1`, [deviceId])
+    return { id: deviceId, name: d?.name ?? 'Устройство', platform: d?.platform ?? 'unknown' }
+  }
 
   const authLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }
 
@@ -167,6 +171,7 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
   app.post('/v1/auth/logout', async (req) => {
     await auth(req)
     await db.query(`DELETE FROM devices WHERE id = $1`, [req.auth!.deviceId])
+    live.drop(req.auth!.userId, req.auth!.deviceId)
     return { ok: true }
   })
 
@@ -197,6 +202,7 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
     await auth(req)
     const { id } = req.params as { id: string }
     await db.query(`DELETE FROM devices WHERE id = $1 AND user_id = $2`, [id, req.auth!.userId])
+    live.drop(req.auth!.userId, id)
     return { ok: true }
   })
 
@@ -212,6 +218,8 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
   app.get('/v1/events', async (req, reply) => {
     await auth(req)
     const { userId, deviceId } = req.auth!
+    const role: Role = (req.query as { role?: string }).role === 'engine' ? 'engine' : 'ui'
+    const device = await deviceRef(deviceId)
     // Ответ пишем сами: это бесконечный поток. Заголовки CORS, которые уже поставил плагин, переносим
     reply.hijack()
     const res = reply.raw
@@ -223,20 +231,43 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
       // nginx не копит поток в буфере, а отдаёт сразу
       'X-Accel-Buffering': 'no',
     })
-    const listener = {
+    const stream: Stream = {
       deviceId,
-      send: (event: string) => void res.write(`event: ${event}\ndata: {}\n\n`),
+      role,
+      // JSON в одну строку: перевод строки разорвал бы событие
+      send: (event, data) => void res.write(`event: ${event}\ndata: ${JSON.stringify(data ?? {})}\n\n`),
       end: () => void res.end(),
     }
-    const set = listeners.get(userId) ?? new Set()
-    listeners.set(userId, set.add(listener))
-    listener.send('hello')
     const beat = setInterval(() => void res.write(':\n\n'), HEARTBEAT_MS)
     res.on('close', () => {
       clearInterval(beat)
-      set.delete(listener)
-      if (!set.size) listeners.delete(userId)
+      live.close(userId, stream)
     })
+    live.open(userId, stream, device)
+  })
+
+  app.post('/v1/player', async (req) => {
+    await auth(req)
+    const { userId, deviceId } = req.auth!
+    const state = (req.body as { state?: unknown } | null)?.state ?? null
+    if (state !== null && typeof state !== 'object') throw new HttpError(400, 'Неверное состояние плеера')
+    if (state && JSON.stringify(state).length > MAX_STATE_BYTES) throw new HttpError(413, 'Состояние плеера слишком большое')
+    return { ok: true, live: live.setState(userId, deviceId, state) }
+  })
+
+  app.post('/v1/command', async (req) => {
+    await auth(req)
+    const { userId, deviceId } = req.auth!
+    const body = (req.body ?? {}) as { to?: unknown; cmd?: unknown; args?: unknown }
+    const to = typeof body.to === 'string' ? body.to : ''
+    const cmd = typeof body.cmd === 'string' ? body.cmd : ''
+    if (!to || !COMMANDS.has(cmd)) throw new HttpError(400, 'Неизвестная команда')
+    if (body.args != null && JSON.stringify(body.args).length > MAX_ITEM_BYTES)
+      throw new HttpError(413, 'Команда слишком большая')
+    const r = live.command(userId, await deviceRef(deviceId), to, cmd, body.args)
+    if (r === 'offline') throw new HttpError(404, 'Устройство не на связи')
+    if (r === 'no-ui') throw new HttpError(409, 'На устройстве не открыт Amber')
+    return { ok: true }
   })
 
   app.post('/v1/sync', async (req) => {
@@ -314,7 +345,7 @@ export async function buildApp(db: Db, opts: AppOptions): Promise<FastifyInstanc
       }
     })
     // После фиксации в базе: остальные устройства аккаунта сразу идут за новым
-    if (result.accepted > 0) notify(userId, deviceId)
+    if (result.accepted > 0) live.changed(userId, deviceId)
     return result
   })
 

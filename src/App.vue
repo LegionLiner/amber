@@ -17,6 +17,7 @@ import { pageIndex } from '@/app/paging'
 import PageStrip from '@/components/PageStrip.vue'
 import DesktopSidebar from '@/components/desktop/DesktopSidebar.vue'
 import DesktopPlayerBar from '@/components/desktop/DesktopPlayerBar.vue'
+import RemoteStrip from '@/features/remote/RemoteStrip.vue'
 import DesktopAmbient from '@/components/desktop/DesktopAmbient.vue'
 import DesktopTitleBar from '@/components/desktop/DesktopTitleBar.vue'
 import DesktopNowPanel from '@/components/desktop/DesktopNowPanel.vue'
@@ -79,6 +80,8 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
       <MiniPlayer />
       <BottomNav @reselect="ui.tabReselected" />
     </template>
+    <!-- Что играет на другом устройстве: над панелью плеера (компьютер) или над мини-плеером -->
+    <RemoteStrip v-if="!bare" />
     <FullPlayer />
     <QueuePanel />
     <SheetHost />

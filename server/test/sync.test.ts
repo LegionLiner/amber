@@ -139,18 +139,31 @@ afterAll(async () => {
 })
 
 /** Поток событий устройства по настоящему HTTP: названия пришедших событий по мере прихода */
-async function listen(token: string) {
+async function listen(token: string, role: 'ui' | 'engine' = 'ui') {
   const ctl = new AbortController()
-  const res = await fetch(`${baseUrl}/v1/events`, { headers: { authorization: `Bearer ${token}` }, signal: ctl.signal })
+  const res = await fetch(`${baseUrl}/v1/events?role=${role}`, {
+    headers: { authorization: `Bearer ${token}` },
+    signal: ctl.signal,
+  })
   const events: string[] = []
+  const data: Record<string, unknown>[] = []
   const reader = res.body!.getReader()
   const dec = new TextDecoder()
   void (async () => {
+    let buf = ''
     try {
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
-        for (const m of dec.decode(value, { stream: true }).matchAll(/^event: (\w+)/gm)) events.push(m[1]!)
+        buf += dec.decode(value, { stream: true })
+        const blocks = buf.split('\n\n')
+        buf = blocks.pop() ?? ''
+        for (const b of blocks) {
+          const ev = /^event: (\w+)$/m.exec(b)?.[1]
+          if (!ev) continue
+          events.push(ev)
+          data.push(JSON.parse(/^data: (.*)$/m.exec(b)?.[1] ?? '{}') as Record<string, unknown>)
+        }
       }
     } catch {
       /* закрыли сами */
@@ -160,7 +173,9 @@ async function listen(token: string) {
     for (let i = 0; i < 100 && events.length < n; i++) await new Promise((r) => setTimeout(r, 20))
     return events
   }
-  return { status: res.status, type: res.headers.get('content-type'), events, until, close: () => ctl.abort() }
+  /** Последнее событие с этим именем */
+  const last = (name: string) => data[events.lastIndexOf(name)]
+  return { status: res.status, type: res.headers.get('content-type'), events, data, until, last, close: () => ctl.abort() }
 }
 
 describe('аккаунт', () => {
@@ -450,10 +465,17 @@ describe('закрытая регистрация', () => {
 })
 
 describe('мгновенная доставка', () => {
-  it('изменение одного устройства сразу будит остальные, но не его само', async () => {
+  // Входы на весь блок: сервер пускает не больше 10 попыток входа в минуту с одного адреса
+  let a = ''
+  let b = ''
+  beforeAll(async () => {
     const login = async (name: string) =>
       String((await post('/v1/auth/login', { email: 'me@example.com', password: 'secret-pass', device: { name } })).body.token)
-    const [a, b] = [await login('А'), await login('Б')]
+    a = await login('ПК')
+    b = await login('Телефон')
+  })
+
+  it('изменение одного устройства сразу будит остальные, но не его само', async () => {
     const [la, lb] = [await listen(a), await listen(b)]
     expect(lb.status).toBe(200)
     expect(lb.type).toContain('text/event-stream')
@@ -468,9 +490,76 @@ describe('мгновенная доставка', () => {
     await post('/v1/sync', { cursor: 0, changes: [item] }, a)
     await new Promise((r) => setTimeout(r, 150))
     expect(lb.events).toEqual(['hello', 'changed'])
-    expect(la.events).toEqual(['hello'])
+    // А узнал только, что Б появился на связи
+    expect(la.events).toEqual(['hello', 'player'])
     la.close()
     lb.close()
+  })
+
+  it('что играет на устройстве, видят остальные; ушедшее устройство пропадает', async () => {
+    const [pc, phone] = [a, b]
+    const lpc = await listen(pc)
+    await lpc.until(1)
+    const state = { key: 'k1', title: 'Группа крови', playing: true, positionMs: 42_000, queue: ['k1', 'k2'], index: 0 }
+    // Без открытого потока устройство не на связи: его состояние не хранится
+    expect((await post('/v1/player', { state }, phone)).body.live).toBe(false)
+
+    const engine = await listen(phone, 'engine')
+    await engine.until(1)
+    await lpc.until(2)
+    expect(lpc.last('player')).toMatchObject({ name: 'Телефон', ui: false, state: null })
+    expect((await post('/v1/player', { state }, phone)).body.live).toBe(true)
+    await lpc.until(3)
+    const seen = lpc.last('player') as { state: typeof state; ageMs: number }
+    expect(seen.state).toEqual(state)
+    expect(seen.ageMs).toBeLessThan(1000)
+
+    // Новый поток сразу получает, что играет у остальных
+    const lpc2 = await listen(pc)
+    await lpc2.until(1)
+    const hello = lpc2.last('hello') as { devices: { name: string; state: unknown }[] }
+    expect(hello.devices.find((d) => d.name === 'Телефон')?.state).toEqual(state)
+
+    engine.close()
+    for (let i = 0; i < 50 && !lpc.data.some((d) => d.gone); i++) await new Promise((r) => setTimeout(r, 20))
+    expect(lpc.data.some((d) => d.gone)).toBe(true)
+    lpc.close()
+    lpc2.close()
+  })
+
+  it('команды: управление — движку, «играй отсюда» — интерфейсу', async () => {
+    const [pc, phone] = [a, b]
+    const lpc = await listen(pc)
+    const hello = (await lpc.until(1), lpc.last('hello')) as { you: string }
+    const pcId = hello.you
+    expect((await post('/v1/command', { to: pcId, cmd: 'pause' }, phone)).status).toBe(200)
+    await lpc.until(2)
+    expect(lpc.last('command')).toMatchObject({ from: { name: 'Телефон' }, cmd: 'pause' })
+
+    const engine = await listen(phone, 'engine')
+    const phoneId = ((await engine.until(1), engine.last('hello')) as { you: string }).you
+    expect((await post('/v1/command', { to: phoneId, cmd: 'next' }, pc)).status).toBe(200)
+    await engine.until(2)
+    expect(engine.last('command')).toMatchObject({ cmd: 'next' })
+    // Интерфейса телефона нет — «играй отсюда» некому выполнить
+    expect((await post('/v1/command', { to: phoneId, cmd: 'takeover', args: { queue: [] } }, pc)).status).toBe(409)
+    const ui = await listen(phone)
+    await ui.until(1)
+    expect((await post('/v1/command', { to: phoneId, cmd: 'takeover', args: { queue: ['k1'] } }, pc)).status).toBe(200)
+    expect((await post('/v1/command', { to: phoneId, cmd: 'seek', args: { ms: 1000 } }, pc)).status).toBe(200)
+    await ui.until(2)
+    await new Promise((r) => setTimeout(r, 100))
+    // Управление ушло движку, а не интерфейсу
+    expect(ui.events.filter((e) => e === 'command')).toHaveLength(1)
+    expect(ui.last('command')).toMatchObject({ cmd: 'takeover', args: { queue: ['k1'] } })
+    expect(engine.events.filter((e) => e === 'command')).toHaveLength(2)
+
+    expect((await post('/v1/command', { to: phoneId, cmd: 'format-disk' }, pc)).status).toBe(400)
+    engine.close()
+    ui.close()
+    for (let i = 0; i < 50 && !lpc.data.some((d) => d.gone); i++) await new Promise((r) => setTimeout(r, 20))
+    expect((await post('/v1/command', { to: phoneId, cmd: 'pause' }, pc)).status).toBe(404)
+    lpc.close()
   })
 
   it('без входа поток не открывается', async () => {

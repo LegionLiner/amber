@@ -67,12 +67,12 @@ export interface HourRow {
   listenedMs: number
 }
 
-export function byHour(since: number): Promise<HourRow[]> {
+export function byHour(since: number, until = Number.MAX_SAFE_INTEGER): Promise<HourRow[]> {
   return all<HourRow>(
     `SELECT local_hour AS hour, SUM(listened_ms) AS listenedMs
-     FROM stat_plays WHERE started_at >= ?
+     FROM stat_plays WHERE started_at >= ? AND started_at < ?
      GROUP BY local_hour`,
-    [since],
+    [since, until],
   )
 }
 

@@ -3,6 +3,7 @@ import { computed, ref, toRaw } from 'vue'
 import { all, batch, onDbWrite } from '@/data/db'
 import { dataRev } from '@/app/data-rev'
 import { isNative } from '@/native/paths'
+import { MusicCore } from '@/native/music-core'
 import { isDesktop } from '@/native/desktop/bridge'
 import type { SyncDb } from '@/sync/kinds'
 import { disableSync, enableSync, pendingCount, runSync } from '@/sync/engine'
@@ -100,6 +101,16 @@ export const useSync = defineStore('sync', () => {
   let outboxSig = ''
   let liveCtl: AbortController | null = null
   let wake: (() => void) | null = null
+  /** Кто ещё слушает поток событий: «что играет» и команды разбирает stores/remote.ts */
+  const liveHandlers = new Set<(name: string, data: unknown) => void>()
+  function onLiveEvent(fn: (name: string, data: unknown) => void): () => void {
+    liveHandlers.add(fn)
+    return () => liveHandlers.delete(fn)
+  }
+  /** Движок телефона держит свой поток (для управления с погашенным экраном): после входа и выхода он перечитывает вход */
+  function relinkEngine() {
+    if (isNative) void MusicCore.remoteLink().catch((e: unknown) => console.warn('remote link failed', e))
+  }
 
   const api = () => new SyncApi(url.value, token.value)
 
@@ -129,6 +140,7 @@ export const useSync = defineStore('sync', () => {
     start()
     await syncNow()
     void listen()
+    relinkEngine()
   }
 
   /** Выйти на этом устройстве: данные остаются, синхронизация выключается */
@@ -142,6 +154,7 @@ export const useSync = defineStore('sync', () => {
     await a.logout().catch(() => undefined)
     await disableSync(sdb)
     await setStates({ token: null, lastAt: null })
+    relinkEngine()
   }
 
   async function deleteAccount(password: string) {
@@ -273,12 +286,13 @@ export const useSync = defineStore('sync', () => {
     while (!ctl.signal.aborted && token.value) {
       let pause = 0
       try {
-        await api().events((name) => {
+        await api().events((name, data) => {
           fails = 0
           liveUnsupported.value = false
           if (name === 'hello') live.value = true
           // «hello» — догоняем то, что пришло, пока потока не было; «changed» — пришло только что
-          void syncNow()
+          if (name === 'hello' || name === 'changed') void syncNow()
+          liveHandlers.forEach((h) => h(name, data))
         }, ctl.signal)
       } catch (e) {
         if (e instanceof ApiError && e.kind === 'auth') {
@@ -351,6 +365,8 @@ export const useSync = defineStore('sync', () => {
     me,
     signedIn,
     live,
+    client: api,
+    onLiveEvent,
     liveUnsupported,
     load,
     signIn,

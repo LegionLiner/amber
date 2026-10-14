@@ -152,8 +152,19 @@ class Engine(private val ctx: Context, private val events: Events) {
         p.addListener(object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 if (p !== active) return
+                // Паузу поставили мимо движка (шторка, наушники, часы управляют декой напрямую) посреди перехода:
+                // уходящий трек тоже замолкает. Иначе он доигрывал бы до конца, и остановить его было нечем
+                if (!playWhenReady && tail != null) finishTail()
                 if (playWhenReady) requestFocus() else if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) abandonFocusLater()
                 if (playWhenReady) startMonitor()
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                // Зазвучала дека, которая ни текущая, ни уходящая: такой звук никто бы уже не остановил
+                if (isPlaying && p !== active && p !== tail) {
+                    Log.w(TAG, "лишняя дека заиграла — останавливаю")
+                    p.pause()
+                }
             }
 
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
@@ -162,6 +173,10 @@ class Engine(private val ctx: Context, private val events: Events) {
                     finishTail()
                     return
                 }
+                // Трек сменили посреди перехода мимо движка («следующий» в шторке или на наушниках):
+                // уходящий трек больше не нужен. Без этого его кривая сбрасывалась вместе с часами входящей
+                // деки, и старый трек снова звучал в полную громкость, пока переход не «доигрывал» заново
+                if (p === active && tail != null && reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) finishTail()
                 if (p === active) {
                     if (fadeOutStart > 0) faderOf(p).clear()
                     fadeOutStart = 0
@@ -284,16 +299,20 @@ class Engine(private val ctx: Context, private val events: Events) {
         val p = active
         val can = if (next) p.hasNextMediaItem() else true
         if (!can) return
+        // Куда идти — решаем в момент нажатия. Выполняем на той деке, что активна к концу затухания:
+        // за 250 мс затухания мог начаться переход, и прежняя дека стала уходящей
+        val cur = p.currentMediaItemIndex
+        val target = when {
+            next -> p.nextMediaItemIndex
+            // «Назад» после трёх секунд — в начало этого же трека
+            p.currentPosition - startOf(p, cur) > 3000 -> cur
+            p.previousMediaItemIndex != C.INDEX_UNSET -> p.previousMediaItemIndex
+            else -> cur
+        }
         val action = {
-            val cur = p.currentMediaItemIndex
-            val target = when {
-                next -> p.nextMediaItemIndex
-                // «Назад» после трёх секунд — в начало этого же трека
-                p.currentPosition - startOf(p, cur) > 3000 -> cur
-                p.previousMediaItemIndex != C.INDEX_UNSET -> p.previousMediaItemIndex
-                else -> cur
-            }
-            if (target != C.INDEX_UNSET) p.seekTo(target, startOf(p, target))
+            if (tail != null) finishTail()
+            val d = active
+            if (target != C.INDEX_UNSET && target < d.mediaItemCount) d.seekTo(target, startOf(d, target))
             play()
         }
         if (p.isPlaying && skipFadeMs > 0) {
@@ -311,7 +330,9 @@ class Engine(private val ctx: Context, private val events: Events) {
         val p = active
         if (index !in 0 until p.mediaItemCount) return
         val action = {
-            p.seekTo(index, startOf(p, index))
+            if (tail != null) finishTail()
+            val d = active
+            if (index < d.mediaItemCount) d.seekTo(index, startOf(d, index))
             if (play) play()
         }
         if (p.isPlaying && skipFadeMs > 0) {
@@ -567,8 +588,15 @@ class Engine(private val ctx: Context, private val events: Events) {
     }
 
     private fun tick(a: ExoPlayer) {
+        // Вне перехода вторая дека молчит, что бы ни случилось
+        if (tail == null && aux.playWhenReady) aux.pause()
         if (tail != null) {
             val now = SystemClock.elapsedRealtime()
+            // Новый трек остановили, а переход ещё числится: уходящий тоже замолкает
+            if (!a.playWhenReady) {
+                finishTail()
+                return
+            }
             if (txPending) {
                 // B пошёл, когда позиция сдвинулась от точки входа; на всякий случай не ждём дольше 1,5 с
                 val started = a.isPlaying && a.currentPosition >= txCue + 30

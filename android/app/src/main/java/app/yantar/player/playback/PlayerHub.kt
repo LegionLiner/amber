@@ -14,6 +14,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import app.yantar.player.analysis.Analyzer
 import app.yantar.player.db.Database
+import app.yantar.player.online.RemoteLink
 import app.yantar.player.tracking.PlayTracker
 import org.json.JSONArray
 import org.json.JSONObject
@@ -95,6 +96,8 @@ object PlayerHub {
             }
         }
         Database.io.execute { Loudness.load() }
+        RemoteLink.stateSource = { remoteState() }
+        RemoteLink.commandSink = { cmd, args -> remoteCommand(cmd, args) }
     }
 
     /** Движок создаётся лениво; при создании восстанавливается последняя очередь */
@@ -264,6 +267,45 @@ object PlayerHub {
     private fun emitState() {
         val s = stateJson()
         listeners.forEach { it.onState(s) }
+        RemoteLink.stateChanged(s.optBoolean("playing"))
+    }
+
+    /* ------------------------------ другие устройства ------------------------------ */
+
+    /** Что играет — для других устройств аккаунта (DeviceState в src/sync/live.ts) */
+    private fun remoteState(): JSONObject? {
+        val p = engine?.active ?: return null
+        if (p.mediaItemCount == 0) return null
+        val cur = current() ?: return null
+        val i = p.currentMediaItemIndex
+        val from = maxOf(0, i - 20)
+        val to = minOf(p.mediaItemCount, i + 300)
+        val keys = JSONArray()
+        for (j in from until to) keys.put(QItem.fromMediaItem(p.getMediaItemAt(j)).key)
+        val st = p.playbackState
+        val dur = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: cur.durationMs
+        return JSONObject()
+            .put("key", cur.key)
+            .put("title", cur.title)
+            .put("artist", cur.artist)
+            .apply { cur.album?.let { put("album", it) } }
+            .put("durationMs", dur)
+            .put("positionMs", p.currentPosition.coerceIn(0, maxOf(0L, dur)))
+            .put("playing", p.playWhenReady && (st == Player.STATE_READY || st == Player.STATE_BUFFERING))
+            .put("queue", keys)
+            .put("index", i - from)
+            .put("source", cur.json.optJSONObject("source") ?: JSONObject().put("type", "library"))
+            .put("repeat", repeatName(p.repeatMode))
+            .put("rev", rev)
+    }
+
+    /** Команда с другого устройства: пауза, следующий, перемотка */
+    private fun remoteCommand(cmd: String, args: JSONObject?) {
+        if (engine == null) return
+        when (cmd) {
+            "play", "pause", "toggle", "next", "prev" -> control(cmd)
+            "seek" -> if (args?.has("ms") == true) seekTo(args.optLong("ms"))
+        }
     }
 
     /* ------------------------------ состояние ------------------------------ */

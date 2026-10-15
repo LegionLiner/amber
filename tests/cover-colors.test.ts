@@ -106,3 +106,36 @@ describe('эффекты', () => {
     expect(soundName({ speed: 1, pitch: 1, effects: { echo: 0.5, orbit: 0.8 } })).toBe('Эхо, 8D')
   })
 })
+
+describe('краски живого фона плеера', () => {
+  it('у пёстрой обложки есть акценты кроме двух основных, мелкие детали — не акцент', () => {
+    const t = coverTones(
+      image([
+        [[30, 60, 160], 0.4], // синий
+        [[220, 120, 40], 0.25], // оранжевый
+        [[40, 160, 90], 0.15], // зелёный
+        [[200, 40, 120], 0.12], // малиновый
+        [[240, 230, 60], 0.01], // крошечная жёлтая деталь
+        [[250, 250, 250], 0.07],
+      ]),
+    )!
+    const hues = t.accents.map((a) => Math.round((((a.h * 180) / Math.PI + 360) % 360) / 10) * 10)
+    expect(t.accents.length).toBe(2)
+    // жёлтого (~100°) среди акцентов нет
+    expect(hues.every((h) => Math.abs(h - 100) > 20)).toBe(true)
+  })
+
+  it('чёрно-белой обложке акценты не выдумываются, палитра остаётся серой', async () => {
+    const { paletteOf } = await import('@/app/cover-colors')
+    const t = coverTones(
+      image([
+        [[60, 60, 62], 0.5],
+        [[190, 190, 192], 0.5],
+      ]),
+    )!
+    expect(t.accents).toEqual([])
+    const pal = paletteOf([glow(t.c1), glow(t.c2)], [])
+    expect(pal).toHaveLength(5)
+    for (const c of pal) expect(chroma(c)).toBeLessThan(0.03)
+  })
+})

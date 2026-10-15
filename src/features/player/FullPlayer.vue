@@ -34,6 +34,7 @@ import IconDevices from '~icons/solar/devices-linear'
 import DevicesSheet from '@/features/remote/DevicesSheet.vue'
 import { useSync } from '@/stores/sync'
 import { useRemote } from '@/stores/remote'
+import PlayerAmbient from './PlayerAmbient.vue'
 import NowExtras from '@/components/desktop/NowExtras.vue'
 import SpeedSheet from './SpeedSheet.vue'
 import { loadWaveform } from '@/data/repos/library'
@@ -422,17 +423,8 @@ function togglePlay() {
       role="dialog"
       aria-label="Плеер"
     >
-      <!-- Фон нового трека проявляется поверх старого (только прозрачность — это делает видеоускоритель).
-           Обычный Transition, не TransitionGroup: тот на каждом обновлении замерял позиции и пересчитывал
-           раскладку всей страницы — почти 100 мс ровно в момент смены трека -->
-      <div class="ambient" aria-hidden="true">
-        <Transition name="amb">
-          <div :key="colors.join()" class="amb" :style="{ '--c1': colors[0], '--c2': colors[1] }">
-            <i class="b1" /><i class="b2" /><i class="b3" /><i class="b4" />
-          </div>
-        </Transition>
-        <div class="veil" />
-      </div>
+      <!-- Живой фон из красок обложки: пятна, сияние, стеклянные пузыри (PlayerAmbient) -->
+      <PlayerAmbient :colors="colors" :art="track?.art" :playing="player.playing" />
 
       <div class="content">
         <header
@@ -616,128 +608,6 @@ function togglePlay() {
 .full.slide-in {
   transition: none;
   transform: translateY(100%);
-}
-.ambient {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-.amb {
-  position: absolute;
-  inset: 0;
-}
-.amb-enter-active,
-.amb-leave-active {
-  transition: opacity 1200ms var(--ease);
-}
-.amb-enter-from,
-.amb-leave-to {
-  opacity: 0;
-}
-/*
- * Пятна фона — радиальные градиенты с мягким краем, а не круги с filter: blur(60px): размытие
- * перерисовывалось при каждой смене трека и на полсекунды подвешивало интерфейс (и анимацию смены).
- * Профиль градиента повторяет размытый круг: плотная середина, половина яркости у бывшего края.
- */
-.ambient i {
-  position: absolute;
-  border-radius: 50%;
-  --c: var(--c1);
-  background: radial-gradient(closest-side, var(--c) 26%, color-mix(in srgb, var(--c) 50%, transparent) 72%, transparent);
-  will-change: transform;
-}
-/* Пятна плывут, пока играет музыка, и замирают на паузе */
-.paused .ambient i {
-  animation-play-state: paused;
-}
-.b1 {
-  width: 120vw;
-  height: 120vw;
-  left: -45vw;
-  top: -35vw;
-  opacity: 0.95;
-  animation: drift1 15s ease-in-out infinite alternate;
-}
-.b2 {
-  width: 106vw;
-  height: 106vw;
-  right: -48vw;
-  top: calc(30vh - 13vw);
-  --c: var(--c2);
-  opacity: 0.8;
-  animation: drift2 18s ease-in-out infinite alternate;
-}
-.b3 {
-  width: 94vw;
-  height: 94vw;
-  left: -2vw;
-  top: calc(10vh - 12vw);
-  opacity: 0.55;
-  animation: drift3 21s ease-in-out infinite alternate-reverse;
-}
-.b4 {
-  width: 90vw;
-  height: 90vw;
-  left: -35vw;
-  top: calc(52vh - 12vw);
-  --c: var(--c2);
-  opacity: 0.45;
-  animation: drift2 24s ease-in-out infinite alternate-reverse;
-}
-/* На светлом фоне цвет «умножается» на фон — пятна насыщенные, а не белёсые */
-[data-theme='light'] .ambient i {
-  mix-blend-mode: multiply;
-}
-[data-theme='light'] .b1 {
-  opacity: 0.6;
-}
-[data-theme='light'] .b2 {
-  opacity: 0.5;
-}
-[data-theme='light'] .b3,
-[data-theme='light'] .b4 {
-  opacity: 0.35;
-}
-@keyframes drift1 {
-  0% {
-    transform: translate(0, 0) scale(1) rotate(0deg);
-  }
-  50% {
-    transform: translate(14vw, 9vh) scale(1.12) rotate(8deg);
-  }
-  100% {
-    transform: translate(26vw, 4vh) scale(1.22) rotate(-6deg);
-  }
-}
-@keyframes drift2 {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-14vw, 10vh) scale(0.88);
-  }
-  100% {
-    transform: translate(-24vw, -6vh) scale(1.1);
-  }
-}
-@keyframes drift3 {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-  100% {
-    transform: translate(18vw, -12vh) scale(1.25);
-  }
-}
-.veil {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    color-mix(in srgb, var(--bg) 25%, transparent) 40%,
-    color-mix(in srgb, var(--bg) 70%, transparent) 68%,
-    var(--bg) 94%
-  );
 }
 .content {
   position: relative;

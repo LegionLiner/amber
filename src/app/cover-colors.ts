@@ -1,6 +1,6 @@
 import { ref, watch, type Ref } from 'vue'
 import { coverSrc } from '@/native/paths'
-import { coverTones, glow, hexToLch } from '@/domain/cover-colors'
+import { coverTones, glow, hexToLch, lchHex } from '@/domain/cover-colors'
 import { coverPair } from '@/domain/palette'
 
 /**
@@ -34,6 +34,52 @@ function persist() {
 
 export function cachedGlow(art: string): Glow | null {
   return mem.get(art) ?? disk[art] ?? null
+}
+
+/*
+ * Акценты обложки — ещё до трёх её заметных тонов, для живого фона большого плеера. Свой кэш: старые записи
+ * фона (две краски) остаются как есть, акценты досчитываются, когда обложка впервые открыта в плеере.
+ */
+const ACCENTS_KEY = 'amber.coverAccents.v1'
+let accentsDisk: Record<string, string[]> = {}
+try {
+  accentsDisk = JSON.parse(localStorage.getItem(ACCENTS_KEY) || '{}') as Record<string, string[]>
+} catch {
+  accentsDisk = {}
+}
+let accentsTimer = 0
+function persistAccents() {
+  clearTimeout(accentsTimer)
+  accentsTimer = window.setTimeout(() => {
+    try {
+      const entries = Object.entries(accentsDisk)
+      if (entries.length > 800) accentsDisk = Object.fromEntries(entries.slice(-500))
+      localStorage.setItem(ACCENTS_KEY, JSON.stringify(accentsDisk))
+    } catch {
+      /* посчитаем заново */
+    }
+  }, 500)
+}
+
+/** Акценты обложки (может быть пусто: у обложки всего один-два тона) */
+export async function coverAccents(art: string): Promise<string[]> {
+  const hit = accentsDisk[art]
+  if (hit) return hit
+  await compute(art)
+  return accentsDisk[art] ?? []
+}
+
+/**
+ * Пять красок живого фона: две основные, акценты обложки, а если их не хватает — соседние оттенки основных
+ * (сдвиг тона на 20–25° и чуть светлее или темнее). Серая обложка остаётся серой: насыщенность не выдумывается.
+ */
+export function paletteOf(glowPair: Glow, accents: readonly string[]): string[] {
+  const [a, b] = glowPair
+  const near = (hex: string, dh: number, dL: number) => {
+    const t = hexToLch(hex)
+    return t ? lchHex(Math.min(0.82, Math.max(0.42, t.L + dL)), t.C, t.h + dh) : hex
+  }
+  return [a, b, accents[0] ?? near(a, 0.42, 0.06), accents[1] ?? near(b, -0.38, -0.06), accents[2] ?? near(a, -0.34, -0.1)]
 }
 
 const pending = new Map<string, Promise<Glow | null>>()
@@ -80,6 +126,8 @@ async function compute(art: string): Promise<Glow | null> {
   mem.set(art, res)
   disk[art] = res
   persist()
+  accentsDisk[art] = t.accents.map((x) => glow(x, 0.5, 0.8))
+  persistAccents()
   return res
 }
 

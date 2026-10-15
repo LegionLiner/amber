@@ -77,6 +77,8 @@ export interface CoverTones {
   /** Основной тон (OKLCH) */
   c1: { L: number; C: number; h: number }
   c2: { L: number; C: number; h: number }
+  /** Ещё заметные тона (до трёх, самый весомый первым): для живого фона большого плеера */
+  accents: { L: number; C: number; h: number }[]
   /** Обложка почти бесцветная */
   neutral: boolean
 }
@@ -130,6 +132,7 @@ export function coverTones(pixels: Uint8ClampedArray | number[]): CoverTones | n
     return {
       c1: { L: q(0.3), C: tint, h },
       c2: { L: q(0.75), C: tint, h },
+      accents: [],
       neutral: true,
     }
   }
@@ -156,7 +159,16 @@ export function coverTones(pixels: Uint8ClampedArray | number[]): CoverTones | n
   const dist = (x: number, y: number) => Math.min(Math.abs(x - y), BINS - Math.abs(x - y))
   const p2 = peaks.find((p) => dist(p, p1) >= 3 && smooth(p) > 0)
   const g2 = p2 != null ? group(p2) : null
-  if (g2 && g2.w >= g1.w * 0.3) return { c1: g1, c2: g2, neutral: false }
+  // Акценты: другие тоны, которых на обложке хотя бы 12 % от основного, не соседние с уже взятыми
+  const taken = [p1, ...(p2 != null && g2 && g2.w >= g1.w * 0.3 ? [p2] : [])]
+  const accents: CoverTones['accents'] = []
+  for (const p of peaks) {
+    if (accents.length >= 3 || smooth(p) < smooth(p1) * 0.12) break
+    if (taken.some((t) => dist(p, t) < 3)) continue
+    taken.push(p)
+    accents.push(group(p))
+  }
+  if (g2 && g2.w >= g1.w * 0.3) return { c1: g1, c2: g2, accents, neutral: false }
 
   // Второго заметного тона нет: светлая или тёмная сторона того же тона
   let lw = 0
@@ -177,7 +189,7 @@ export function coverTones(pixels: Uint8ClampedArray | number[]): CoverTones | n
   const dark = dw ? dL / dw : g1.L
   const L2 = Math.abs(light - g1.L) >= Math.abs(g1.L - dark) ? light : dark
   const far = Math.abs(L2 - g1.L) < 0.1 ? (g1.L > 0.6 ? g1.L - 0.16 : g1.L + 0.16) : L2
-  return { c1: g1, c2: { L: far, C: g1.C * 0.85, h: g1.h }, neutral: false }
+  return { c1: g1, c2: { L: far, C: g1.C * 0.85, h: g1.h }, accents, neutral: false }
 }
 
 /**

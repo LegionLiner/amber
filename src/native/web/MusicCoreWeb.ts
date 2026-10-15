@@ -1709,6 +1709,55 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   async setFavoriteState(): Promise<void> {}
 
+  /* Папка по Wi-Fi: на компьютере её раздаёт главный процесс (desktop/filesync.ts), забирает только телефон */
+  private noFs(): never {
+    throw new Error('Только на телефоне')
+  }
+  async fsAccess() {
+    return { granted: false }
+  }
+  async fsRequestAccess(): Promise<void> {}
+  async fsDefaultRoot(): Promise<{ root: string }> {
+    return this.noFs()
+  }
+  async fsPickFolder(): Promise<{ root: string }> {
+    return this.noFs()
+  }
+  async fsDiscover() {
+    return { found: [] }
+  }
+  async fsHello(): Promise<never> {
+    return this.noFs()
+  }
+  async fsPair(): Promise<never> {
+    return this.noFs()
+  }
+  async fsRemoteList(): Promise<never> {
+    return this.noFs()
+  }
+  async fsRemoteHash(): Promise<never> {
+    return this.noFs()
+  }
+  async fsRemoteTrash(): Promise<never> {
+    return this.noFs()
+  }
+  async fsLocalList(): Promise<never> {
+    return this.noFs()
+  }
+  async fsLocalHash(): Promise<never> {
+    return this.noFs()
+  }
+  async fsLocalTrash(): Promise<never> {
+    return this.noFs()
+  }
+  async fsPull(): Promise<never> {
+    return this.noFs()
+  }
+  async fsPush(): Promise<never> {
+    return this.noFs()
+  }
+  async fsCleanTrash(): Promise<void> {}
+
   /** На компьютере и в браузере отдельного движка нет: связь держит интерфейс (stores/remote.ts) */
   async remoteLink(): Promise<void> {}
 

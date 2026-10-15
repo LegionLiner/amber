@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Компьютер в локальной сети раздаёт папку с музыкой по обычному http (адрес вида 192.168.1.5):
+  сертификата для домашнего IP не бывает. Обмен защищён токеном, который телефон получает по коду
+  с экрана компьютера. Остальное (сервер синхронизации, YouTube, тексты песен) по-прежнему https.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

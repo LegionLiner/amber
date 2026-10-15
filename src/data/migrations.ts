@@ -336,6 +336,24 @@ export const MIGRATIONS: Migration[] = [
         WHERE EXISTS (SELECT 1 FROM settings WHERE key = 'spotify:on' AND value = '1')`,
     ],
   },
+  {
+    version: 7,
+    statements: [
+      // Папка с музыкой по Wi-Fi (src/filesync): какими были файлы на обеих сторонах после прошлой синхронизации.
+      // Без этого нельзя отличить «удалили на компьютере» от «появилось на телефоне». Только на этом устройстве:
+      // в синхронизацию с сервером и в бэкап не идёт
+      `CREATE TABLE filesync_base (
+        key TEXT PRIMARY KEY,
+        path TEXT NOT NULL,
+        ls INTEGER NOT NULL,
+        lm INTEGER NOT NULL,
+        rs INTEGER NOT NULL,
+        rm INTEGER NOT NULL
+      )`,
+      // Подключение к компьютеру (адрес, токен), выбранная папка, итог последнего прохода
+      `CREATE TABLE filesync_state (k TEXT PRIMARY KEY, v TEXT)`,
+    ],
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version

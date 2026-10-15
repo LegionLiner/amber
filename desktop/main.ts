@@ -7,6 +7,9 @@ import { thumbIcons } from './icons'
 import { setYoutubeDataDir, youtubeDownload, youtubeInfo } from './youtube'
 import { voiceModelPath } from './voice'
 import { DbFile } from './db-file'
+import os from 'node:os'
+import crypto from 'node:crypto'
+import { FileSyncServer, lanAddresses, type FileSyncConfig } from './filesync'
 
 /**
  * Amber для компьютера: главный процесс Electron.
@@ -34,6 +37,8 @@ protocol.registerSchemesAsPrivileged([
 interface DesktopConfig {
   folders: string[]
   closeToTray: boolean
+  /** Папка с музыкой по Wi-Fi для телефона (filesync.ts) */
+  fileSync?: FileSyncConfig
   bounds?: { x: number; y: number; width: number; height: number; maximized: boolean }
 }
 
@@ -371,7 +376,64 @@ function createWindow() {
 
 /* ---------------- обмен со страницей ---------------- */
 
+/* ---------------- папка по Wi-Fi для телефона ---------------- */
+
+function fileSyncConfig(): FileSyncConfig {
+  config.fileSync ??= { enabled: false, folder: null, devices: [], id: crypto.randomUUID() }
+  return config.fileSync
+}
+const fileSync = new FileSyncServer({
+  config: fileSyncConfig,
+  save: (c) => {
+    config.fileSync = c
+    saveConfig()
+  },
+  // AMBER_FILESYNC_TRASH=<папка> — для проверок: «корзина» в своей папке, а не в корзине Windows
+  trash: async (abs) => {
+    const dir = process.env.AMBER_FILESYNC_TRASH
+    if (!dir) return shell.trashItem(abs)
+    await fsp.mkdir(dir, { recursive: true })
+    await fsp.rename(abs, path.join(dir, `${Date.now()}-${path.basename(abs)}`))
+  },
+  name: os.hostname(),
+  onActivity: (a) => {
+    if (a.op !== 'list') win?.webContents.send('fs:activity', { ...a, at: Date.now() })
+  },
+})
+
+function fileSyncState() {
+  const c = fileSyncConfig()
+  return {
+    enabled: c.enabled,
+    folder: c.folder,
+    running: fileSync.running,
+    port: fileSync.port,
+    error: fileSync.error,
+    name: os.hostname(),
+    addresses: lanAddresses().map((a) => a.address),
+    devices: c.devices.map((d) => ({ id: d.id, name: d.name, pairedAt: d.pairedAt, lastSeenAt: d.lastSeenAt ?? null })),
+  }
+}
+
 function setupIpc() {
+  ipcMain.handle('fs:get', () => fileSyncState())
+  ipcMain.handle('fs:set', async (_e, patch: { enabled?: boolean; folder?: string | null }) => {
+    const c = fileSyncConfig()
+    if (patch.folder !== undefined) c.folder = patch.folder
+    if (patch.enabled !== undefined) c.enabled = patch.enabled
+    saveConfig(true)
+    // Папку сменили на ходу — перезапуск, чтобы маячок и список отдавали новое
+    if (patch.folder !== undefined && fileSync.running) await fileSync.stop()
+    await fileSync.apply()
+    return fileSyncState()
+  })
+  ipcMain.handle('fs:pair', () => fileSync.pairCode())
+  ipcMain.handle('fs:unpair', (_e, id: string) => {
+    fileSync.unpair(id)
+    saveConfig(true)
+    return fileSyncState()
+  })
+
   ipcMain.handle('folders:list', () => config.folders)
   ipcMain.handle('folders:add', async () => {
     const r = await dialog.showOpenDialog(win!, {
@@ -541,6 +603,7 @@ if (!app.requestSingleInstanceLock()) {
     setupIpc()
     createWindow()
     watchFolders()
+    void fileSync.apply().catch((e: unknown) => log('filesync', e))
     tray = new Tray(appIcon().resize({ width: 16, height: 16 }))
     tray.on('click', showWindow)
     updateTray()

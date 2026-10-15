@@ -15,6 +15,7 @@ import { weeklyHousekeeping } from './housekeeping'
 import { setupDesktop } from './desktop'
 import { setupVoice } from './voice'
 import { useSync } from '@/stores/sync'
+import { useFileSync } from '@/stores/filesync'
 import { formatDate } from '@/domain/format'
 import type { DbRecovery } from '@/native/types'
 
@@ -87,6 +88,8 @@ export async function boot(): Promise<void> {
         sync.start()
         void sync.syncNow()
       }
+      // Папка по Wi-Fi (телефон): после сканирования — чтобы пришедшее сразу легло в медиатеку
+      useFileSync().start()
       void weeklyHousekeeping().catch((e) => console.warn('housekeeping failed', e))
       void runAutoBackup().catch((e) => console.warn('auto-backup failed', e))
     })

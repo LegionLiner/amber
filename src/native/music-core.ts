@@ -96,6 +96,28 @@ export interface MusicCorePlugin {
   /** Эффекты звука: сила каждого 0..1, отсутствующий — выключен */
   setEffects(options: { effects: Partial<Record<string, number>> }): Promise<void>
 
+  // папка с музыкой по Wi-Fi (только телефон: android/.../filesync/FileSync.kt; компьютерная половина — desktop/filesync.ts)
+  /** Есть ли доступ «ко всем файлам» */
+  fsAccess(): Promise<{ granted: boolean }>
+  /** Открыть настройки Android, где его дают */
+  fsRequestAccess(): Promise<void>
+  fsDefaultRoot(): Promise<{ root: string }>
+  fsPickFolder(): Promise<{ root: string }>
+  /** Послушать маячки компьютеров в сети */
+  fsDiscover(options: { ms: number }): Promise<{ found: { host: string; port: number; id: string; name: string }[] }>
+  fsHello(options: { base: string }): Promise<{ app: string; id: string; name: string; folder: string | null }>
+  fsPair(options: { base: string; code: string; name: string }): Promise<{ token: string; id: string; name: string }>
+  fsRemoteList(options: { base: string; token: string }): Promise<{ folderId: string; files: FsEntry[] }>
+  fsRemoteHash(options: { base: string; token: string; p: string }): Promise<{ h: string }>
+  fsRemoteTrash(options: { base: string; token: string; p: string; expect: FsStat | null }): Promise<{ result: FsTrashResult }>
+  fsLocalList(options: { root: string }): Promise<{ files: FsEntry[] }>
+  fsLocalHash(options: { root: string; p: string }): Promise<{ h: string }>
+  fsLocalTrash(options: { root: string; p: string; expect: FsStat | null }): Promise<{ result: FsTrashResult }>
+  fsPull(options: FsTransfer & { rp: string; lp: string }): Promise<FsTransferResult>
+  fsPush(options: FsTransfer & { lp: string; rp: string }): Promise<FsTransferResult>
+  /** Корзина папки старше days дней — насовсем */
+  fsCleanTrash(options: { root: string; days: number }): Promise<void>
+
   // связь с другими устройствами аккаунта
   /** Телефон: движок перечитывает вход в синхронизацию и переподключает свой поток событий (после входа и выхода) */
   remoteLink(): Promise<void>
@@ -129,6 +151,24 @@ export interface MusicCorePlugin {
   addListener(event: 'folderAccess', cb: () => void): Promise<PluginListenerHandle>
   removeAllListeners(): Promise<void>
 }
+
+export interface FsStat {
+  s: number
+  m: number
+}
+export interface FsEntry extends FsStat {
+  p: string
+}
+export type FsTrashResult = 'ok' | 'changed' | 'missing'
+export interface FsTransfer {
+  base: string
+  token: string
+  root: string
+  from: FsStat
+  expect: FsStat | null
+}
+export type FsTransferResult =
+  { ok: true; l: FsStat; r: FsStat } | { ok: false; why: 'changed' | 'busy' | 'missing' | 'error'; message?: string }
 
 export interface WebFolderInfo {
   /** desktop — приложение для компьютера: папки на диске */

@@ -16,6 +16,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import app.yantar.player.db.Database
+import app.yantar.player.filesync.FileSync
 import app.yantar.player.library.Covers
 import app.yantar.player.library.Id3Reader
 import app.yantar.player.library.AudioFormat
@@ -621,6 +622,151 @@ class MusicCorePlugin : Plugin() {
     @PluginMethod
     fun getState(call: PluginCall) = onMain(call) {
         call.resolve(JSObject.fromJSONObject(PlayerHub.snapshotJson()))
+    }
+
+    /* ------------------------------ папка по Wi-Fi (filesync/FileSync.kt) ------------------------------ */
+
+    /** Передачи файлов — в своём потоке FileSync: долгая песня не задерживает сканер и запросы базы */
+    private fun fsWork(call: PluginCall, block: () -> Unit) {
+        FileSync.io.execute {
+            try {
+                block()
+            } catch (e: Exception) {
+                call.reject(e.message ?: e.toString())
+            }
+        }
+    }
+
+    private fun fsRoot(call: PluginCall): File = File(call.getString("root") ?: error("Папка не задана"))
+
+    @PluginMethod
+    fun fsAccess(call: PluginCall) {
+        call.resolve(JSObject().put("granted", android.os.Environment.isExternalStorageManager()))
+    }
+
+    /** Доступ «ко всем файлам»: без него не записать в папку с музыкой чужие файлы. Выдаётся в настройках Android */
+    @PluginMethod
+    fun fsRequestAccess(call: PluginCall) {
+        try {
+            val i = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(i)
+        } catch (_: Exception) {
+            context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun fsDefaultRoot(call: PluginCall) {
+        val dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC)
+        call.resolve(JSObject().put("root", dir.absolutePath))
+    }
+
+    /** Выбор папки системным окном → обычный путь (/storage/emulated/0/Music/…) */
+    @PluginMethod
+    fun fsPickFolder(call: PluginCall) {
+        startActivityForResult(call, Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), "onFsFolderPicked")
+    }
+
+    @ActivityCallback
+    private fun onFsFolderPicked(call: PluginCall?, result: ActivityResult) {
+        if (call == null) return
+        val uri = result.data?.data
+        if (result.resultCode != Activity.RESULT_OK || uri == null) {
+            call.reject("Папка не выбрана", "CANCELLED")
+            return
+        }
+        // «primary:Music/Rock» → /storage/emulated/0/Music/Rock; карта памяти «1234-ABCD:Music» → /storage/1234-ABCD/Music
+        val doc = android.provider.DocumentsContract.getTreeDocumentId(uri)
+        val vol = doc.substringBefore(':')
+        val rel = doc.substringAfter(':', "")
+        val base = if (vol == "primary") android.os.Environment.getExternalStorageDirectory().absolutePath else "/storage/$vol"
+        call.resolve(JSObject().put("root", if (rel.isEmpty()) base else "$base/$rel"))
+    }
+
+    @PluginMethod
+    fun fsDiscover(call: PluginCall) = fsWork(call) {
+        call.resolve(JSObject().put("found", FileSync.discover(context, call.getInt("ms", 3000) ?: 3000)))
+    }
+
+    @PluginMethod
+    fun fsHello(call: PluginCall) = fsWork(call) {
+        call.resolve(JSObject.fromJSONObject(FileSync.request(call.getString("base")!!, "/hello", null, readMs = 3000)))
+    }
+
+    @PluginMethod
+    fun fsPair(call: PluginCall) = fsWork(call) {
+        val body = JSONObject().put("code", call.getString("code")).put("name", call.getString("name"))
+        call.resolve(JSObject.fromJSONObject(FileSync.request(call.getString("base")!!, "/pair", null, "POST", body)))
+    }
+
+    @PluginMethod
+    fun fsRemoteList(call: PluginCall) = fsWork(call) {
+        call.resolve(JSObject.fromJSONObject(FileSync.request(call.getString("base")!!, "/list", call.getString("token"), readMs = 180_000)))
+    }
+
+    @PluginMethod
+    fun fsRemoteHash(call: PluginCall) = fsWork(call) {
+        val p = java.net.URLEncoder.encode(call.getString("p") ?: "", "UTF-8").replace("+", "%20")
+        call.resolve(JSObject.fromJSONObject(FileSync.request(call.getString("base")!!, "/hash?p=$p", call.getString("token"), readMs = 180_000)))
+    }
+
+    @PluginMethod
+    fun fsRemoteTrash(call: PluginCall) = fsWork(call) {
+        val r = FileSync.trashRemote(call.getString("base")!!, call.getString("token")!!, call.getString("p")!!, FileSync.stat(call.getObject("expect")))
+        call.resolve(JSObject().put("result", r))
+    }
+
+    @PluginMethod
+    fun fsLocalList(call: PluginCall) = fsWork(call) {
+        call.resolve(JSObject().put("files", FileSync.listLocal(fsRoot(call))))
+    }
+
+    @PluginMethod
+    fun fsLocalHash(call: PluginCall) = fsWork(call) {
+        call.resolve(JSObject().put("h", FileSync.hashFile(FileSync.resolve(fsRoot(call), call.getString("p")!!))))
+    }
+
+    @PluginMethod
+    fun fsLocalTrash(call: PluginCall) = fsWork(call) {
+        val r = FileSync.trashLocal(context, fsRoot(call), call.getString("p")!!, FileSync.stat(call.getObject("expect")))
+        call.resolve(JSObject().put("result", r))
+    }
+
+    @PluginMethod
+    fun fsPull(call: PluginCall) = fsWork(call) {
+        val r = FileSync.pull(
+            context,
+            call.getString("base")!!,
+            call.getString("token")!!,
+            fsRoot(call),
+            call.getString("rp")!!,
+            call.getString("lp")!!,
+            FileSync.stat(call.getObject("from"))!!,
+            FileSync.stat(call.getObject("expect")),
+        )
+        call.resolve(JSObject.fromJSONObject(r))
+    }
+
+    @PluginMethod
+    fun fsPush(call: PluginCall) = fsWork(call) {
+        val r = FileSync.push(
+            call.getString("base")!!,
+            call.getString("token")!!,
+            fsRoot(call),
+            call.getString("lp")!!,
+            call.getString("rp")!!,
+            FileSync.stat(call.getObject("from"))!!,
+            FileSync.stat(call.getObject("expect")),
+        )
+        call.resolve(JSObject.fromJSONObject(r))
+    }
+
+    @PluginMethod
+    fun fsCleanTrash(call: PluginCall) = fsWork(call) {
+        FileSync.cleanTrash(fsRoot(call), call.getInt("days", 30) ?: 30)
+        call.resolve()
     }
 
     /** Вошли в синхронизацию или вышли: поток событий движка переподключается с новым входом */

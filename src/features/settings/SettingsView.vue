@@ -21,6 +21,7 @@ import { SHUFFLE_KINDS } from '@/domain/shuffle'
 import { countLabel, formatDate } from '@/domain/format'
 import type { CountingRule } from '@/native/types'
 import SyncSection from './SyncSection.vue'
+import FileSyncSection from './FileSyncSection.vue'
 import SpotifySection from './SpotifySection.vue'
 import { useSync } from '@/stores/sync'
 import { APP_VERSION } from '@/app/version'
@@ -492,6 +493,7 @@ async function backupNow() {
       <SpotifySection />
 
       <SyncSection />
+      <FileSyncSection v-if="isDesktop || isNative" />
 
       <section class="group">
         <h2 class="gtitle">Данные</h2>

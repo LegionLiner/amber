@@ -42,6 +42,12 @@ contextBridge.exposeInMainWorld('amberDesktop', {
   ytDownload: (url: string, names: { title: string; artist: string }) => invoke('yt:download', url, names),
   onYtProgress: (cb: (p: unknown) => void) => void ipcRenderer.on('yt:progress', (_e, p) => cb(p)),
 
+  fileSyncState: () => invoke('fs:get'),
+  fileSyncSet: (patch: unknown) => invoke('fs:set', patch),
+  fileSyncPair: () => invoke('fs:pair'),
+  fileSyncUnpair: (id: string) => invoke('fs:unpair', id),
+  onFileSyncActivity: (cb: (a: unknown) => void) => void ipcRenderer.on('fs:activity', (_e, a) => cb(a)),
+
   voicePrepare: () => invoke('voice:prepare'),
   onVoiceProgress: (cb: (p: unknown) => void) => void ipcRenderer.on('voice:progress', (_e, p) => cb(p)),
 })

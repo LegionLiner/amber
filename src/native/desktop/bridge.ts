@@ -30,6 +30,18 @@ export interface DesktopYtProgress {
 
 export type DesktopCommand = 'toggle' | 'next' | 'prev'
 
+export interface DesktopFileSyncState {
+  enabled: boolean
+  folder: string | null
+  running: boolean
+  port: number
+  /** Не запустился (порт занят) */
+  error: string | null
+  name: string
+  addresses: string[]
+  devices: { id: string; name: string; pairedAt: number; lastSeenAt: number | null }[]
+}
+
 export interface DesktopBridge {
   // папки с музыкой
   folders(): Promise<string[]>
@@ -72,6 +84,14 @@ export interface DesktopBridge {
   ytInfo(url: string): Promise<DesktopYtInfo>
   ytDownload(url: string, names: { title: string; artist: string }): Promise<{ path: string; cover: string | null; id: string }>
   onYtProgress(cb: (p: DesktopYtProgress) => void): void
+
+  // Папка с музыкой по Wi-Fi для телефона (desktop/filesync.ts)
+  fileSyncState(): Promise<DesktopFileSyncState>
+  fileSyncSet(patch: { enabled?: boolean; folder?: string | null }): Promise<DesktopFileSyncState>
+  /** Код для подключения телефона: 6 цифр на 10 минут */
+  fileSyncPair(): Promise<{ code: string; expiresAt: number }>
+  fileSyncUnpair(id: string): Promise<DesktopFileSyncState>
+  onFileSyncActivity(cb: (a: { device: string; op: 'pull' | 'push' | 'trash' | 'pair'; path?: string; at: number }) => void): void
 
   // Голосовые команды: подготовить модель речи (первый раз — скачать) → её адрес для распознавателя
   voicePrepare(): Promise<string>

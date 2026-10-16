@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { coverAccents, paletteOf, type Glow } from '@/app/cover-colors'
+import { motionReduced } from '@/app/motion'
 
 /**
  * Живой фон большого плеера из красок обложки — «жидкое стекло»:
@@ -9,10 +10,11 @@ import { coverAccents, paletteOf, type Glow } from '@/app/cover-colors'
  *  - редкий проход света по стеклу и мелкое зерно — фон читается как матовое стекло, а не как заливка.
  * Никаких предметов на фоне — только свет и цвет.
  *
- * Всё движение — только transform и opacity: это делает видеокарта, без перерисовки и без filter: blur
- * (размытие при смене трека подвешивало интерфейс на полсекунды). Пятна — радиальные градиенты с мягким краем.
- * На паузе фон замирает, при «меньше движения» и при выключенном стекле — неподвижен.
- * Новый трек проявляет свои краски поверх старых.
+ * Рисуется в маленький холст (шестая часть экрана) и растягивается на весь экран: растяжение и даёт мягкость.
+ * Раньше пятна были отдельными слоями в полтора экрана — на телефоне с плотным экраном это огромные текстуры,
+ * видеокарта не успевала, и первые секунды фон шёл блоками, а кнопки и иконки пропадали. Холст — одна маленькая
+ * текстура, рисуется 30 раз в секунду, только пока играет музыка; на паузе фон замирает.
+ * При «меньше движения» и выключенном стекле — неподвижный кадр. Новый трек перетекает в свои краски.
  */
 const props = defineProps<{ colors: Glow; art?: string | null; playing: boolean }>()
 
@@ -27,20 +29,205 @@ watch(
   },
   { immediate: true },
 )
-
 const palette = computed(() => paletteOf(props.colors, accents.value))
-const vars = computed(() => Object.fromEntries(palette.value.map((c, i) => [`--p${i}`, c])))
+
+/* ---------------- краски и их перетекание ---------------- */
+type RGB = [number, number, number]
+const rgbOf = (hex: string): RGB => {
+  const n = parseInt(hex.replace('#', '').slice(0, 6), 16)
+  return Number.isFinite(n) ? [(n >> 16) & 255, (n >> 8) & 255, n & 255] : [128, 128, 128]
+}
+const MIX_MS = 1400
+let fromRgb: RGB[] = palette.value.map(rgbOf)
+let toRgb: RGB[] = fromRgb
+let mixAt = 0
+function colorsNow(now: number): RGB[] {
+  const k = Math.min(1, (now - mixAt) / MIX_MS)
+  const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2
+  return toRgb.map((c, i) => c.map((v, j) => Math.round(fromRgb[i]![j]! + (v - fromRgb[i]![j]!) * e)) as RGB)
+}
+watch(palette, (p) => {
+  const now = performance.now()
+  fromRgb = colorsNow(now)
+  toRgb = p.map(rgbOf)
+  mixAt = now
+  wake()
+})
+
+/* ---------------- рисование ---------------- */
+/** Пятно: краска, центр (доли ширины и высоты), радиус (доля большей стороны), ход, периоды, прозрачность */
+const BLOBS = [
+  { c: 0, x: 0.15, y: 0.12, r: 0.62, ax: 0.16, ay: 0.1, tx: 26, ty: 33, a: 0.95, al: 0.6 },
+  { c: 1, x: 0.92, y: 0.38, r: 0.52, ax: 0.14, ay: 0.13, tx: 31, ty: 27, a: 0.8, al: 0.5 },
+  { c: 2, x: 0.4, y: 0.42, r: 0.4, ax: 0.2, ay: 0.12, tx: 23, ty: 29, a: 0.6, al: 0.35 },
+  { c: 3, x: 0.88, y: 0.95, r: 0.45, ax: 0.12, ay: 0.15, tx: 37, ty: 22, a: 0.55, al: 0.35 },
+  { c: 4, x: 0.1, y: 0.9, r: 0.35, ax: 0.15, ay: 0.1, tx: 29, ty: 35, a: 0.5, al: 0.35 },
+]
+/** Холст в шесть раз меньше экрана: на телефоне это около 70×150 точек */
+const SCALE = 6
+const FRAME_MS = 33
+
+const canvas = ref<HTMLCanvasElement | null>(null)
+let ctx: CanvasRenderingContext2D | null = null
+const off = document.createElement('canvas')
+const offCtx = off.getContext('2d')
+let raf = 0
+let lastFrame = 0
+/** Сколько секунд фон «прожил» в движении: на паузе не идёт, поэтому после паузы всё продолжается с того же места */
+let t = Math.random() * 600
+let bg = '#0e0d0c'
+let light = false
+let readAt = 0
+let still = false
+
+const rgba = (c: RGB, a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`
+
+function readTheme(now: number) {
+  if (now - readAt < 1000) return
+  readAt = now
+  const root = document.documentElement
+  bg = getComputedStyle(root).getPropertyValue('--bg').trim() || bg
+  light = root.dataset.theme === 'light'
+  still = motionReduced() || root.dataset.glass === 'low'
+}
+
+function draw(now: number) {
+  const c = canvas.value
+  if (!c || !ctx) return
+  const w = c.width
+  const h = c.height
+  const m = Math.max(w, h)
+  const pal = colorsNow(now)
+  ctx.globalCompositeOperation = 'source-over'
+  ctx.globalAlpha = 1
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, w, h)
+
+  // Пятна: плотная середина, мягкий край, как размытый круг. На светлой теме краска «умножается» на фон
+  ctx.globalCompositeOperation = light ? 'multiply' : 'source-over'
+  for (const b of BLOBS) {
+    const col = pal[b.c]!
+    const x = (b.x + b.ax * Math.sin((2 * Math.PI * t) / b.tx + b.c)) * w
+    const y = (b.y + b.ay * Math.sin((2 * Math.PI * t) / b.ty + b.c * 1.7)) * h
+    const r = b.r * m * (1 + 0.09 * Math.sin((2 * Math.PI * t) / (b.tx * 1.3) + b.c))
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+    g.addColorStop(0, rgba(col, 1))
+    g.addColorStop(0.22, rgba(col, 1))
+    g.addColorStop(0.64, rgba(col, 0.48))
+    g.addColorStop(1, rgba(col, 0))
+    ctx.globalAlpha = light ? b.al : b.a
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, w, h)
+  }
+
+  // Сияние: конический перелив, середина и края растворены, оборот за 90 секунд
+  if (offCtx && 'createConicGradient' in offCtx) {
+    off.width = w
+    off.height = h
+    const cx = w * 0.5
+    const cy = h * 0.38
+    const cg = offCtx.createConicGradient((2 * Math.PI * t) / 90, cx, cy)
+    ;[0, 2, 1, 3, 4, 0].forEach((i, k) => cg.addColorStop(k / 5, rgba(pal[i]!, 1)))
+    offCtx.globalCompositeOperation = 'source-over'
+    offCtx.fillStyle = cg
+    offCtx.fillRect(0, 0, w, h)
+    const R = m * 0.75
+    const mask = offCtx.createRadialGradient(cx, cy, 0, cx, cy, R)
+    mask.addColorStop(0.08, 'rgba(0,0,0,0)')
+    mask.addColorStop(0.34, 'rgba(0,0,0,1)')
+    mask.addColorStop(0.58, 'rgba(0,0,0,0.5)')
+    mask.addColorStop(0.74, 'rgba(0,0,0,0)')
+    offCtx.globalCompositeOperation = 'destination-in'
+    offCtx.fillStyle = mask
+    offCtx.fillRect(0, 0, w, h)
+    ctx.globalCompositeOperation = light ? 'multiply' : 'soft-light'
+    ctx.globalAlpha = light ? 0.18 : 0.42
+    ctx.drawImage(off, 0, 0)
+  }
+
+  // Проход света по стеклу: раз в 20 секунд, наискосок, едва заметно
+  if (!still) {
+    const p = (t % 20) / 20
+    if (p > 0.62) {
+      const u = (p - 0.62) / 0.38
+      const e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2
+      const len = 2.2 * w
+      const cx = w * 0.5 + (e * 2 - 1) * 1.32 * w
+      const dx = 0.966
+      const dy = 0.259
+      const g = ctx.createLinearGradient(cx - (len / 2) * dx, h / 2 - (len / 2) * dy, cx + (len / 2) * dx, h / 2 + (len / 2) * dy)
+      g.addColorStop(0.42, 'rgba(255,255,255,0)')
+      g.addColorStop(0.48, 'rgba(255,255,255,0.05)')
+      g.addColorStop(0.5, 'rgba(255,255,255,0.09)')
+      g.addColorStop(0.52, 'rgba(255,255,255,0.05)')
+      g.addColorStop(0.58, 'rgba(255,255,255,0)')
+      ctx.globalCompositeOperation = light ? 'source-over' : 'screen'
+      ctx.globalAlpha = 1
+      ctx.fillStyle = g
+      ctx.fillRect(0, 0, w, h)
+    }
+  }
+}
+
+function frame(now: number) {
+  raf = 0
+  readTheme(now)
+  const mixing = now - mixAt < MIX_MS
+  const moving = props.playing && !still && document.visibilityState === 'visible'
+  if (now - lastFrame >= FRAME_MS || !lastFrame) {
+    if (moving && lastFrame) t += Math.min(0.1, (now - lastFrame) / 1000)
+    lastFrame = now
+    draw(now)
+  }
+  // Рисуем дальше, только пока что-то меняется: на паузе и в неподвижном режиме — ни одного лишнего кадра
+  if (moving || mixing) raf = requestAnimationFrame(frame)
+  else lastFrame = 0
+}
+
+function wake() {
+  if (!raf) raf = requestAnimationFrame(frame)
+}
+
+let ro: ResizeObserver | null = null
+function fit() {
+  const c = canvas.value
+  if (!c) return
+  const w = Math.max(24, Math.round(c.clientWidth / SCALE))
+  const h = Math.max(24, Math.round(c.clientHeight / SCALE))
+  if (c.width !== w || c.height !== h) {
+    c.width = w
+    c.height = h
+    readAt = 0
+    lastFrame = 0
+    wake()
+  }
+}
+
+onMounted(() => {
+  ctx = canvas.value?.getContext('2d', { alpha: false }) ?? null
+  ro = new ResizeObserver(fit)
+  if (canvas.value) ro.observe(canvas.value)
+  fit()
+  wake()
+  document.addEventListener('visibilitychange', wake)
+})
+onBeforeUnmount(() => {
+  cancelAnimationFrame(raf)
+  ro?.disconnect()
+  document.removeEventListener('visibilitychange', wake)
+})
+watch(
+  () => props.playing,
+  () => {
+    lastFrame = 0
+    wake()
+  },
+)
 </script>
 
 <template>
-  <div class="ambient" :class="{ paused: !playing }" aria-hidden="true">
-    <Transition name="amb">
-      <div :key="palette.join()" class="amb" :style="vars">
-        <i class="blob b0" /><i class="blob b1" /><i class="blob b2" /><i class="blob b3" /><i class="blob b4" />
-        <i class="aurora" />
-      </div>
-    </Transition>
-    <i class="sheen" />
+  <div class="ambient" aria-hidden="true">
+    <canvas ref="canvas" class="paint" />
     <i class="grain" />
     <div class="veil" />
   </div>
@@ -51,164 +238,18 @@ const vars = computed(() => Object.fromEntries(palette.value.map((c, i) => [`--p
   position: absolute;
   inset: 0;
   overflow: hidden;
+  background: var(--bg);
 }
-.amb {
+/* Маленький холст на весь экран: сглаживание при растяжении и есть мягкость пятен */
+.paint {
   position: absolute;
   inset: 0;
-}
-.amb-enter-active,
-.amb-leave-active {
-  transition: opacity 1400ms var(--ease);
-}
-.amb-enter-from,
-.amb-leave-to {
-  opacity: 0;
-}
-/* На паузе всё замирает на месте, а не прыгает в начало */
-.paused :is(.blob, .aurora, .sheen) {
-  animation-play-state: paused;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-/* ---- пятна: плотная середина, мягкий край, как размытый круг ---- */
-.blob {
-  position: absolute;
-  border-radius: 50%;
-  --c: var(--p0);
-  background: radial-gradient(closest-side, var(--c) 22%, color-mix(in srgb, var(--c) 48%, transparent) 64%, transparent);
-  will-change: transform;
-}
-.b0 {
-  width: 125vmax;
-  height: 125vmax;
-  left: -55vmax;
-  top: -50vmax;
-  opacity: 0.95;
-  animation: loop-a 26s ease-in-out infinite alternate;
-}
-.b1 {
-  --c: var(--p1);
-  width: 105vmax;
-  height: 105vmax;
-  right: -52vmax;
-  top: -10vmax;
-  opacity: 0.8;
-  animation: loop-b 31s ease-in-out infinite alternate;
-}
-.b2 {
-  --c: var(--p2);
-  width: 80vmax;
-  height: 80vmax;
-  left: -10vmax;
-  top: 10vmax;
-  opacity: 0.6;
-  animation: loop-c 23s ease-in-out infinite alternate-reverse;
-}
-.b3 {
-  --c: var(--p3);
-  width: 90vmax;
-  height: 90vmax;
-  right: -30vmax;
-  bottom: -55vmax;
-  opacity: 0.55;
-  animation: loop-a 37s ease-in-out infinite alternate-reverse;
-}
-.b4 {
-  --c: var(--p4);
-  width: 70vmax;
-  height: 70vmax;
-  left: -30vmax;
-  bottom: -40vmax;
-  opacity: 0.5;
-  animation: loop-b 29s ease-in-out infinite alternate;
-}
-@keyframes loop-a {
-  0% {
-    transform: translate(0, 0) scale(1) rotate(0deg);
-  }
-  33% {
-    transform: translate(16vmax, 8vmax) scale(1.1) rotate(10deg);
-  }
-  66% {
-    transform: translate(6vmax, 20vmax) scale(0.95) rotate(-6deg);
-  }
-  100% {
-    transform: translate(24vmax, 12vmax) scale(1.18) rotate(4deg);
-  }
-}
-@keyframes loop-b {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-  40% {
-    transform: translate(-18vmax, 10vmax) scale(0.9);
-  }
-  75% {
-    transform: translate(-8vmax, 26vmax) scale(1.12);
-  }
-  100% {
-    transform: translate(-26vmax, 6vmax) scale(1.04);
-  }
-}
-@keyframes loop-c {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(22vmax, -14vmax) scale(1.2);
-  }
-  100% {
-    transform: translate(8vmax, 10vmax) scale(0.92);
-  }
-}
-
-/* ---- сияние: конический перелив красок, середина и края растворены ---- */
-.aurora {
-  position: absolute;
-  width: 150vmax;
-  height: 150vmax;
-  left: calc(50% - 75vmax);
-  top: calc(38% - 75vmax);
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, var(--p0), var(--p2), var(--p1), var(--p3), var(--p4), var(--p0));
-  -webkit-mask: radial-gradient(closest-side, transparent 8%, #000 34%, rgba(0, 0, 0, 0.5) 58%, transparent 74%);
-  mask: radial-gradient(closest-side, transparent 8%, #000 34%, rgba(0, 0, 0, 0.5) 58%, transparent 74%);
-  opacity: 0.42;
-  mix-blend-mode: soft-light;
-  will-change: transform;
-  animation: swirl 90s linear infinite;
-}
-@keyframes swirl {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* ---- проход света по стеклу: раз в 20 секунд, едва заметно ---- */
-.sheen {
-  position: absolute;
-  inset: -20% -60%;
-  background: linear-gradient(
-    105deg,
-    transparent 42%,
-    rgba(255, 255, 255, 0.05) 48%,
-    rgba(255, 255, 255, 0.09) 50%,
-    rgba(255, 255, 255, 0.05) 52%,
-    transparent 58%
-  );
-  will-change: transform;
-  animation: sheen 20s ease-in-out infinite;
-}
-@keyframes sheen {
-  0%,
-  62% {
-    transform: translateX(-60%);
-  }
-  100% {
-    transform: translateX(60%);
-  }
-}
-
-/* ---- зерно: матовое стекло, а не гладкая заливка ---- */
+/* ---- зерно: матовое стекло, а не гладкая заливка (и не видно ступенек в переходах цвета) ---- */
 .grain {
   position: absolute;
   inset: 0;
@@ -230,44 +271,8 @@ const vars = computed(() => Object.fromEntries(palette.value.map((c, i) => [`--p
   );
 }
 
-/* ---- светлая тема: краски «умножаются» на фон ---- */
-[data-theme='light'] .blob {
-  mix-blend-mode: multiply;
-}
-[data-theme='light'] .b0 {
-  opacity: 0.6;
-}
-[data-theme='light'] .b1 {
-  opacity: 0.5;
-}
-[data-theme='light'] :is(.b2, .b3, .b4) {
-  opacity: 0.35;
-}
-[data-theme='light'] .aurora {
-  mix-blend-mode: multiply;
-  opacity: 0.18;
-}
 [data-theme='light'] .grain {
   filter: invert(1);
   opacity: 0.05;
-}
-
-/* ---- меньше движения или стекло выключено: неподвижный фон ---- */
-[data-motion='reduced'] :is(.blob, .aurora, .sheen),
-[data-glass='low'] :is(.blob, .aurora, .sheen) {
-  animation: none;
-}
-[data-motion='reduced'] .sheen,
-[data-glass='low'] .sheen {
-  display: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .blob,
-  .aurora {
-    animation: none;
-  }
-  .sheen {
-    display: none;
-  }
 }
 </style>

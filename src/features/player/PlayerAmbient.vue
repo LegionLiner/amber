@@ -6,8 +6,8 @@ import { motionReduced } from '@/app/motion'
 /**
  * Живой фон большого плеера из красок обложки — «жидкое стекло»:
  *  - пять мягких пятен (две основные краски обложки, её акценты) плывут по своим медленным петлям;
- *  - поверх — «сияние»: широкий конический перелив тех же красок, едва заметно поворачивается;
- *  - редкий проход света по стеклу и мелкое зерно — фон читается как матовое стекло, а не как заливка.
+ *  - поверх — «сияние»: широкий конический перелив тех же красок, медленно поворачивается;
+ *  - мелкое зерно — фон читается как матовое стекло, а не как заливка.
  * Никаких предметов на фоне — только свет и цвет.
  *
  * Рисуется в маленький холст (шестая часть экрана) и растягивается на весь экран: растяжение и даёт мягкость.
@@ -57,11 +57,11 @@ watch(palette, (p) => {
 /* ---------------- рисование ---------------- */
 /** Пятно: краска, центр (доли ширины и высоты), радиус (доля большей стороны), ход, периоды, прозрачность */
 const BLOBS = [
-  { c: 0, x: 0.15, y: 0.12, r: 0.62, ax: 0.16, ay: 0.1, tx: 26, ty: 33, a: 0.95, al: 0.6 },
-  { c: 1, x: 0.92, y: 0.38, r: 0.52, ax: 0.14, ay: 0.13, tx: 31, ty: 27, a: 0.8, al: 0.5 },
-  { c: 2, x: 0.4, y: 0.42, r: 0.4, ax: 0.2, ay: 0.12, tx: 23, ty: 29, a: 0.6, al: 0.35 },
-  { c: 3, x: 0.88, y: 0.95, r: 0.45, ax: 0.12, ay: 0.15, tx: 37, ty: 22, a: 0.55, al: 0.35 },
-  { c: 4, x: 0.1, y: 0.9, r: 0.35, ax: 0.15, ay: 0.1, tx: 29, ty: 35, a: 0.5, al: 0.35 },
+  { c: 0, x: 0.2, y: 0.15, r: 0.62, ax: 0.24, ay: 0.16, tx: 19, ty: 24, a: 0.95, al: 0.6 },
+  { c: 1, x: 0.85, y: 0.38, r: 0.52, ax: 0.22, ay: 0.2, tx: 22, ty: 17, a: 0.85, al: 0.5 },
+  { c: 2, x: 0.45, y: 0.45, r: 0.42, ax: 0.28, ay: 0.18, tx: 16, ty: 21, a: 0.65, al: 0.38 },
+  { c: 3, x: 0.82, y: 0.88, r: 0.45, ax: 0.2, ay: 0.2, tx: 25, ty: 15, a: 0.6, al: 0.38 },
+  { c: 4, x: 0.15, y: 0.82, r: 0.38, ax: 0.22, ay: 0.16, tx: 20, ty: 26, a: 0.55, al: 0.38 },
 ]
 /** Холст в шесть раз меньше экрана: на телефоне это около 70×150 точек */
 const SCALE = 6
@@ -107,9 +107,11 @@ function draw(now: number) {
   ctx.globalCompositeOperation = light ? 'multiply' : 'source-over'
   for (const b of BLOBS) {
     const col = pal[b.c]!
-    const x = (b.x + b.ax * Math.sin((2 * Math.PI * t) / b.tx + b.c)) * w
-    const y = (b.y + b.ay * Math.sin((2 * Math.PI * t) / b.ty + b.c * 1.7)) * h
-    const r = b.r * m * (1 + 0.09 * Math.sin((2 * Math.PI * t) / (b.tx * 1.3) + b.c))
+    // Основная петля плюс второй, медленный изгиб пути: пятна текут, а не качаются туда-обратно
+    const k = 2 * Math.PI * t
+    const x = (b.x + b.ax * Math.sin(k / b.tx + b.c) + b.ax * 0.35 * Math.sin(k / (b.ty * 2.3) + b.c * 2.1)) * w
+    const y = (b.y + b.ay * Math.sin(k / b.ty + b.c * 1.7) + b.ay * 0.35 * Math.cos(k / (b.tx * 2.7) + b.c)) * h
+    const r = b.r * m * (1 + 0.15 * Math.sin(k / (b.tx * 1.3) + b.c))
     const g = ctx.createRadialGradient(x, y, 0, x, y, r)
     g.addColorStop(0, rgba(col, 1))
     g.addColorStop(0.22, rgba(col, 1))
@@ -120,13 +122,13 @@ function draw(now: number) {
     ctx.fillRect(0, 0, w, h)
   }
 
-  // Сияние: конический перелив, середина и края растворены, оборот за 90 секунд
+  // Сияние: конический перелив, середина и края растворены, оборот почти за минуту
   if (offCtx && 'createConicGradient' in offCtx) {
     off.width = w
     off.height = h
     const cx = w * 0.5
     const cy = h * 0.38
-    const cg = offCtx.createConicGradient((2 * Math.PI * t) / 90, cx, cy)
+    const cg = offCtx.createConicGradient((2 * Math.PI * t) / 55, cx, cy)
     ;[0, 2, 1, 3, 4, 0].forEach((i, k) => cg.addColorStop(k / 5, rgba(pal[i]!, 1)))
     offCtx.globalCompositeOperation = 'source-over'
     offCtx.fillStyle = cg
@@ -141,31 +143,8 @@ function draw(now: number) {
     offCtx.fillStyle = mask
     offCtx.fillRect(0, 0, w, h)
     ctx.globalCompositeOperation = light ? 'multiply' : 'soft-light'
-    ctx.globalAlpha = light ? 0.18 : 0.42
+    ctx.globalAlpha = light ? 0.2 : 0.5
     ctx.drawImage(off, 0, 0)
-  }
-
-  // Проход света по стеклу: раз в 20 секунд, наискосок, едва заметно
-  if (!still) {
-    const p = (t % 20) / 20
-    if (p > 0.62) {
-      const u = (p - 0.62) / 0.38
-      const e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2
-      const len = 2.2 * w
-      const cx = w * 0.5 + (e * 2 - 1) * 1.32 * w
-      const dx = 0.966
-      const dy = 0.259
-      const g = ctx.createLinearGradient(cx - (len / 2) * dx, h / 2 - (len / 2) * dy, cx + (len / 2) * dx, h / 2 + (len / 2) * dy)
-      g.addColorStop(0.42, 'rgba(255,255,255,0)')
-      g.addColorStop(0.48, 'rgba(255,255,255,0.05)')
-      g.addColorStop(0.5, 'rgba(255,255,255,0.09)')
-      g.addColorStop(0.52, 'rgba(255,255,255,0.05)')
-      g.addColorStop(0.58, 'rgba(255,255,255,0)')
-      ctx.globalCompositeOperation = light ? 'source-over' : 'screen'
-      ctx.globalAlpha = 1
-      ctx.fillStyle = g
-      ctx.fillRect(0, 0, w, h)
-    }
   }
 }
 

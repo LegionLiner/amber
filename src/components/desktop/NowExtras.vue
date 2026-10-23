@@ -20,7 +20,16 @@ import { formatDuration } from '@/domain/format'
  * Текст берётся только тот, что уже есть (свой, из LRCLIB или из файла): искать его в сети —
  * дело окна текста, оно открывается по нажатию.
  */
-const props = withDefaults(defineProps<{ next?: number }>(), { next: 5 })
+const props = withDefaults(
+  defineProps<{
+    next?: number
+    /** Как открыть текст: в большом плеере — панелью на месте кнопок; по умолчанию — шторкой */
+    openLyrics?: () => void
+    /** Сменился — перечитать текст (его поправили в панели текста большого плеера) */
+    lyricsRev?: unknown
+  }>(),
+  { next: 5, openLyrics: undefined, lyricsRev: undefined },
+)
 
 const player = usePlayer()
 const library = useLibrary()
@@ -56,7 +65,7 @@ async function loadLyrics() {
   }
 }
 // Перечитываем и после закрытия шторки: в окне текста его могли найти или поправить
-watch([() => item.value?.key, () => ui.sheet?.component], loadLyrics, { immediate: true })
+watch([() => item.value?.key, () => ui.sheet?.component, () => props.lyricsRev], loadLyrics, { immediate: true })
 
 const cur = computed(() => (lines.value ? lineAt(lines.value, player.position + 250) : -1))
 /** Строка перед текущей, текущая и две следующих */
@@ -68,14 +77,15 @@ const shown = computed(() => {
 })
 
 const upNext = computed(() => player.upcoming.slice(0, props.next))
+const showLyrics = () => (props.openLyrics ? props.openLyrics() : ui.openSheet(LyricsSheet))
 </script>
 
 <template>
   <div class="extras">
-    <button v-if="lines" type="button" class="lyrics" aria-label="Открыть текст песни" @click="ui.openSheet(LyricsSheet)">
+    <button v-if="lines" type="button" class="lyrics" aria-label="Открыть текст песни" @click="showLyrics">
       <span v-for="l in shown" :key="l.i" class="ll" :class="{ now: l.i === cur, past: l.i < cur }">{{ l.line || '♪' }}</span>
     </button>
-    <button v-else type="button" class="ghost" @click="ui.openSheet(LyricsSheet)">
+    <button v-else type="button" class="ghost" @click="showLyrics">
       <IconText />{{ hasPlain ? 'Текст песни' : 'Найти текст' }}
     </button>
 

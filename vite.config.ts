@@ -16,6 +16,13 @@ export default defineConfig({
     // WebView на S23 Ultra обновляется через Play Store, современный JS поддерживается
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
+    rolldownOptions: {
+      output: {
+        // Vue, роутер и pinia — всегда одним отдельным куском. Без этого сборщик изредка клал createPinia
+        // в главный кусок со своей копией pinia, а хранилища — в другой: окно открывалось пустым
+        codeSplitting: { groups: [{ name: 'vue', test: /node_modules[\\/](@vue|vue|vue-router|pinia)[\\/]/ }] },
+      },
+    },
   },
   server: { host: true, port: 5173 },
 })

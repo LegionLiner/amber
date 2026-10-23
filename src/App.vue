@@ -8,6 +8,7 @@ import WebFolderBanner from '@/components/WebFolderBanner.vue'
 import MiniPlayer from '@/features/player/MiniPlayer.vue'
 import FullPlayer from '@/features/player/FullPlayer.vue'
 import QueuePanel from '@/features/player/QueuePanel.vue'
+import ZenMode from '@/features/player/ZenMode.vue'
 import { bootState } from '@/app/boot-state'
 import { useUi } from '@/stores/ui'
 import { usePlayer } from '@/stores/player'
@@ -86,6 +87,10 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
     <QueuePanel />
     <SheetHost />
     <ToastHost />
+    <!-- «Сцена»: только обложка на весь экран, поверх всего -->
+    <Transition name="zen">
+      <ZenMode v-if="ui.zen && player.hasTrack" />
+    </Transition>
     <WebFolderBanner v-if="!isNative && !isDesktop && bootState.ready && !bare" />
   </div>
 </template>
@@ -138,6 +143,15 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
 .nowp-leave-to {
   opacity: 0;
   transform: translateX(28px);
+}
+/* «Сцена» проявляется из темноты и так же уходит */
+.zen-enter-active,
+.zen-leave-active {
+  transition: opacity 450ms var(--ease);
+}
+.zen-enter-from,
+.zen-leave-to {
+  opacity: 0;
 }
 .grain {
   position: fixed;

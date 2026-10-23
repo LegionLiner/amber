@@ -69,6 +69,8 @@ export interface AppSettings {
   collapsedGroups: number[]
   /** Компьютер: голосовые команды («Эмбер, следующий») */
   voice: boolean
+  /** Компьютер: какой микрофон слушают голосовые команды; null — основной в Windows. Своё у каждого устройства */
+  voiceMic: { id: string; label: string } | null
   /** Компьютер: панель «Сейчас играет» справа */
   nowPanel: boolean
   /** Компьютер: фон и свечение снизу дышат в такт басам */
@@ -128,6 +130,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lrclib: true,
   collapsedGroups: [],
   voice: false,
+  voiceMic: null,
   nowPanel: true,
   desktopPulse: true,
 }

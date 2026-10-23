@@ -18,6 +18,7 @@ import IconVolumeLow from '~icons/solar/volume-small-linear'
 import IconMute from '~icons/solar/volume-cross-linear'
 import IconExpand from '~icons/solar/maximize-square-minimalistic-linear'
 import IconMic from '~icons/solar/microphone-linear'
+import IconStage from '~icons/solar/full-screen-linear'
 import CoverArt from '@/components/CoverArt.vue'
 import TrackLinks from '@/components/TrackLinks.vue'
 import BarSlider from './BarSlider.vue'
@@ -221,6 +222,16 @@ function favorite() {
         @click="ui.queueOpen = !ui.queueOpen"
       >
         <IconQueue />
+      </button>
+      <button
+        type="button"
+        class="icon-btn opt"
+        aria-label="Сцена: только обложка на весь экран (F11)"
+        title="Сцена: только обложка на весь экран (F11)"
+        :disabled="!item"
+        @click="ui.zen = true"
+      >
+        <IconStage />
       </button>
       <button
         v-if="settings.s.voice"

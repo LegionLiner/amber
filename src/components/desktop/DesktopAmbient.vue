@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { usePlayer } from '@/stores/player'
 import { useSettings } from '@/stores/settings'
 import { useCoverGlow } from '@/app/cover-colors'
-import { audioLevels } from '@/native/web/audio-graph'
+import { BeatFollower } from '@/app/beat'
 import { motionReduced } from '@/app/motion'
 
 /**
@@ -11,10 +11,8 @@ import { motionReduced } from '@/app/motion'
  * Через этот фон видно стекло бокового меню, панели плеера, заголовков и шторок.
  *
  * Подсветка в такт музыке (настройка desktopPulse): пятна и свечение снизу дышат по басам.
- * Уровень берётся из анализатора звукового графа после эффектов. Удар — это бас заметно выше своего
- * среднего за последнюю треть секунды: так вспышки видны и в тихих, и в громких треках, а ровный гул
- * не держит свечение на максимуме. К ударам добавляется спокойная подложка по общей громкости.
- * Всё считается по времени, а не по кадрам: в свёрнутом окне кадров меньше, а ритм тот же.
+ * Уровень — из анализатора звукового графа после эффектов, удары считает app/beat.ts;
+ * к ударам добавляется спокойная подложка по общей громкости.
  * Каждый кадр меняется только переменная --pulse на этом слое: прозрачность и масштаб считает видеокарта.
  */
 const player = usePlayer()
@@ -31,32 +29,20 @@ const el = ref<HTMLElement | null>(null)
 const live = computed(() => settings.s.desktopPulse && player.playing && !motionReduced())
 
 let raf = 0
-let env = 0
-let avg = 0
-let loud = 0
-let loudPeak = 0.1
 let last = 0
+const beat = new BeatFollower()
 function frame(now: number) {
   raf = requestAnimationFrame(frame)
   const dt = last ? Math.min(100, now - last) : 16
   last = now
-  const l = audioLevels()
-  const bass = l?.bass ?? 0
-  // Среднее баса за ~0,35 с и удар над ним (подобрано на настоящих треках: заметно, но не мигает)
-  avg += (bass - avg) * (1 - Math.exp(-dt / 350))
-  const hit = Math.min(1, Math.max(0, bass - avg) / Math.max(0.03, avg * 0.22))
-  // Удар — сразу вверх, спад — за ~0,2 с
-  env = hit > env ? hit : env * Math.exp(-dt / 200)
-  // Подложка: общая громкость относительно недавнего максимума
-  loudPeak = Math.max(l?.level ?? 0, loudPeak * Math.exp(-dt / 8000), 0.05)
-  loud += ((l?.level ?? 0) / loudPeak - loud) * (1 - Math.exp(-dt / 300))
-  const pulse = Math.min(1, 0.25 * loud + 0.8 * env)
+  const b = beat.update(dt)
+  const pulse = Math.min(1, 0.25 * b.loud + 0.8 * b.hit)
   el.value?.style.setProperty('--pulse', pulse.toFixed(3))
 }
 function stop() {
   cancelAnimationFrame(raf)
   raf = 0
-  env = 0
+  beat.reset()
   el.value?.style.setProperty('--pulse', '0')
 }
 watch(

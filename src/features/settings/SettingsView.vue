@@ -25,13 +25,28 @@ import FileSyncSection from './FileSyncSection.vue'
 import SpotifySection from './SpotifySection.vue'
 import { useSync } from '@/stores/sync'
 import { APP_VERSION } from '@/app/version'
-import { voice } from '@/app/voice'
+import { listMics, voice } from '@/app/voice'
 
 const settings = useSettings()
 const library = useLibrary()
 const ui = useUi()
 const router = useRouter()
 const s = settings.s
+
+/* Микрофон для голосовых команд (компьютер): список обновляется при открытии выбора и при подключении устройств */
+const mics = ref<{ id: string; label: string }[]>([])
+async function refreshMics() {
+  if (isDesktop) mics.value = await listMics()
+}
+function pickMic(e: Event) {
+  const id = (e.target as HTMLSelectElement).value
+  const m = mics.value.find((x) => x.id === id)
+  s.voiceMic = id && m ? { id, label: m.label } : null
+}
+if (isDesktop) {
+  void refreshMics()
+  navigator.mediaDevices?.addEventListener('devicechange', () => void refreshMics())
+}
 
 const THEMES: { id: ThemeMode; label: string }[] = [
   { id: 'dark', label: 'Тёмная' },
@@ -584,14 +599,31 @@ async function backupNow() {
             }}<template v-if="voice.progress != null"> · {{ Math.round(voice.progress * 100) }}%</template>…</template
           >
           <template v-else-if="voice.state === 'listening'"
-            >Слушаю<template v-if="voice.last">. Последняя команда: {{ voice.last }}</template></template
+            >Слушаю<template v-if="voice.mic"> через «{{ voice.mic }}»</template
+            ><template v-if="voice.micMissing"> — выбранный микрофон не подключён, перейду на него, когда появится</template
+            ><template v-if="voice.last">. Последняя команда: {{ voice.last }}</template></template
           >
           <template v-else-if="voice.state === 'error'">{{ voice.error }}</template>
         </p>
+        <label v-if="s.voice" class="row">
+          <span
+            ><b>Микрофон для команд</b
+            ><small
+              >Например, всегда наушники — даже если подключён другой микрофон. Музыка играет туда же, куда и раньше</small
+            ></span
+          >
+          <select id="opt-voice-mic" class="select" :value="s.voiceMic?.id ?? ''" @focus="refreshMics" @change="pickMic">
+            <option value="">Основной в Windows</option>
+            <option v-for="m in mics" :key="m.id" :value="m.id">{{ m.label }}</option>
+            <option v-if="s.voiceMic && !mics.some((m) => m.id === s.voiceMic!.id)" :value="s.voiceMic.id">
+              {{ s.voiceMic.label }} (не подключён)
+            </option>
+          </select>
+        </label>
         <p class="note">
           Клавиши: пробел — пауза, Ctrl+→ и Ctrl+← — следующий и предыдущий, Shift+→ и Shift+← — перемотка на 10 секунд, Ctrl+↑ и
-          Ctrl+↓ — громкость, Ctrl+F — поиск, Ctrl+L — в избранное, Esc — закрыть шторку или плеер. Клавиши мультимедиа на
-          клавиатуре и наушниках тоже работают.
+          Ctrl+↓ — громкость, Ctrl+F — поиск, Ctrl+L — в избранное, Esc — закрыть шторку или плеер, F11 — «Сцена» (только обложка
+          на весь экран). Клавиши мультимедиа на клавиатуре и наушниках тоже работают.
         </p>
       </section>
 

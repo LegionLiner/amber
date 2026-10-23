@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { useMediaQuery } from '@vueuse/core'
 import IconDown from '~icons/solar/alt-arrow-down-linear'
 import IconMore from '~icons/solar/menu-dots-bold'
 import IconPlay from '~icons/solar/play-bold'
@@ -31,6 +32,7 @@ import OutputSheet from './OutputSheet.vue'
 import LyricsSheet from './LyricsSheet.vue'
 import TrackLinks from '@/components/TrackLinks.vue'
 import IconDevices from '~icons/solar/devices-linear'
+import IconStage from '~icons/solar/full-screen-linear'
 import DevicesSheet from '@/features/remote/DevicesSheet.vue'
 import { useSync } from '@/stores/sync'
 import { useRemote } from '@/stores/remote'
@@ -55,6 +57,36 @@ import type { QueueItem } from '@/native/types'
 const player = usePlayer()
 const library = useLibrary()
 const ui = useUi()
+
+/*
+ * Текст песни на широком окне компьютера — не шторкой, а на месте названия и кнопок, ростом с обложку.
+ * Та же кнопка или крестик возвращают кнопки. На телефоне и в узком окне текст открывается шторкой
+ */
+const wideDesk = useMediaQuery('(min-width: 980px)')
+const lyricsMode = ref(false)
+const lyricsInline = computed(() => isDesktop && wideDesk.value && lyricsMode.value)
+function openLyrics() {
+  if (isDesktop && wideDesk.value) lyricsMode.value = !lyricsMode.value
+  else ui.openSheet(LyricsSheet)
+}
+watch(
+  () => ui.fullPlayer,
+  (open) => {
+    if (!open) lyricsMode.value = false
+  },
+)
+/** Сторона обложки: панель текста встаёт ровно с ней по высоте */
+const artEl = ref<HTMLElement | null>(null)
+const artSize = ref(0)
+let artRo: ResizeObserver | null = null
+onMounted(() => {
+  artRo = new ResizeObserver(() => (artSize.value = Math.round(artEl.value?.getBoundingClientRect().width ?? 0)))
+})
+watch(artEl, (el, old) => {
+  if (old) artRo?.unobserve(old)
+  if (el) artRo?.observe(el)
+})
+onBeforeUnmount(() => artRo?.disconnect())
 const sync = useSync()
 const remote = useRemote()
 
@@ -426,7 +458,7 @@ function togglePlay() {
       <!-- Живой фон из красок обложки: пятна, сияние, стеклянные пузыри (PlayerAmbient) -->
       <PlayerAmbient :colors="colors" :art="track?.art" :playing="player.playing" />
 
-      <div class="content">
+      <div class="content" :class="{ 'lyrics-on': lyricsInline }" :style="{ '--art-size': artSize ? `${artSize}px` : undefined }">
         <header
           class="top"
           @pointerdown="down($event, 'top')"
@@ -452,6 +484,16 @@ function togglePlay() {
             >
               <IconDevices />
             </button>
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Сцена: только обложка на весь экран"
+              title="Сцена: только обложка на весь экран"
+              @pointerdown.stop
+              @click="ui.zen = true"
+            >
+              <IconStage />
+            </button>
             <button type="button" class="icon-btn" aria-label="Действия" @pointerdown.stop @click="more"><IconMore /></button>
           </span>
         </header>
@@ -464,7 +506,7 @@ function togglePlay() {
           @pointercancel="up"
           @lostpointercapture.self="up"
         >
-          <div class="art">
+          <div ref="artEl" class="art">
             <div ref="deck" class="deck" :style="deckStyle">
               <template v-for="(s, i) in slots" :key="slotKeys[i]">
                 <div v-if="s" class="slot" :class="{ center: i === 1 }" :style="slotStyle(i)">
@@ -547,7 +589,14 @@ function togglePlay() {
         </div>
 
         <!-- Компьютер: рядом с управлением — текущие строки текста и ближайшие треки очереди -->
-        <NowExtras v-if="isDesktop" class="fx" :next="3" />
+        <NowExtras v-if="isDesktop" class="fx" :next="3" :open-lyrics="openLyrics" :lyrics-rev="lyricsMode" />
+
+        <!-- Компьютер: текст песни на месте названия и кнопок, ростом с обложку -->
+        <Transition name="lyrpane">
+          <div v-if="lyricsInline" class="lyr-pane">
+            <LyricsSheet inline @close="lyricsMode = false" />
+          </div>
+        </Transition>
 
         <div class="bottom">
           <button type="button" class="out" @click="ui.openSheet(OutputSheet)">
@@ -564,7 +613,14 @@ function togglePlay() {
             >
               <IconTune />
             </button>
-            <button type="button" class="icon-btn" aria-label="Текст песни" @click="ui.openSheet(LyricsSheet)">
+            <button
+              type="button"
+              class="icon-btn"
+              :class="{ on: lyricsInline }"
+              aria-label="Текст песни"
+              :aria-pressed="lyricsInline"
+              @click="openLyrics"
+            >
               <IconText />
             </button>
             <button
@@ -619,7 +675,7 @@ function togglePlay() {
 .top {
   display: grid;
   /* Края одной ширины: название источника остаётся ровно посередине */
-  grid-template-columns: 84px 1fr 84px;
+  grid-template-columns: 120px 1fr 120px;
   align-items: center;
   gap: 8px;
   height: 52px;
@@ -716,6 +772,22 @@ function togglePlay() {
 .names {
   flex: 1;
   min-width: 0;
+}
+/* Панель текста появляется на месте кнопок, кнопки уходят (desktop.css) */
+.lyrpane-enter-active {
+  transition:
+    opacity 320ms var(--ease) 80ms,
+    transform 420ms var(--ease-out) 80ms;
+}
+.lyrpane-leave-active {
+  transition:
+    opacity 200ms var(--ease),
+    transform 260ms var(--ease);
+}
+.lyrpane-enter-from,
+.lyrpane-leave-to {
+  opacity: 0;
+  transform: translateX(-14px);
 }
 .names h2 {
   font-size: 21px;

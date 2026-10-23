@@ -87,7 +87,7 @@ function typing(t: EventTarget | null): boolean {
 /**
  * Горячие клавиши:
  * Пробел — пауза; Ctrl+→/← — следующий/предыдущий; Shift+→/← — перемотка на 10 с; Ctrl+↑/↓ — громкость;
- * Ctrl+F — поиск; Ctrl+L — в избранное; Ctrl+, — настройки; Esc — закрыть верхний слой; Ctrl+Q — выйти.
+ * Ctrl+F — поиск; Ctrl+L — в избранное; Ctrl+, — настройки; Esc — закрыть верхний слой; F11 — «Сцена»; Ctrl+Q — выйти.
  */
 function onKey(e: KeyboardEvent) {
   const player = usePlayer()
@@ -102,8 +102,14 @@ function onKey(e: KeyboardEvent) {
     if (ui.back()) e.preventDefault()
     return
   }
+  if (e.key === 'F11') {
+    e.preventDefault()
+    ui.zen = !ui.zen && player.hasTrack
+    return
+  }
   if (ctrl && e.code === 'KeyF') {
     e.preventDefault()
+    ui.zen = false
     ui.fullPlayer = false
     ui.queueOpen = false
     // Курсор — в поле строки заголовка: оно само откроет раздел поиска

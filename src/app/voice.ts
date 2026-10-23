@@ -29,6 +29,10 @@ export const voice = reactive({
   wakeAt: 0,
   /** Последняя выполненная команда — для подписи в настройках */
   last: '' as string,
+  /** Каким микрофоном слушаем сейчас */
+  mic: '' as string,
+  /** Выбранный в настройках микрофон не подключён: слушаем основным, пока он не появится */
+  micMissing: false,
 })
 
 let model: Model | null = null
@@ -62,6 +66,85 @@ export function setupVoice(): void {
     (on) => void (on ? startVoice() : stopVoice()),
     { immediate: true },
   )
+  // Выбрали другой микрофон — переслушиваем им
+  watch(
+    () => settings.s.voiceMic?.id,
+    () => {
+      if (settings.s.voice && voice.state === 'listening') restartVoice()
+    },
+  )
+  // Подключили или отключили устройство: если ждём выбранный микрофон и он появился — переходим на него
+  navigator.mediaDevices?.addEventListener('devicechange', () => {
+    if (settings.s.voice && voice.state === 'listening' && voice.micMissing) restartVoice()
+  })
+}
+
+/**
+ * Распознаватель с моделью. Распакованную модель vosk держит в IndexedDB («/vosk»); если этот кэш испорчен
+ * («Data lost due to missing file»), загрузка молча висит без ошибки. Тогда через минуту сбрасываем кэш
+ * и пробуем ещё раз — модель заново распакуется из скачанного файла
+ */
+async function loadModel(url: string): Promise<Model> {
+  const { Model } = await import('vosk-browser')
+  for (let attempt = 0; ; attempt++) {
+    const m = new Model(url, debug ? 0 : -1)
+    const ok = await new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => resolve(false), 60_000)
+      m.on('load', (msg) => {
+        clearTimeout(timer)
+        resolve('result' in msg && msg.result)
+      })
+    })
+    if (ok) return m
+    m.terminate()
+    if (attempt > 0) throw new Error('Не удалось загрузить распознаватель речи')
+    await new Promise((done) => {
+      const q = indexedDB.deleteDatabase('/vosk')
+      q.onsuccess = q.onerror = q.onblocked = done
+    })
+  }
+}
+
+function restartVoice() {
+  stopVoice()
+  void startVoice()
+}
+
+const MIC = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
+const gum = (audio: MediaTrackConstraints) => navigator.mediaDevices.getUserMedia({ audio, video: false })
+const missingDevice = (e: unknown) => ['OverconstrainedError', 'NotFoundError'].includes((e as { name?: string })?.name ?? '')
+
+/**
+ * Микрофон для голоса: выбранный в настройках, если он подключён, иначе основной в Windows.
+ * Номер устройства у Chromium постоянный, но после переподключения может смениться — тогда ищем по имени
+ */
+async function openMic(): Promise<MediaStream> {
+  const want = useSettings().s.voiceMic
+  voice.micMissing = false
+  if (!want) return gum(MIC)
+  try {
+    return await gum({ ...MIC, deviceId: { exact: want.id } })
+  } catch (e) {
+    if (!missingDevice(e)) throw e
+  }
+  const fallback = await gum(MIC)
+  const same = (await navigator.mediaDevices.enumerateDevices()).find(
+    (d) => d.kind === 'audioinput' && d.label === want.label && d.deviceId !== 'default' && d.deviceId !== 'communications',
+  )
+  if (same) {
+    fallback.getTracks().forEach((t) => t.stop())
+    return gum({ ...MIC, deviceId: { exact: same.deviceId } })
+  }
+  voice.micMissing = true
+  return fallback
+}
+
+/** Микрофоны для выбора в настройках (имена видны, когда доступ к микрофону уже дан) */
+export async function listMics(): Promise<{ id: string; label: string }[]> {
+  const all = await navigator.mediaDevices?.enumerateDevices().catch(() => [])
+  return (all ?? [])
+    .filter((d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
+    .map((d, i) => ({ id: d.deviceId, label: d.label || `Микрофон ${i + 1}` }))
 }
 
 async function startVoice() {
@@ -75,8 +158,7 @@ async function startVoice() {
     const url = await desktop.voicePrepare()
     voice.stage = 'Загружаю распознаватель'
     voice.progress = null
-    const { createModel } = await import('vosk-browser')
-    const m = await createModel(url, debug ? 0 : -1)
+    const m = await loadModel(url)
     if (my !== run) return m.terminate()
     model = m
     const rec = new m.KaldiRecognizer(16000, JSON.stringify(voiceGrammar()))
@@ -91,11 +173,14 @@ async function startVoice() {
       })
     }
 
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-      video: false,
-    })
+    stream = await openMic()
     if (my !== run) return
+    const track = stream.getAudioTracks()[0]
+    voice.mic = track?.label ?? ''
+    // Микрофон выдернули посреди работы — переслушиваем: основным, а когда выбранный вернётся, снова им
+    track?.addEventListener('ended', () => {
+      if (my === run && voice.state === 'listening') restartVoice()
+    })
     ctx = new AudioContext({ sampleRate: 16000 })
     const source = ctx.createMediaStreamSource(stream)
     node = ctx.createScriptProcessor(4096, 1, 1)

@@ -15,11 +15,22 @@ export function showLevelsOf(g: AudioGraph | null) {
   live = g
 }
 
+export interface AudioLevels {
+  /** Басы, до 150 Гц */
+  bass: number
+  /** Середина, 250–2000 Гц */
+  mid: number
+  /** Верха, 2–8 кГц */
+  high: number
+  /** Общий уровень до 8 кГц */
+  level: number
+}
+
 /**
- * Что сейчас звучит: басы (до 150 Гц) и общий уровень, 0…1. null — звук ещё не шёл через граф.
+ * Что сейчас звучит, 0…1. null — звук ещё не шёл через граф.
  * Читается каждый кадр подсветкой на компьютере, поэтому без выделения памяти.
  */
-export function audioLevels(): { bass: number; level: number } | null {
+export function audioLevels(): AudioLevels | null {
   const g = live
   if (!g || g.ctx.state !== 'running') return null
   const a = g.analyser
@@ -30,9 +41,23 @@ export function audioLevels(): { bass: number; level: number } | null {
   let bass = 0
   for (let i = 1; i <= bassTo; i++) bass += freq[i]!
   const allTo = Math.min(freq.length - 1, Math.round(8000 / hz))
+  const midFrom = Math.round(250 / hz)
+  const midTo = Math.round(2000 / hz)
   let all = 0
-  for (let i = 1; i <= allTo; i++) all += freq[i]!
-  return { bass: bass / (bassTo * 255), level: all / (allTo * 255) }
+  let mid = 0
+  let high = 0
+  for (let i = 1; i <= allTo; i++) {
+    const v = freq[i]!
+    all += v
+    if (i >= midFrom && i < midTo) mid += v
+    else if (i >= midTo) high += v
+  }
+  return {
+    bass: bass / (bassTo * 255),
+    mid: mid / (Math.max(1, midTo - midFrom) * 255),
+    high: high / (Math.max(1, allTo - midTo + 1) * 255),
+    level: all / (allTo * 255),
+  }
 }
 
 export class AudioGraph {

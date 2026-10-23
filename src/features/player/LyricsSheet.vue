@@ -7,6 +7,7 @@ const lrclibMissing = new Set<string>()
 import { computed, nextTick, ref, watch } from 'vue'
 import IconEdit from '~icons/solar/pen-linear'
 import IconFind from '~icons/solar/magnifer-linear'
+import IconClose from '~icons/solar/close-circle-linear'
 import { usePlayer } from '@/stores/player'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
@@ -22,7 +23,12 @@ import { saveLyrics, savedLyrics } from '@/data/repos/tags'
  * если в файле текста нет, лучший вариант оттуда подставляется сам и сохраняется (и синхронизируется),
  * не подошёл — другой вариант из списка или свой текст.
  * Синхронный текст подсвечивает текущую строку и сам прокручивается; тап по строке — перемотка туда.
+ *
+ * inline — не шторка, а панель в большом плеере на компьютере: на месте названия и кнопок, ростом с обложку,
+ * строки крупнее; крестик возвращает кнопки.
  */
+const props = defineProps<{ inline?: boolean }>()
+const emit = defineEmits<{ close: [] }>()
 const player = usePlayer()
 const settings = useSettings()
 const ui = useUi()
@@ -155,8 +161,10 @@ const current = computed(() => (synced.value ? lineAt(synced.value, player.posit
 watch(current, async (i) => {
   if (i < 0 || editing.value) return
   await nextTick()
-  const el = listEl.value?.querySelector<HTMLElement>(`[data-i="${i}"]`)
-  el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  const list = listEl.value
+  const el = list?.querySelector<HTMLElement>(`[data-i="${i}"]`)
+  // Прокручиваем только сам список (scrollIntoView двигал бы и плеер вокруг него)
+  if (list && el) list.scrollTo({ top: el.offsetTop - list.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' })
 })
 
 function seekTo(l: LyricLine) {
@@ -202,7 +210,7 @@ function stamp() {
 </script>
 
 <template>
-  <div class="sheet-body form lyr">
+  <div class="form lyr" :class="props.inline ? 'inline' : 'sheet-body'">
     <header class="top">
       <div class="names">
         <h3 class="sheet-head ellipsis">{{ item?.title ?? 'Текст' }}</h3>
@@ -223,6 +231,16 @@ function stamp() {
         <IconFind />
       </button>
       <button v-if="!editing" type="button" class="icon-btn" aria-label="Изменить текст" @click="startEdit"><IconEdit /></button>
+      <button
+        v-if="props.inline"
+        type="button"
+        class="icon-btn"
+        aria-label="Скрыть текст"
+        title="Скрыть текст"
+        @click="emit('close')"
+      >
+        <IconClose />
+      </button>
     </header>
     <p v-if="searching && !loading" class="muted note">Ищу в LRCLIB…</p>
     <p v-else-if="searchError" class="muted note">{{ searchError }}</p>
@@ -304,6 +322,7 @@ function stamp() {
   font-size: 13px;
 }
 .lines {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -367,6 +386,59 @@ function stamp() {
   background: var(--surface-2);
   text-align: left;
   min-width: 0;
+}
+/* ---- внутри большого плеера: на всю высоту панели, строки крупно ---- */
+.lyr.inline {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inline .sheet-head {
+  font-size: 17px;
+}
+.inline .lines {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+  gap: 4px;
+  scrollbar-width: none;
+  mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+}
+.inline .lines::-webkit-scrollbar {
+  display: none;
+}
+/* Пустое место сверху и снизу: первая и последняя строки тоже встают посередине */
+.inline .lines::before,
+.inline .lines::after {
+  content: '';
+  flex: 0 0 38%;
+}
+.inline .line {
+  padding: 8px 4px;
+  font: 700 clamp(22px, 1.9vw, 30px) / 1.28 var(--f-body);
+  letter-spacing: -0.01em;
+  border-radius: 12px;
+}
+.inline .line:hover {
+  color: var(--ink-2);
+}
+.inline .line.now,
+.inline .line.now:hover {
+  color: var(--ink);
+}
+.inline .plain {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  font: 600 19px/1.6 var(--f-body);
+}
+.inline :is(.variants, .ta) {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 .variant.on {
   box-shadow: inset 0 0 0 1.5px var(--amber);

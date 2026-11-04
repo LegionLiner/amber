@@ -43,6 +43,18 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
     private var done = 0
     private var total = 0
 
+    companion object {
+        /**
+         * До этого момента (elapsedRealtime) разбор стоит: идёт переход между треками, и две деки декодируют
+         * одновременно. Разбор — полное декодирование файла; на слабом телефоне он отнимал процессор у звука
+         */
+        @Volatile var holdUntil = 0L
+
+        private fun waitHold() {
+            while (android.os.SystemClock.elapsedRealtime() < holdUntil) Thread.sleep(100)
+        }
+    }
+
     private val worker = Thread({ loop() }, "yantar-analyzer").apply {
         isDaemon = true
         priority = Thread.MIN_PRIORITY
@@ -190,6 +202,7 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
             var inputDone = false
             var outputDone = false
             while (!outputDone) {
+                waitHold()
                 if (!inputDone) {
                     val inIdx = codec.dequeueInputBuffer(10_000)
                     if (inIdx >= 0) {

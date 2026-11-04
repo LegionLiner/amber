@@ -13,6 +13,7 @@ import { contextIcon } from './contextIcons'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
 import { onPageShown } from '@/app/paging'
+import { stampedLoad } from '@/app/data-rev'
 import {
   activeContext,
   deleteContext,
@@ -33,11 +34,11 @@ const player = usePlayer()
 const ui = useUi()
 const list = shallowRef<ContextRow[]>([])
 
-async function load() {
+const load = stampedLoad(async () => {
   list.value = await listContexts()
-}
-onMounted(load)
-onPageShown(load)
+})
+onMounted(() => void load())
+onPageShown(() => void load())
 
 const active = computed(() => activeContext(list.value, new Date(), player.output))
 /** Минута меняется — правила по часам пересчитываются */

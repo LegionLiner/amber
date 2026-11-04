@@ -17,6 +17,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import app.yantar.player.analysis.Analyzer
 import org.json.JSONObject
 import kotlin.math.PI
 import kotlin.math.pow
@@ -546,6 +547,8 @@ class Engine(private val ctx: Context, private val events: Events) {
         txCue = b.currentPosition
         txDur = len
         txType = tx.type
+        // Пока звучат обе деки, фоновый разбор треков ждёт: процессор нужен звуку
+        Analyzer.holdUntil = SystemClock.elapsedRealtime() + len + 2500
         activeIndex = 1 - activeIndex
         b.play()
         events.onActiveChanged(a, b, "crossfade")
@@ -555,6 +558,7 @@ class Engine(private val ctx: Context, private val events: Events) {
     private fun finishTail() {
         val t = tail ?: return
         tail = null
+        Analyzer.holdUntil = 0L
         txPending = false
         txClock = null
         t.pause()

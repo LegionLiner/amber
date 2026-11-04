@@ -8,6 +8,8 @@ import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
 import { dayTracks, diaryNote, saveDiaryNote, type DayTrack } from '@/data/repos/diary'
+import { trackCards } from '@/data/repos/library'
+import type { TrackCard } from '@/domain/track'
 import { dayLabel } from '@/domain/weeks'
 import { formatListen } from '@/domain/format'
 import { MOODS } from './mood'
@@ -21,6 +23,8 @@ const ui = useUi()
 const day = computed(() => String(route.params.day))
 
 const rows = shallowRef<DayTrack[]>([])
+/** Треки дня, которых нет в медиатеке: показываем названием, без воспроизведения */
+const cards = shallowRef<Map<string, TrackCard>>(new Map())
 const mood = ref<number | null>(null)
 const note = ref('')
 let savedNote = ''
@@ -28,6 +32,7 @@ let savedNote = ''
 async function load() {
   const [r, n] = await Promise.all([dayTracks(day.value), diaryNote(day.value)])
   rows.value = r
+  cards.value = await trackCards(r.map((x) => x.key).filter((k) => !library.byKey.has(k)))
   mood.value = n?.mood ?? null
   note.value = savedNote = n?.note ?? ''
 }
@@ -38,6 +43,13 @@ const items = computed(() =>
   rows.value.flatMap((r) => {
     const t = library.byKey.get(r.key)
     return t ? [{ r, t }] : []
+  }),
+)
+const gone = computed(() =>
+  rows.value.flatMap((r) => {
+    if (library.byKey.has(r.key)) return []
+    const c = cards.value.get(r.key)
+    return c ? [{ r, c }] : []
   }),
 )
 const total = computed(() => rows.value.reduce((s, r) => s + r.listenedMs, 0))
@@ -116,6 +128,16 @@ function play(list: Track[], i = 0) {
       </span>
       <span class="n num">{{ x.r.plays }}×</span>
     </button>
+    <div v-for="x in gone" :key="x.c.key" class="trow gone">
+      <CoverArt :seed="x.c.title" :label="x.c.title" size="s" class="cv" />
+      <span class="text">
+        <span class="t ellipsis">{{ x.c.title }}</span>
+        <span class="s ellipsis"
+          >{{ x.c.artist || 'Неизвестный исполнитель' }} · {{ formatListen(x.r.listenedMs) }} · нет в медиатеке</span
+        >
+      </span>
+      <span class="n num">{{ x.r.plays }}×</span>
+    </div>
     <p v-if="firstTime.length" class="lead muted">Впервые в этот день: {{ firstTime.length }}.</p>
     <div v-if="!rows.length" class="empty"><h3>В этот день музыки не было</h3></div>
     <div class="bottom-space" />
@@ -164,6 +186,14 @@ function play(list: Track[], i = 0) {
 }
 .cv {
   width: 44px;
+}
+/* Трека нет в медиатеке: строка приглушена и не нажимается */
+.trow.gone .cv {
+  opacity: 0.55;
+  filter: grayscale(0.7);
+}
+.trow.gone .t {
+  color: var(--ink-2);
 }
 .text {
   min-width: 0;

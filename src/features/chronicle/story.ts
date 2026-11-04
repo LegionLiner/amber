@@ -2,6 +2,7 @@ import type { Recap } from '@/data/repos/recap'
 import type { Track } from '@/domain/track'
 import { countLabel, formatListen } from '@/domain/format'
 import { dayLabel } from '@/domain/weeks'
+import { splitArtists } from '@/domain/names'
 
 /**
  * Слайды итогов. Одна структура и для экрана, и для картинки:
@@ -27,14 +28,21 @@ const GRADS: [string, string][] = [
 ]
 
 export function buildSlides(r: Recap, title: string, byKey: Map<string, Track>): Slide[] {
-  const top = r.top.flatMap((x) => {
-    const t = byKey.get(x.key)
-    return t ? [{ t, plays: x.plays, ms: x.listenedMs }] : []
-  })
+  const pick = (rows: { key: string; plays: number; listenedMs: number }[]) =>
+    rows.flatMap((x) => {
+      const t = byKey.get(x.key)
+      return t ? [{ t, plays: x.plays, ms: x.listenedMs }] : []
+    })
+  /** Чаще всего — по числу прослушиваний; больше всего — по минутам */
+  const top = pick(r.top)
+  const byTime = pick(r.topByTime)
+  // Исполнители — по всем трекам периода: как в медиатеке (с правками тегов), а у трека не из неё — по его тегам
   const artists = new Map<string, number>()
-  for (const x of top)
-    for (const a of x.t.artists.length ? x.t.artists : [x.t.artist]) if (a) artists.set(a, (artists.get(a) ?? 0) + x.plays)
-  const topArtists = [...artists.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+  for (const x of r.artistRows) {
+    const names = byKey.get(x.key)?.artists ?? splitArtists(x.artist)
+    for (const a of names) if (a) artists.set(a, (artists.get(a) ?? 0) + x.plays)
+  }
+  const topArtists = [...artists.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)
   const disc = r.discoveries.map((k) => byKey.get(k)).filter((t): t is Track => !!t)
   const bestDisc = disc.map((t) => ({ t, p: top.find((x) => x.t.key === t.key)?.plays ?? 0 })).sort((a, b) => b.p - a.p)[0]
   const days = r.activeDays.length
@@ -61,21 +69,40 @@ export function buildSlides(r: Recap, title: string, byKey: Map<string, Track>):
       colors: g(1),
     },
   ]
-  if (top[0]) {
+  // Трек периода — тот, что звучал дольше всех: длинный трек на пять раз весит больше короткой заставки на повторе
+  const best = byTime[0] ?? top[0]
+  if (best) {
     slides.push({
       kicker: 'Трек периода',
-      big: top[0].t.title,
-      title: top[0].t.artist,
-      lines: [`${countLabel(top[0].plays, ['раз', 'раза', 'раз'])} · ${formatListen(top[0].ms)}`],
-      cover: top[0].t,
+      big: best.t.title,
+      title: best.t.artist,
+      lines: [`${formatListen(best.ms)} · ${countLabel(best.plays, ['раз', 'раза', 'раз'])}`],
+      cover: best.t,
       colors: g(2),
     })
+  }
+  if (top.length) {
     slides.push({
-      kicker: 'Топ-5',
+      kicker: 'Топ-10',
       big: 'Чаще всего',
       lines: [],
-      list: top.slice(0, 5).map((x, i) => ({ n: i + 1, title: x.t.title, sub: x.t.artist, right: `${x.plays}×`, track: x.t })),
+      list: top.slice(0, 10).map((x, i) => ({ n: i + 1, title: x.t.title, sub: x.t.artist, right: `${x.plays}×`, track: x.t })),
       colors: g(3),
+    })
+  }
+  if (byTime.length) {
+    slides.push({
+      kicker: 'Топ-10 по минутам',
+      big: 'Больше всего',
+      lines: [],
+      list: byTime.slice(0, 10).map((x, i) => ({
+        n: i + 1,
+        title: x.t.title,
+        sub: x.t.artist,
+        right: `${Math.max(1, Math.round(x.ms / 60_000)).toLocaleString('ru-RU')} мин`,
+        track: x.t,
+      })),
+      colors: g(1),
     })
   }
   if (topArtists.length) {

@@ -47,6 +47,27 @@ export function topTracks(since: number, limit = 50, until = Number.MAX_SAFE_INT
   )
 }
 
+export interface ArtistPlaysRow {
+  key: string
+  plays: number
+  /** Исполнитель из тегов: для трека, которого нет в медиатеке (удалён, только на другом устройстве, Spotify) */
+  artist: string | null
+}
+
+/** Все треки периода с числом прослушиваний — для честного подсчёта исполнителей, а не по первой десятке */
+export function artistPlays(since: number, until = Number.MAX_SAFE_INTEGER): Promise<ArtistPlaysRow[]> {
+  return all<ArtistPlaysRow>(
+    `SELECT p.track_key AS key, SUM(p.counted) AS plays, COALESCE(t.artist, s.artist) AS artist
+     FROM stat_plays p
+     LEFT JOIN tracks t ON t.key = p.track_key
+     LEFT JOIN spotify_tracks s ON s.uri = p.track_key
+     WHERE p.started_at >= ? AND p.started_at < ?
+     GROUP BY p.track_key
+     HAVING SUM(p.counted) > 0`,
+    [since, until],
+  )
+}
+
 export interface DayRow {
   day: string
   plays: number
@@ -88,16 +109,31 @@ export interface RecentPlay {
 }
 
 /** Последние запущенные треки без повторов подряд */
-export function recentPlays(limit = 30): Promise<RecentPlay[]> {
-  return all<RecentPlay>(
-    `SELECT track_key AS key, MAX(started_at) AS startedAt
-     FROM stat_plays
-     WHERE ${IN_LIBRARY}
-     GROUP BY track_key
-     ORDER BY startedAt DESC
-     LIMIT ?`,
-    [limit],
-  )
+/**
+ * Недавно игравшие треки. Сначала смотрим только последние ~400 прослушиваний каждого источника — по индексу
+ * времени, а не перебором всей истории (со Spotify это десятки тысяч строк на каждый показ главной).
+ * Если там набралось меньше треков, чем нужно (один трек на повторе), — считаем по всей истории
+ */
+export async function recentPlays(limit = 30): Promise<RecentPlay[]> {
+  const q = (since: number) =>
+    all<RecentPlay>(
+      `SELECT track_key AS key, MAX(started_at) AS startedAt
+       FROM stat_plays
+       WHERE started_at >= ? AND ${IN_LIBRARY}
+       GROUP BY track_key
+       ORDER BY startedAt DESC
+       LIMIT ?`,
+      [since, limit],
+    )
+  // Граница источника: время 400-го с конца прослушивания; меньше 400 — с самого начала; пусто — не ограничивает
+  const edge = (table: string) =>
+    `CASE WHEN (SELECT COUNT(*) FROM ${table}) > 400
+       THEN (SELECT started_at FROM ${table} ORDER BY started_at DESC LIMIT 1 OFFSET 400)
+       WHEN EXISTS (SELECT 1 FROM ${table}) THEN 0 ELSE ${Number.MAX_SAFE_INTEGER} END`
+  const [c] = await all<{ since: number }>(`SELECT MIN(${edge('play_events')}, ${edge('spotify_plays')}) AS since`)
+  const since = Number(c?.since ?? 0)
+  const rows = await q(since >= Number.MAX_SAFE_INTEGER ? 0 : since)
+  return rows.length < limit && since > 0 ? q(0) : rows
 }
 
 export async function totalEvents(): Promise<number> {

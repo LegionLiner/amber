@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import IconPlay from '~icons/solar/play-bold'
 import IconPause from '~icons/solar/pause-bold'
 import IconNext from '~icons/solar/skip-next-bold'
@@ -10,8 +11,7 @@ import IconRepeatOne from '~icons/solar/repeat-one-linear'
 import IconHeart from '~icons/solar/heart-linear'
 import IconHeartOn from '~icons/solar/heart-bold'
 import IconQueue from '~icons/solar/playlist-linear'
-import IconText from '~icons/solar/document-text-linear'
-import IconSleep from '~icons/solar/moon-sleep-linear'
+import IconCard from '~icons/solar/music-note-linear'
 import IconTune from '~icons/solar/tuning-2-linear'
 import IconVolume from '~icons/solar/volume-loud-linear'
 import IconVolumeLow from '~icons/solar/volume-small-linear'
@@ -23,8 +23,6 @@ import CoverArt from '@/components/CoverArt.vue'
 import TrackLinks from '@/components/TrackLinks.vue'
 import BarSlider from './BarSlider.vue'
 import SpeedSheet from '@/features/player/SpeedSheet.vue'
-import LyricsSheet from '@/features/player/LyricsSheet.vue'
-import SleepSheet from '@/features/player/SleepSheet.vue'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
@@ -38,19 +36,24 @@ import { useSettings } from '@/stores/settings'
 /**
  * Панель плеера внизу окна: что играет, управление и перемотка посередине, звук, очередь и громкость справа.
  * Заменяет на компьютере мини-плеер и нижнюю навигацию. Обложка и название открывают большой плеер.
+ * Текста песни здесь нет — он виден в панели «Сейчас играет»; сон-таймер — в меню большого плеера.
  */
 const player = usePlayer()
 const library = useLibrary()
 const ui = useUi()
 const settings = useSettings()
+const router = useRouter()
+/** Микрофон — переключатель голосовых команд: выключены — серый, включены — янтарный */
 const micTitle = computed(() =>
-  voice.state === 'listening'
-    ? 'Слушаю: «Эмбер, стоп / дальше / назад / тише / громче». Нажми, чтобы выключить'
-    : voice.state === 'loading'
-      ? `${voice.stage}…`
-      : voice.state === 'error'
-        ? `Голосовые команды: ${voice.error}`
-        : 'Голосовые команды',
+  !settings.s.voice
+    ? 'Голосовые команды выключены. Нажми, чтобы включить'
+    : voice.state === 'listening'
+      ? 'Слушаю: «Эмбер, стоп / дальше / назад / тише / громче». Нажми, чтобы выключить'
+      : voice.state === 'loading'
+        ? `${voice.stage}…`
+        : voice.state === 'error'
+          ? `Голосовые команды: ${voice.error}`
+          : 'Голосовые команды',
 )
 
 const item = computed(() => player.current)
@@ -63,7 +66,6 @@ const colors = useCoverGlow(() => ({
   color2: track.value?.color2,
 }))
 const soundOn = computed(() => !plainSound(player.sound))
-const sleepOn = computed(() => player.sleepAt > 0 || player.sleepEndOfTrack)
 
 /** Пока тянешь перемотку, время показывает точку под курсором, а музыка ещё не прыгает */
 const seekDraft = ref<number | null>(null)
@@ -75,6 +77,13 @@ const shownPos = computed(() => (seekDraft.value != null ? seekDraft.value * pla
 function seekTo(v: number) {
   seekDraft.value = null
   if (player.durationMs > 0) void player.seek(v * player.durationMs)
+}
+
+function openCard() {
+  if (!item.value) return
+  ui.fullPlayer = false
+  ui.queueOpen = false
+  void router.push(`/track/${item.value.key}`)
 }
 
 function favorite() {
@@ -196,22 +205,12 @@ function favorite() {
       <button
         type="button"
         class="icon-btn"
-        aria-label="Текст песни"
-        title="Текст песни"
+        aria-label="Карточка трека"
+        title="Карточка трека"
         :disabled="!item"
-        @click="ui.openSheet(LyricsSheet)"
+        @click="openCard"
       >
-        <IconText />
-      </button>
-      <button
-        type="button"
-        class="icon-btn opt"
-        :class="{ on: sleepOn }"
-        aria-label="Сон-таймер"
-        title="Сон-таймер"
-        @click="ui.openSheet(SleepSheet)"
-      >
-        <IconSleep />
+        <IconCard />
       </button>
       <button
         type="button"
@@ -234,13 +233,13 @@ function favorite() {
         <IconStage />
       </button>
       <button
-        v-if="settings.s.voice"
         type="button"
         class="icon-btn mic"
-        :class="[voice.state, { wake: voice.wakeAt > 0 }]"
+        :class="settings.s.voice ? [voice.state, { wake: voice.wakeAt > 0 }] : 'off'"
         :aria-label="micTitle"
+        :aria-pressed="settings.s.voice"
         :title="micTitle"
-        @click="settings.s.voice = false"
+        @click="settings.s.voice = !settings.s.voice"
       >
         <IconMic />
       </button>
@@ -480,6 +479,12 @@ button:disabled {
   }
 }
 /* Голосовые команды: слушает — янтарный, услышал «Эмбер» — пульсирует, ошибка — красный */
+.mic.off {
+  color: var(--ink-3);
+}
+.mic.off:hover {
+  color: var(--ink-2);
+}
 .mic.listening {
   color: var(--amber-ink);
 }

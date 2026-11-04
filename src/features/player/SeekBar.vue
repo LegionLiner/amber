@@ -28,18 +28,31 @@ const frac = computed(() => {
 })
 const shownPos = computed(() => frac.value * props.duration)
 
+/**
+ * Столбики волны. В данных амплитуда сжата корнем, а громко сведённый трек и так почти ровный — столбики
+ * выходили одной высоты. Поэтому возвращаем энергию (квадрат), растягиваем её между тихими местами трека
+ * (15-й процентиль) и самым громким и чуть подчёркиваем разницу: тихое вступление, куплет, припев и проигрыш видны сразу
+ */
 const bars = computed(() => {
   const w = props.wave
   if (!w || !w.length) return null
-  const out: number[] = []
+  const raw: number[] = []
   for (let i = 0; i < BARS; i++) {
     const from = Math.floor((i * w.length) / BARS)
-    const to = Math.floor(((i + 1) * w.length) / BARS)
+    const to = Math.max(from + 1, Math.floor(((i + 1) * w.length) / BARS))
     let m = 0
-    for (let j = from; j < to; j++) if (w[j]! > m) m = w[j]!
-    out.push(Math.max(0.08, m / 255))
+    for (let j = from; j < Math.min(to, w.length); j++) if (w[j]! > m) m = w[j]!
+    raw.push((m / 255) ** 2)
   }
-  return out
+  const sorted = [...raw].sort((a, b) => a - b)
+  const lo = sorted[Math.floor(sorted.length * 0.15)]!
+  const hi = sorted[sorted.length - 1]!
+  // Совсем ровный звук (тон, белый шум) — просто средняя высота
+  if (hi - lo < 0.02) return raw.map(() => 0.6)
+  // Шкала — от самого громкого места вниз, но не уже 0,3: у плотно сведённого трека (громкость гуляет
+  // в пределах 10%) столбики остаются высокими и спокойными, а не превращаются в «пилу» из мелких колебаний
+  const span = Math.max(hi - lo, 0.3)
+  return raw.map((v) => 0.1 + 0.9 * Math.min(1, Math.max(0, 1 - (hi - v) / span)) ** 1.3)
 })
 
 const abStyle = computed(() => {
@@ -123,7 +136,7 @@ function up() {
   cursor: pointer;
 }
 .track.waved {
-  height: 44px;
+  height: 48px;
 }
 .bar {
   position: relative;
@@ -156,8 +169,9 @@ function up() {
   min-height: 3px;
   border-radius: 2px;
 }
+/* Непройденная часть — заметно, но спокойнее пройденной */
 .wave.dim i {
-  background: var(--line-strong);
+  background: color-mix(in srgb, var(--ink) 24%, transparent);
 }
 .wave.lit i {
   background: linear-gradient(180deg, var(--amber), var(--ember));

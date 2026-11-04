@@ -14,6 +14,7 @@ import { dayLabel, parseDay } from '@/domain/weeks'
 import { formatListen } from '@/domain/format'
 import { todayKey } from '@/domain/streaks'
 import { onPageShown } from '@/app/paging'
+import { stampedLoad } from '@/app/data-rev'
 
 /**
  * Эпохи: сезоны собираются сами из истории, свои эпохи задаются датами.
@@ -25,14 +26,15 @@ const eras = shallowRef<EraRow[]>([])
 const days = shallowRef<{ day: string; plays: number; listenedMs: number }[]>([])
 const bounds = shallowRef<{ first: string | null; last: string | null }>({ first: null, last: null })
 
-async function load() {
+/** Перечитываем, только если история или эпохи поменялись (app/data-rev.ts) */
+const load = stampedLoad(async () => {
   const [e, d, b] = await Promise.all([customEras(), playsByDay(), historyBounds()])
   eras.value = e
   days.value = d
   bounds.value = b
-}
-onMounted(load)
-onPageShown(load)
+})
+onMounted(() => void load())
+onPageShown(() => void load())
 
 function sum(from: string, to: string) {
   let plays = 0
@@ -132,6 +134,10 @@ function create() {
 </template>
 
 <style scoped>
+/* Первый заголовок — вплотную к вкладкам, как начало «Обзора» и «Контекстов» */
+section > .section-title:first-child {
+  padding-top: 4px;
+}
 .era {
   position: relative;
   width: calc(100% - 2 * var(--gutter));

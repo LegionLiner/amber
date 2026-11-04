@@ -29,6 +29,7 @@ import { countLabel, greeting } from '@/domain/format'
 import { seasonOf } from '@/domain/seasons'
 import type { PlaySource } from '@/native/types'
 import { onPageShown } from '@/app/paging'
+import { stampedLoad } from '@/app/data-rev'
 import { isDesktop } from '@/native/desktop/bridge'
 import { useCoverGlow } from '@/app/cover-colors'
 import { displayArtist } from '@/domain/track'
@@ -48,9 +49,8 @@ const week = shallowRef<{ track: Track; plays: number }[]>([])
 
 const DAY = 86_400_000
 
-async function refresh() {
-  hello.value = greeting()
-  if (!bootState.ready && !library.loaded) return
+/** Перечитываем, только если история поменялась (app/data-rev.ts); приветствие — каждый раз */
+const loadData = stampedLoad(async () => {
   const [r, w, c] = await Promise.all([recentPlays(16), topTracks(Date.now() - 7 * DAY, 5), listContexts()])
   contexts.value = c
   recent.value = r.map((x) => library.byKey.get(x.key)).filter((t): t is Track => !!t)
@@ -58,11 +58,23 @@ async function refresh() {
     const t = library.byKey.get(x.key)
     return t ? [{ track: t, plays: x.plays }] : []
   })
+})
+function refresh() {
+  hello.value = greeting()
+  if (!bootState.ready && !library.loaded) return
+  void loadData()
 }
 
 // Главная — сосед первого раздела медиатеки: данные нужны ещё до того, как до неё долистают
 onPageShown(refresh, { preload: true })
-watch(() => library.tracks, refresh)
+// Медиатеку перечитали (новые файлы, правки тегов) — треки в полках надо взять заново
+watch(
+  () => library.tracks,
+  () => {
+    hello.value = greeting()
+    if (bootState.ready || library.loaded) void loadData(true)
+  },
+)
 watch(
   () => ui.reselect,
   (r) => r.tab === 'home' && scrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' }),

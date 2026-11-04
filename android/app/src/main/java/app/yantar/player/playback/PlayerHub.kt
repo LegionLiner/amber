@@ -125,8 +125,9 @@ object PlayerHub {
             savePosition()
             emitState()
             checkQueueLow()
-            // Следующие треки после кроссфейда тоже должны быть проанализированы к своему стыку
-            prefetchAnalysis()
+            // Следующие треки после кроссфейда тоже должны быть проанализированы к своему стыку — но уже после
+            // перехода: разбор декодирует файл целиком и во время перехода спорил бы за процессор с двумя деками
+            main.postDelayed({ prefetchAnalysis() }, (engine?.transitionLeftMs ?: 0L) + 1500)
         }
 
         override fun onOutputsChanged(headphonesConnected: Boolean) {
@@ -348,9 +349,15 @@ object PlayerHub {
 
     /* ------------------------------ команды ------------------------------ */
 
-    private inline fun edit(block: (Engine) -> Unit): Int {
+    /**
+     * Правка очереди. Новая очередь целиком (setQueue) завершает идущий переход; точечные правки (дописать,
+     * переставить, убрать) — нет: их применяют обе деки, и переход доигрывает. Раньше любая правка обрывала его:
+     * уходящий трек замолкал на полуслове, входящий скачком становился в полную громкость. Особенно заметно
+     * на радио — оно дописывает треки как раз в момент смены трека
+     */
+    private inline fun edit(settle: Boolean, block: (Engine) -> Unit): Int {
         val e = engine()
-        e.settle()
+        if (settle) e.settle()
         inEdit = true
         try {
             block(e)
@@ -366,7 +373,7 @@ object PlayerHub {
 
     fun setQueue(items: List<QItem>, index: Int, positionMs: Long, play: Boolean): Int {
         tracker.finish("replaced")
-        val r = edit { e ->
+        val r = edit(settle = true) { e ->
             val start = index.coerceIn(0, maxOf(0, items.size - 1))
             val active = e.active
             // С начала — значит с точки входа трека
@@ -381,7 +388,7 @@ object PlayerHub {
         return r
     }
 
-    fun editQueue(edits: JSONArray): Int = edit { e ->
+    fun editQueue(edits: JSONArray): Int = edit(settle = false) { e ->
         for (i in 0 until edits.length()) {
             val ed = edits.getJSONObject(i)
             when (ed.optString("op")) {

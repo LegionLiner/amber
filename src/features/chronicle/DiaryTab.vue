@@ -4,11 +4,14 @@ import { useRouter } from 'vue-router'
 import CoverArt from '@/components/CoverArt.vue'
 import { useLibrary } from '@/stores/library'
 import { diaryFeed, milestones, onThisDay, type DiaryDay, type Milestone, type OnThisDay } from '@/data/repos/diary'
+import { trackCards } from '@/data/repos/library'
+import type { TrackCard } from '@/domain/track'
 import { todayKey } from '@/domain/streaks'
 import { dayLabel } from '@/domain/weeks'
 import { formatDate, formatListen } from '@/domain/format'
 import { moodOf } from './mood'
 import { onPageShown } from '@/app/paging'
+import { stampedLoad } from '@/app/data-rev'
 
 /**
  * Дневник: у каждого дня с музыкой своя запись — сколько слушал, трек дня, сколько нового.
@@ -20,19 +23,24 @@ const router = useRouter()
 const feed = shallowRef<DiaryDay[]>([])
 const past = shallowRef<OnThisDay[]>([])
 const marks = shallowRef<Milestone[]>([])
+/** Названия треков «в этот день», которых нет в медиатеке */
+const cards = shallowRef<Map<string, TrackCard>>(new Map())
 const more = ref(true)
 const loading = ref(false)
 const today = todayKey()
 
-async function load() {
+/** Перечитываем, только если история поменялась (app/data-rev.ts) */
+const load = stampedLoad(async () => {
   const [f, p, m] = await Promise.all([diaryFeed('9999-12-31', 20), onThisDay(today), milestones()])
   feed.value = f
   past.value = p
+  const absent = [...new Set(p.map((r) => r.key))].filter((k) => !library.byKey.has(k))
+  cards.value = await trackCards(absent)
   marks.value = m.slice(0, 12)
   more.value = f.length === 20
-}
-onMounted(load)
-onPageShown(load)
+})
+onMounted(() => void load())
+onPageShown(() => void load())
 
 async function loadMore() {
   if (loading.value || !more.value) return
@@ -48,7 +56,12 @@ async function loadMore() {
 const pastByDay = computed(() => {
   const m = new Map<string, OnThisDay[]>()
   for (const r of past.value) m.set(r.day, [...(m.get(r.day) ?? []), r])
-  return [...m.entries()].map(([day, rows]) => ({ day, rows, track: library.byKey.get(rows[0]!.key) }))
+  return [...m.entries()].map(([day, rows]) => {
+    const key = rows[0]!.key
+    const track = library.byKey.get(key)
+    // Трека нет в медиатеке — заглушка вместо обложки и название из его карточки
+    return { day, rows, track, title: track?.title ?? cards.value.get(key)?.title ?? 'Трек не найден' }
+  })
 })
 
 function yearsAgo(day: string): string {
@@ -70,11 +83,14 @@ function markText(m: Milestone): string {
     <div v-if="pastByDay.length" class="section-title"><span>В этот день</span></div>
     <div v-if="pastByDay.length" class="past hscroll">
       <button v-for="p in pastByDay" :key="p.day" type="button" class="pcard" @click="router.push(`/day/${p.day}`)">
-        <CoverArt v-if="p.track" :art="p.track.art" :seed="p.track.title" :label="p.track.title" size="s" class="cv" />
+        <CoverArt :art="p.track?.art" :seed="p.title" :label="p.title" size="s" class="cv" :class="{ gone: !p.track }" />
         <span class="text">
           <small>{{ yearsAgo(p.day) }} · {{ dayLabel(p.day, true) }}</small>
-          <b class="ellipsis">{{ p.track?.title ?? 'трек' }}</b>
-          <small class="ellipsis">и ещё {{ p.rows.length - 1 }}</small>
+          <b class="ellipsis">{{ p.title }}</b>
+          <small class="ellipsis"
+            ><template v-if="!p.track">нет в медиатеке</template><template v-if="!p.track && p.rows.length > 1"> · </template
+            ><template v-if="p.rows.length > 1">и ещё {{ p.rows.length - 1 }}</template></small
+          >
         </span>
       </button>
     </div>
@@ -121,6 +137,10 @@ function markText(m: Milestone): string {
 </template>
 
 <style scoped>
+/* Первый заголовок — вплотную к вкладкам, как начало «Обзора» и «Контекстов» */
+section > .section-title:first-child {
+  padding-top: 4px;
+}
 .past {
   display: flex;
   gap: 10px;
@@ -142,6 +162,11 @@ function markText(m: Milestone): string {
 }
 .pcard .cv {
   width: 52px;
+}
+/* Трека нет в медиатеке: заглушка приглушена */
+.cv.gone {
+  opacity: 0.55;
+  filter: grayscale(0.7);
 }
 .text {
   display: flex;

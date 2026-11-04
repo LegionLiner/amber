@@ -58,7 +58,7 @@ import { splitYoutubeTitle } from '@/domain/youtube'
 import { fromBase64, isPng, writeId3 } from './id3-writer'
 import { defragmentMp4, isFragmentedMp4, sniff, unwrapId3Mp4, writeMp4Tags } from './mp4'
 import { loadCovers, saveCover, webCoverUrl } from './web-covers'
-import { DEFAULT_COUNTING, isCounted, localParts } from '@/domain/counting'
+import { countedSqlExpr, DEFAULT_COUNTING, isCounted, localParts } from '@/domain/counting'
 import { rekeyFixupSql } from '@/data/rekey'
 
 interface LiveEvent {
@@ -194,6 +194,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   private counting: CountingRule = DEFAULT_COUNTING
   private audio: AudioSettings = DEFAULT_AUDIO
   private live: LiveEvent | null = null
+  private orphansClosed = false
   private demo: Map<string, DemoTrack> | null = null
 
   // своя папка
@@ -1188,6 +1189,25 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   async configure(o: EngineConfig): Promise<void> {
     this.counting = o.counting
+    if (!this.orphansClosed) {
+      this.orphansClosed = true
+      await this.closeOrphans()
+    }
+  }
+
+  /**
+   * Прослушивания, оставшиеся открытыми с прошлого запуска (окно закрыли посреди трека, компьютер выключили):
+   * закрываются тем, что успели дослушать, — как на телефоне при старте движка. Без этого они не попадали
+   * в статистику, а синхронизация ждала их вечно («Ждёт отправки: …»)
+   */
+  private async closeOrphans() {
+    const db = await this.dbReady
+    db.execute(
+      `UPDATE play_events SET end_reason = 'stopped', ended_at = COALESCE(ended_at, started_at + listened_ms),
+         counted = ${countedSqlExpr(this.counting)}
+       WHERE end_reason IS NULL AND id != ?`,
+      [this.live?.id ?? -1],
+    )
   }
 
   async setAudioSettings(o: AudioSettings): Promise<void> {

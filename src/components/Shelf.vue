@@ -67,11 +67,13 @@ watch(
 .rail {
   position: relative;
 }
+/* Сверху запас под приподнятую при наведении обложку: лента с прокруткой обрезает всё, что выходит за неё */
 .row {
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  padding: 0 var(--gutter) 4px;
+  margin-top: -10px;
+  padding: 10px var(--gutter) 4px;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
   scroll-padding-inline: var(--gutter);
@@ -113,7 +115,7 @@ watch(
 }
 .fit .row {
   gap: 16px;
-  padding: 0 0 4px;
+  padding: 10px 0 4px;
   scroll-padding-inline: 0;
   scroll-snap-type: x mandatory;
 }

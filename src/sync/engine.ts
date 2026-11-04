@@ -80,8 +80,15 @@ export async function disableSync(db: SyncDb): Promise<void> {
   await db.batch([{ sql: `DELETE FROM sync_state` }, { sql: `DELETE FROM sync_outbox` }, { sql: `DELETE FROM sync_cards` }])
 }
 
+/** Сколько ждёт отправки. Трек, который играет прямо сейчас, не в счёт: он уйдёт, когда доиграет */
 export async function pendingCount(db: SyncDb): Promise<number> {
-  return Number((await db.all<{ n: number }>(`SELECT COUNT(*) AS n FROM sync_outbox`))[0]?.n ?? 0)
+  const rows = await db.all<{ n: number }>(
+    `SELECT (SELECT COUNT(*) FROM sync_outbox) - (
+       SELECT COUNT(*) FROM sync_outbox WHERE kind = 'play'
+         AND eid IN (SELECT track_key || '@' || started_at FROM play_events WHERE end_reason IS NULL)
+     ) AS n`,
+  )
+  return Number(rows[0]?.n ?? 0)
 }
 
 /** Стабильная строка для сравнения настроек: порядок полей не важен */

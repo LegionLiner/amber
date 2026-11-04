@@ -1,5 +1,5 @@
 import { all, batch, db, run } from '../db'
-import type { TrackRow } from '@/domain/track'
+import { toCard, type TrackCard, type TrackRow } from '@/domain/track'
 import { countedSqlExpr } from '@/domain/counting'
 import type { CountingRule } from '@/native/types'
 
@@ -40,6 +40,29 @@ export function loadTrackRows(): Promise<TrackRow[]> {
 }
 
 /** Результаты анализа для нескольких треков (после фонового анализа) */
+/**
+ * Карточки треков, которых нет в медиатеке: строка в tracks остаётся и после удаления файла (missing_since),
+ * треки с другого устройства приходят карточкой при синхронизации, у истории Spotify — свои названия
+ */
+export async function trackCards(keys: readonly string[]): Promise<Map<string, TrackCard>> {
+  if (!keys.length) return new Map()
+  const marks = keys.map(() => '?').join(',')
+  const rows = await all<{
+    key: string
+    title: string | null
+    artist: string | null
+    fileName: string
+    overrides: string | null
+  }>(
+    `SELECT t.key, t.title, t.artist, t.file_name AS fileName, u.overrides
+     FROM tracks t LEFT JOIN track_user u ON u.key = t.key WHERE t.key IN (${marks})
+     UNION ALL
+     SELECT uri, title, artist, '', NULL FROM spotify_tracks WHERE uri IN (${marks})`,
+    [...keys, ...keys],
+  )
+  return new Map(rows.map((r) => [r.key, toCard(r)]))
+}
+
 export function loadAnalysis(
   keys: string[],
 ): Promise<{ key: string; lufs: number | null; bpm: number | null; energy: number | null; analyzedAt: number }[]> {

@@ -14,6 +14,7 @@ import { MusicCore } from '@/native/music-core'
 import type { ExecResult, QueryResult as BridgeResult, SqlStatement, SqlValue } from '@/native/types'
 import type { DB } from './schema'
 import { MIGRATIONS } from './migrations'
+import { localRev } from '@/app/data-rev'
 
 /**
  * Кто-то записал в базу из интерфейса: синхронизация по этому сигналу сразу смотрит журнал изменений.
@@ -23,7 +24,14 @@ let writeListener: (() => void) | null = null
 export function onDbWrite(fn: () => void): void {
   writeListener = fn
 }
-const wrote = () => writeListener?.()
+/** Записи, от которых статистика не меняется: настройки, служебное синхронизации, фоновый разбор треков и тексты */
+const QUIET =
+  /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["`]?(?:settings|sync_\w+|device_profiles|filesync_\w+|analysis|lyrics|track_neighbors)["`]?[\s(]/i
+function wrote(sqls: readonly string[]) {
+  writeListener?.()
+  // Экраны статистики перечитают базу при следующем показе (app/data-rev.ts)
+  if (sqls.some((s) => !QUIET.test(s))) localRev.value++
+}
 
 /** Превращает ответ моста { columns, values } в массив объектов */
 export function toObjects<T>(res: BridgeResult): T[] {
@@ -54,7 +62,7 @@ class BridgeConnection implements DatabaseConnection {
       return { rows: toObjects<R>(res) }
     }
     const r = await MusicCore.execute({ sql: q.sql, params })
-    wrote()
+    wrote([q.sql])
     return { rows: [], numAffectedRows: BigInt(r.changes), insertId: BigInt(r.lastId) }
   }
 
@@ -113,8 +121,9 @@ function toStatement(s: SqlStatement | Compilable): SqlStatement {
 /** Несколько запросов в одной транзакции на стороне SQLite: либо все, либо ни одного */
 export async function batch(statements: (SqlStatement | Compilable)[]): Promise<ExecResult[]> {
   if (statements.length === 0) return []
-  const { results } = await MusicCore.batch({ statements: statements.map(toStatement) })
-  wrote()
+  const list = statements.map(toStatement)
+  const { results } = await MusicCore.batch({ statements: list })
+  wrote(list.map((s) => s.sql))
   return results
 }
 
@@ -125,7 +134,7 @@ export async function all<T>(sql: string, params: SqlValue[] = []): Promise<T[]>
 
 export async function run(sql: string, params: SqlValue[] = []): Promise<ExecResult> {
   const r = await MusicCore.execute({ sql, params })
-  wrote()
+  wrote([sql])
   return r
 }
 

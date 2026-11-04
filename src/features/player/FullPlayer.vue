@@ -19,6 +19,14 @@ import IconBt from '~icons/solar/bluetooth-linear'
 import IconHeadphones from '~icons/solar/headphones-round-linear'
 import IconText from '~icons/solar/document-text-linear'
 import IconSleep from '~icons/solar/moon-sleep-linear'
+import IconMarks from '~icons/solar/bookmark-linear'
+import IconAdd from '~icons/solar/add-square-linear'
+import IconTags from '~icons/solar/pen-new-square-linear'
+import IconCard from '~icons/solar/music-note-linear'
+import { useRouter } from 'vue-router'
+import BookmarksSheet from './BookmarksSheet.vue'
+import TagEditorSheet from '@/components/TagEditorSheet.vue'
+import AddToPlaylistSheet from '@/components/AddToPlaylistSheet.vue'
 import IconTune from '~icons/solar/tuning-2-linear'
 import IconVolume from '~icons/solar/volume-loud-linear'
 import IconMute from '~icons/solar/volume-cross-linear'
@@ -148,6 +156,12 @@ const soundOn = computed(() => !plainSound(player.sound))
 
 function close() {
   ui.fullPlayer = false
+}
+const router = useRouter()
+function openCard() {
+  if (!item.value) return
+  close()
+  void router.push(`/track/${item.value.key}`)
 }
 
 /* ---- показ: тапом по мини-плееру или протяжкой его вверх (тогда плеер едет за пальцем) ---- */
@@ -411,11 +425,17 @@ function onEnter(el: Element, done: () => void) {
     setTimeout(done, 340)
     return
   }
+  // Полёт считается от центра и с учётом того, где обложка окажется в конце: на паузе она уменьшена
+  // (scale в CSS, от центра). Раньше полёт шёл от левого верхнего угла к масштабу 1, а в конце включался
+  // масштаб паузы от центра — обложка садилась левее и выше и потом прыгала на место
   const to = art.getBoundingClientRect()
-  const s = from.width / to.width
+  const tf = getComputedStyle(art).transform
+  const k = tf && tf !== 'none' ? new DOMMatrix(tf).a : 1
+  const s = (from.width / to.width) * k
+  const dx = from.left + from.width / 2 - (to.left + to.width / 2)
+  const dy = from.top + from.height / 2 - (to.top + to.height / 2)
   art.style.transition = 'none'
-  art.style.transformOrigin = 'top left'
-  art.style.transform = `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${s})`
+  art.style.transform = `translate(${dx}px, ${dy}px) scale(${s})`
   root.style.transition = 'none'
   root.style.opacity = '0'
   void root.offsetWidth
@@ -425,7 +445,6 @@ function onEnter(el: Element, done: () => void) {
   root.style.opacity = '1'
   setTimeout(() => {
     art.style.transition = ''
-    art.style.transformOrigin = ''
     root.style.transition = ''
     root.style.opacity = ''
     done()
@@ -613,7 +632,10 @@ function togglePlay() {
             >
               <IconTune />
             </button>
+            <!-- Телефон: текст и очередь. Компьютер: текст виден в панели справа, очередь — с панели плеера,
+                 а здесь — действия с треком -->
             <button
+              v-if="!isDesktop"
               type="button"
               class="icon-btn"
               :class="{ on: lyricsInline }"
@@ -632,7 +654,41 @@ function togglePlay() {
             >
               <IconSleep />
             </button>
-            <button type="button" class="icon-btn" aria-label="Очередь" @click="ui.queueOpen = true"><IconQueue /></button>
+            <button v-if="!isDesktop" type="button" class="icon-btn" aria-label="Очередь" @click="ui.queueOpen = true">
+              <IconQueue />
+            </button>
+            <template v-else>
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Метки и лучшие моменты"
+                title="Метки и лучшие моменты"
+                @click="ui.openSheet(BookmarksSheet, { trackKey: item.key, title: item.title })"
+              >
+                <IconMarks />
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="В плейлист"
+                title="В плейлист"
+                @click="ui.openSheet(AddToPlaylistSheet, { keys: [item.key] })"
+              >
+                <IconAdd />
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                aria-label="Изменить теги"
+                title="Изменить теги"
+                @click="ui.openSheet(TagEditorSheet, { keys: [item.key] })"
+              >
+                <IconTags />
+              </button>
+              <button type="button" class="icon-btn" aria-label="Карточка трека" title="Карточка трека" @click="openCard">
+                <IconCard />
+              </button>
+            </template>
             <!-- Компьютер: большой плеер закрывает панель с громкостью, поэтому громкость и здесь -->
             <span v-if="isDesktop" class="vol">
               <button

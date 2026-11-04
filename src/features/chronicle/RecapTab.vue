@@ -5,19 +5,20 @@ import { recapPeriods } from '@/data/repos/recap'
 import { MONTHS } from '@/domain/format'
 import { coverGradient } from '@/domain/palette'
 import { onPageShown } from '@/app/paging'
+import { stampedLoad } from '@/app/data-rev'
 
 /** Итоги: по месяцам и по годам, открываются историями на весь экран */
 const months = ref<string[]>([])
 const years = ref<string[]>([])
 const open = ref<{ from: string; to: string; title: string } | null>(null)
 
-async function load() {
+const load = stampedLoad(async () => {
   const p = await recapPeriods()
   months.value = p.months.slice(0, 24)
   years.value = p.years
-}
-onMounted(load)
-onPageShown(load)
+})
+onMounted(() => void load())
+onPageShown(() => void load())
 
 function monthTitle(m: string) {
   return `${MONTHS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
@@ -77,6 +78,10 @@ function openYear(y: string) {
 </template>
 
 <style scoped>
+/* Первый заголовок — вплотную к вкладкам, как начало «Обзора» и «Контекстов» */
+section > .section-title:first-child {
+  padding-top: 4px;
+}
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

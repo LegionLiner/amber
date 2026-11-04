@@ -28,12 +28,31 @@ export interface DiaryDay extends DayRow {
   note: string | null
 }
 
+/**
+ * Последние дни с музыкой — по индексам дней прямо в таблицах (через представление stat_plays SQLite
+ * перебирал бы всю историю). Условие для Spotify — то же, что в представлении (migrations.ts, версия 6)
+ */
+async function recentDays(beforeDay: string, limit: number): Promise<string[]> {
+  const rows = await all<{ day: string }>(
+    `SELECT local_day AS day FROM play_events WHERE local_day < ?
+     UNION
+     SELECT local_day FROM spotify_plays WHERE local_day < ?
+       AND EXISTS (SELECT 1 FROM settings WHERE key = 'spotify:on' AND value = '1')
+     ORDER BY day DESC LIMIT ?`,
+    [beforeDay, beforeDay, limit],
+  )
+  return rows.map((r) => r.day)
+}
+
 export async function diaryFeed(beforeDay: string, limit = 20): Promise<DiaryDay[]> {
+  // Сначала — какие дни, потом считаем только по ним
+  const recent = await recentDays(beforeDay, limit)
+  if (!recent.length) return []
   const days = await all<DayRow>(
     `SELECT local_day AS day, SUM(listened_ms) AS listenedMs, SUM(counted) AS plays,
        COUNT(DISTINCT track_key) AS tracks, MIN(started_at) AS firstAt, MAX(started_at) AS lastAt
-     FROM stat_plays WHERE local_day < ? GROUP BY local_day ORDER BY local_day DESC LIMIT ?`,
-    [beforeDay, limit],
+     FROM stat_plays WHERE local_day >= ? AND local_day < ? GROUP BY local_day ORDER BY local_day DESC`,
+    [recent[recent.length - 1]!, beforeDay],
   )
   if (!days.length) return []
   const list = days.map((d) => d.day)
@@ -154,16 +173,16 @@ export async function milestones(): Promise<Milestone[]> {
        ) WHERE n IN (${TRACK_MARKS.join(',')})`,
     ),
   ])
+  // Все пороги часов — одним проходом по истории (раньше — проход на каждый порог)
+  const [h] = await all<Record<string, number | null>>(
+    `SELECT ${HOUR_MARKS.map((v, i) => `MIN(CASE WHEN cum >= ${v * 3_600_000} THEN at END) AS h${i}`).join(', ')}
+     FROM (SELECT started_at AS at, SUM(listened_ms) OVER (ORDER BY started_at ROWS UNBOUNDED PRECEDING) AS cum FROM stat_plays)`,
+  )
   const hours: Milestone[] = []
-  for (const h of HOUR_MARKS) {
-    const [r] = await all<{ at: number | null }>(
-      `SELECT MIN(at) AS at FROM (SELECT started_at AS at, SUM(listened_ms) OVER (ORDER BY started_at) AS cum FROM stat_plays)
-       WHERE cum >= ?`,
-      [h * 3_600_000],
-    )
-    if (!r?.at) break
-    hours.push({ at: r.at, kind: 'hours', value: h })
-  }
+  HOUR_MARKS.forEach((v, i) => {
+    const at = h?.[`h${i}`]
+    if (at) hours.push({ at, kind: 'hours', value: v })
+  })
   return [
     ...plays.map((p) => ({ at: p.at, kind: 'plays' as const, value: p.n })),
     ...hours,

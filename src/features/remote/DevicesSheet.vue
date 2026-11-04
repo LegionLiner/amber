@@ -271,14 +271,24 @@ function toSettings() {
   background: var(--ink);
   color: var(--bg);
 }
+/* «Слушать здесь» и «Перенести туда» — в один ряд, поровну; надписи компактные, чтобы влезали на любом экране */
 .acts {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
 }
+.acts .btn {
+  min-height: 38px;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
 .acts .btn svg {
-  width: 17px;
-  height: 17px;
+  flex: none;
+  width: 16px;
+  height: 16px;
 }
 .tiny {
   font-size: 12px;

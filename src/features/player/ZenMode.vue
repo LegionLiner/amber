@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CoverArt from '@/components/CoverArt.vue'
 import { coverAccents, paletteOf, useCoverGlow } from '@/app/cover-colors'
 import { BeatFollower, type Beat } from '@/app/beat'
+import { audioLevels } from '@/native/web/audio-graph'
 import { motionReduced } from '@/app/motion'
 import { isDesktop } from '@/native/desktop/bridge'
 import { usePlayer } from '@/stores/player'
@@ -10,15 +11,16 @@ import { useUi } from '@/stores/ui'
 
 /**
  * «Сцена»: на весь экран — только обложка, вокруг неё свет и цвет из её же красок.
- *  - большие мягкие пятна плывут по краям экрана и дышат громкостью;
- *  - вокруг обложки — ореол из двух огней разного цвета, они медленно обходят её по кругу и вспыхивают на басах;
- *  - снизу — свечение баса, как в свёрнутом плеере на компьютере, только шире и ярче;
- *  - сияние: конический перелив красок, крутится быстрее, когда в музыке много середины;
- *  - сверху — мягкий «прожектор», мерцает от верхов (тарелки, хэты).
+ * Каждая сторона дышит своим звуком:
+ *  - низ — бас и барабаны: широкое свечение, на ударе поднимается и разгорается;
+ *  - слева — середина (голос, гитары, клавишные);
+ *  - справа — верха (тарелки, хэты, «воздух»);
+ *  - сверху и вокруг обложки — спокойный свет и медленный перелив красок по общей громкости.
+ * Краски — оттенки обложки и соседние с ними, яркость держится в спокойных пределах: свет цветной, а не белый.
  * Ни предметов, ни линий — только свет. Выход — щелчок мимо обложки или Esc.
  *
  * Звук разбирает анализатор звукового графа (только компьютер, app/beat.ts). На телефоне звук играет
- * нативный движок и до страницы не доходит — там свет просто медленно дышит.
+ * нативный движок и до страницы не доходит — там стороны медленно дышат вразнобой.
  * Рисуется в маленький холст и растягивается на весь экран, как фон большого плеера (PlayerAmbient).
  */
 const player = usePlayer()
@@ -67,18 +69,38 @@ watch(palette, (p) => {
   mixAt = now
 })
 const rgba = (c: RGB, a: number) => `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`
-/** Краска посветлее — для огней: тёмная обложка всё равно должна светиться */
-const lift = (c: RGB, k: number): RGB => [c[0] + (255 - c[0]) * k, c[1] + (255 - c[1]) * k, c[2] + (255 - c[2]) * k]
+type HSL = [number, number, number]
+function hslOf([r, g, b]: RGB): HSL {
+  const R = r / 255
+  const G = g / 255
+  const B = b / 255
+  const max = Math.max(R, G, B)
+  const min = Math.min(R, G, B)
+  const l = (max + min) / 2
+  const d = max - min
+  if (!d) return [0, 0, l]
+  const s = d / (1 - Math.abs(2 * l - 1))
+  const h = max === R ? ((G - B) / d + 6) % 6 : max === G ? (B - R) / d + 2 : (R - G) / d + 4
+  return [h * 60, s, l]
+}
+function rgbOfHsl([h, s, l]: HSL): RGB {
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  const [r, g, b] =
+    h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)]
+}
+/**
+ * Краска обложки для света: тот же оттенок (dh — сдвиг к соседнему цвету), яркость в пределах lo…hi.
+ * Тёмная обложка всё равно светится, светлая не уходит в белое
+ */
+function tone(c: RGB, dh = 0, lo = 0.3, hi = 0.55): RGB {
+  const [h, s, l] = hslOf(c)
+  return rgbOfHsl([(h + dh + 360) % 360, Math.min(1, s * 1.1), Math.min(hi, Math.max(lo, l))])
+}
 
 /* ---------------- рисование ---------------- */
-/** Пятна держатся ближе к краям — середину занимает обложка со своим ореолом */
-const BLOBS = [
-  { c: 0, x: 0.08, y: 0.14, r: 0.46, ax: 0.14, ay: 0.18, tx: 23, ty: 29, a: 0.62 },
-  { c: 1, x: 0.92, y: 0.2, r: 0.42, ax: 0.12, ay: 0.2, tx: 27, ty: 21, a: 0.58 },
-  { c: 2, x: 0.88, y: 0.86, r: 0.42, ax: 0.16, ay: 0.14, tx: 19, ty: 25, a: 0.5 },
-  { c: 3, x: 0.1, y: 0.88, r: 0.4, ax: 0.14, ay: 0.16, tx: 31, ty: 23, a: 0.5 },
-  { c: 4, x: 0.5, y: 0.02, r: 0.34, ax: 0.3, ay: 0.06, tx: 35, ty: 17, a: 0.4 },
-]
 const SCALE = isDesktop ? 5 : 6
 const FRAME_MS = isDesktop ? 15 : 33
 
@@ -96,7 +118,36 @@ let speed = 1
 let coverR = 0
 const still = motionReduced()
 const beat = new BeatFollower()
-let level: Beat = { hit: 0, loud: 0, mid: 0, high: 0 }
+const QUIET: Beat = { hit: 0, kick: 0, loud: 0, low: 0, mid: 0, high: 0 }
+let level: Beat = QUIET
+
+/** Телефон: звука странице не видно — стороны дышат сами, медленно и вразнобой */
+function idleBreath(): Beat {
+  const k = 2 * Math.PI * t
+  const w = (p: number, ph: number) => 0.35 + 0.3 * Math.sin(k / p + ph)
+  return { hit: 0, kick: 0, loud: w(11, 0), low: w(7, 1), mid: w(9, 2.5), high: w(13, 4) }
+}
+
+/** Мягкое пятно света: плотная середина, растворённый край */
+function glow(g: CanvasRenderingContext2D, x: number, y: number, r: number, col: RGB, alpha: number) {
+  const gr = g.createRadialGradient(x, y, 0, x, y, r)
+  gr.addColorStop(0, rgba(col, 1))
+  gr.addColorStop(0.4, rgba(col, 0.55))
+  gr.addColorStop(1, rgba(col, 0))
+  g.globalAlpha = Math.max(0, Math.min(1, alpha))
+  g.fillStyle = gr
+  g.fillRect(x - r, y - r, r * 2, r * 2)
+}
+
+/** Пятна по бокам: [краска палитры, высота центра, сдвиг оттенка, период движения, с] */
+const LEFT = [
+  [0, 0.3, -14, 23],
+  [2, 0.72, 12, 29],
+] as const
+const RIGHT = [
+  [1, 0.28, 14, 21],
+  [3, 0.7, -12, 27],
+] as const
 
 function draw(now: number, b: Beat) {
   const c = canvas.value
@@ -106,11 +157,12 @@ function draw(now: number, b: Beat) {
   const m = Math.max(w, h)
   const pal = colorsNow(now)
   const k = 2 * Math.PI * t
-  const breath = 0.5 + 0.5 * Math.sin(k / 7)
-  const pulse = Math.min(1, 0.12 * breath + 0.3 * b.loud + 0.85 * b.hit)
   const cx = w / 2
   const cy = h / 2
   const R = coverR || m * 0.3
+  /** Низ: бас держит ровный уровень, бочка добавляет толчок */
+  const bottom = Math.min(1, 0.55 * b.low + 0.7 * b.kick)
+  const drift = (p: number, ph: number) => Math.sin(k / p + ph)
 
   // Основа: почти чёрный с оттенком главной краски
   const base = pal[0]!
@@ -119,100 +171,85 @@ function draw(now: number, b: Beat) {
   ctx.fillStyle = `rgb(${Math.round(base[0] * 0.08 + 3)},${Math.round(base[1] * 0.08 + 3)},${Math.round(base[2] * 0.08 + 5)})`
   ctx.fillRect(0, 0, w, h)
 
-  // Пятна: широкие петли, дышат громкостью
-  for (const p of BLOBS) {
-    const col = pal[p.c]!
-    const x = (p.x + p.ax * Math.sin(k / p.tx + p.c) + p.ax * 0.4 * Math.sin(k / (p.ty * 2.3) + p.c * 2.1)) * w
-    const y = (p.y + p.ay * Math.sin(k / p.ty + p.c * 1.7) + p.ay * 0.4 * Math.cos(k / (p.tx * 2.7) + p.c)) * h
-    const r = p.r * m * (1 + 0.18 * Math.sin(k / (p.tx * 1.3) + p.c) + 0.12 * pulse)
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r)
-    g.addColorStop(0, rgba(col, 1))
-    g.addColorStop(0.35, rgba(col, 0.6))
-    g.addColorStop(1, rgba(col, 0))
-    ctx.globalAlpha = p.a * (0.6 + 0.4 * b.loud)
-    ctx.fillStyle = g
-    ctx.fillRect(0, 0, w, h)
+  // Сверху — спокойный свет по общей громкости
+  glow(ctx, w * (0.5 + 0.18 * drift(37, 0)), -h * 0.06, m * 0.42, tone(pal[4]!, 0, 0.25, 0.48), 0.3 + 0.15 * b.loud)
+
+  // Слева дышит середина, справа — верха. Краски — оттенки обложки и их соседи по кругу цветов
+  for (const [side, v] of [
+    [LEFT, b.mid],
+    [RIGHT, b.high],
+  ] as const) {
+    const right = side === RIGHT
+    for (const [i, y, dh, p] of side) {
+      const r = m * 0.34 * (1 + 0.3 * v + 0.06 * drift(p * 1.3, i))
+      const dx = 0.04 * drift(p, i)
+      const x = w * (right ? 0.98 - dx : 0.02 + dx)
+      const yy = h * (y + 0.06 * drift(p * 1.7, i + 1))
+      glow(ctx, x, yy, r, tone(pal[i]!, dh), 0.4 + 0.45 * v)
+    }
   }
 
-  // Сияние вокруг обложки: конический перелив, крутится быстрее от середины
+  // Перелив красок вокруг обложки: медленный, по общей громкости
   if (offCtx && 'createConicGradient' in offCtx) {
     off.width = w
     off.height = h
-    const cg = offCtx.createConicGradient(k / 40 + b.mid * 0.6, cx, cy)
-    ;[0, 2, 1, 3, 4, 0].forEach((i, n) => cg.addColorStop(n / 5, rgba(lift(pal[i]!, 0.15), 1)))
+    const cg = offCtx.createConicGradient(k / 45, cx, cy)
+    ;[0, 2, 1, 3, 4, 0].forEach((i, n) => cg.addColorStop(n / 5, rgba(tone(pal[i]!), 1)))
     offCtx.globalCompositeOperation = 'source-over'
     offCtx.fillStyle = cg
     offCtx.fillRect(0, 0, w, h)
-    const mask = offCtx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R * (3 + 0.6 * pulse))
+    const mask = offCtx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R * 2.6)
     mask.addColorStop(0, 'rgba(0,0,0,1)')
-    mask.addColorStop(0.35, 'rgba(0,0,0,0.6)')
+    mask.addColorStop(0.4, 'rgba(0,0,0,0.5)')
     mask.addColorStop(1, 'rgba(0,0,0,0)')
     offCtx.globalCompositeOperation = 'destination-in'
     offCtx.fillStyle = mask
     offCtx.fillRect(0, 0, w, h)
-    ctx.globalCompositeOperation = 'screen'
-    ctx.globalAlpha = 0.16 + 0.24 * b.loud
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 0.22 + 0.13 * b.loud
     ctx.drawImage(off, 0, 0)
   }
 
-  // Ореол: два огня разного цвета медленно обходят обложку, на басах вспыхивают и расходятся шире
-  ctx.globalCompositeOperation = 'lighter'
+  // Ореол: два огня обходят обложку по кругу, дышат общей громкостью
+  ctx.globalCompositeOperation = 'screen'
   for (let i = 0; i < 2; i++) {
     const a = k / 26 + i * Math.PI
-    const col = lift(pal[i === 0 ? 0 : 1]!, 0.25)
     const x = cx + Math.cos(a) * R * 0.35
     const y = cy + Math.sin(a) * R * 0.3
-    const r = R * (1.5 + 0.6 * pulse)
-    const g = ctx.createRadialGradient(x, y, R * 0.6, x, y, r)
-    g.addColorStop(0, rgba(col, 0.9))
-    g.addColorStop(0.4, rgba(col, 0.35))
-    g.addColorStop(1, rgba(col, 0))
-    ctx.globalAlpha = 0.2 + 0.5 * pulse
-    ctx.fillStyle = g
-    ctx.fillRect(0, 0, w, h)
+    glow(ctx, x, y, R * (1.5 + 0.15 * b.loud), tone(pal[i]!, 0, 0.3, 0.5), 0.16 + 0.14 * b.loud)
   }
 
-  // Бас снизу: широкое свечение, удар — вверх и ярче
+  // Низ — бас и барабаны: свечение поднимается и разгорается на ударах
   {
-    const col = lift(pal[0]!, 0.2)
-    const col2 = lift(pal[2]!, 0.1)
-    const bx = cx + Math.sin(k / 33) * w * 0.12
-    const rx = w * (0.55 + 0.25 * pulse)
+    const bx = cx + drift(33, 0) * w * 0.1
+    const rx = w * (0.55 + 0.2 * bottom)
     ctx.save()
     ctx.translate(bx, h * 1.04)
-    ctx.scale(1, (h * (0.22 + 0.26 * pulse)) / rx)
+    ctx.scale(1, (h * (0.18 + 0.3 * bottom)) / rx)
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx)
-    g.addColorStop(0, rgba(col, 0.95))
-    g.addColorStop(0.4, rgba(col2, 0.5))
-    g.addColorStop(1, rgba(col2, 0))
-    ctx.globalAlpha = 0.1 + 0.9 * pulse
+    g.addColorStop(0, rgba(tone(pal[0]!, 0, 0.35, 0.58), 1))
+    g.addColorStop(0.45, rgba(tone(pal[2]!, 10, 0.3, 0.5), 0.55))
+    g.addColorStop(1, rgba(tone(pal[2]!, 10), 0))
+    ctx.globalAlpha = 0.2 + 0.65 * bottom
     ctx.fillStyle = g
     ctx.fillRect(-rx, -rx, rx * 2, rx * 2)
     ctx.restore()
   }
 
-  // Прожектор сверху: мерцает от верхов
-  {
-    const col = lift(pal[3]!, 0.5)
-    const x = cx + Math.sin(k / 21) * w * 0.25
-    const g = ctx.createRadialGradient(x, -h * 0.15, 0, x, -h * 0.15, m * 0.6)
-    g.addColorStop(0, rgba(col, 0.8))
-    g.addColorStop(1, rgba(col, 0))
-    ctx.globalAlpha = 0.05 + 0.22 * b.high
-    ctx.fillStyle = g
-    ctx.fillRect(0, 0, w, h)
-  }
-
   // Края в тень: свет собирается к середине
   ctx.globalCompositeOperation = 'source-over'
   ctx.globalAlpha = 1
-  const v = ctx.createRadialGradient(cx, cy, m * 0.28, cx, cy, m * 0.78)
+  const v = ctx.createRadialGradient(cx, cy, m * 0.3, cx, cy, m * 0.8)
   v.addColorStop(0, 'rgba(0,0,0,0)')
-  v.addColorStop(1, 'rgba(0,0,0,0.7)')
+  v.addColorStop(1, 'rgba(0,0,0,0.55)')
   ctx.fillStyle = v
   ctx.fillRect(0, 0, w, h)
 
-  root.value?.style.setProperty('--zp', pulse.toFixed(3))
+  // Уровни зон — в стиле корня: по ним обложка подаётся на басах (и их видно при проверке)
+  const st = root.value?.style
+  st?.setProperty('--zp', bottom.toFixed(3))
+  st?.setProperty('--zm', b.mid.toFixed(3))
+  st?.setProperty('--zh', b.high.toFixed(3))
 }
 
 function frame(now: number) {
@@ -223,8 +260,9 @@ function frame(now: number) {
   if (document.visibilityState !== 'visible') return
   const playing = player.playing
   speed += ((playing ? 1 : 0.2) - speed) * (1 - Math.exp(-dt / 800))
-  level = still ? { hit: 0, loud: 0, mid: 0, high: 0 } : beat.update(dt)
-  if (!still) t += (dt / 1000) * speed * (1 + 0.5 * level.mid)
+  const l = audioLevels()
+  level = still ? QUIET : l || isDesktop ? beat.update(dt, l) : idleBreath()
+  if (!still) t += (dt / 1000) * speed * (1 + 0.3 * level.mid)
   draw(now, level)
 }
 

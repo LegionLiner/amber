@@ -16,15 +16,22 @@ export function showLevelsOf(g: AudioGraph | null) {
 }
 
 export interface AudioLevels {
-  /** Басы, до 150 Гц */
+  /** Басы, до 150 Гц — в шкале анализатора (децибелы), по ним настроены удары подсветки окна */
   bass: number
-  /** Середина, 250–2000 Гц */
-  mid: number
-  /** Верха, 2–8 кГц */
-  high: number
-  /** Общий уровень до 8 кГц */
+  /** Общий уровень до 8 кГц, тоже в децибелах */
   level: number
+  /**
+   * Полосы в линейной громкости: низ (до 150 Гц), середина (250–2000 Гц), верха (2–8 кГц).
+   * В децибелах отголоски соседних частот выглядят почти как сам звук — голос «поднимал» и басы, и верха.
+   * В линейной шкале между звучащей полосой и её отголоском разница в десятки раз
+   */
+  low: number
+  mid: number
+  high: number
 }
+
+/** Байт анализатора (от -100 до -30 дБ) → линейная громкость 0…1 */
+const LIN = Float32Array.from({ length: 256 }, (_, b) => 10 ** ((-100 + (b * 70) / 255 + 30) / 20))
 
 /**
  * Что сейчас звучит, 0…1. null — звук ещё не шёл через граф.
@@ -38,25 +45,29 @@ export function audioLevels(): AudioLevels | null {
   a.getByteFrequencyData(freq)
   const hz = g.ctx.sampleRate / a.fftSize
   const bassTo = Math.max(2, Math.round(150 / hz))
-  let bass = 0
-  for (let i = 1; i <= bassTo; i++) bass += freq[i]!
   const allTo = Math.min(freq.length - 1, Math.round(8000 / hz))
   const midFrom = Math.round(250 / hz)
   const midTo = Math.round(2000 / hz)
+  let bass = 0
   let all = 0
+  let low = 0
   let mid = 0
   let high = 0
   for (let i = 1; i <= allTo; i++) {
     const v = freq[i]!
     all += v
-    if (i >= midFrom && i < midTo) mid += v
-    else if (i >= midTo) high += v
+    if (i <= bassTo) {
+      bass += v
+      low += LIN[v]!
+    } else if (i >= midFrom && i < midTo) mid += LIN[v]!
+    else if (i >= midTo) high += LIN[v]!
   }
   return {
     bass: bass / (bassTo * 255),
-    mid: mid / (Math.max(1, midTo - midFrom) * 255),
-    high: high / (Math.max(1, allTo - midTo + 1) * 255),
     level: all / (allTo * 255),
+    low: low / bassTo,
+    mid: mid / Math.max(1, midTo - midFrom),
+    high: high / Math.max(1, allTo - midTo + 1),
   }
 }
 

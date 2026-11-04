@@ -111,12 +111,36 @@ export interface Track {
   analyzed: boolean
 }
 
-function parseOverrides(json: string | null): TagOverrides {
+export function parseOverrides(json: string | null): TagOverrides {
   if (!json) return {}
   try {
     return JSON.parse(json) as TagOverrides
   } catch {
     return {}
+  }
+}
+
+/** Трек, которого нет в медиатеке: удалён, пропал файл, есть только на другом устройстве, из истории Spotify */
+export interface TrackCard {
+  key: string
+  title: string
+  artist: string
+}
+
+/** Название и исполнитель для такой карточки — по тем же правилам, что у трека медиатеки (toTrack) */
+export function toCard(r: {
+  key: string
+  title: string | null
+  artist: string | null
+  fileName: string
+  overrides: string | null
+}): TrackCard {
+  const ov = parseOverrides(r.overrides)
+  const parsed = !r.title || !r.artist ? parseFileName(r.fileName) : null
+  return {
+    key: r.key,
+    title: ov.title || r.title || parsed?.title || r.fileName || 'Без названия',
+    artist: ov.artist || r.artist || parsed?.artist || '',
   }
 }
 

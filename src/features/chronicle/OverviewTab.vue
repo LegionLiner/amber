@@ -4,12 +4,14 @@ import ChipTabs from '@/components/ChipTabs.vue'
 import CoverArt from '@/components/CoverArt.vue'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
-import { activeDays, byHour, daily, periodTotals, topTracks, type PeriodTotals } from '@/data/repos/stats'
+import { activeDays, artistPlays, byHour, daily, periodTotals, topTracks, type PeriodTotals } from '@/data/repos/stats'
+import { splitArtists } from '@/domain/names'
 import { computeStreaks, todayKey } from '@/domain/streaks'
 import { dayKey, parseDay } from '@/domain/weeks'
 import { countLabel, formatListen, MONTHS } from '@/domain/format'
 import { displayArtist, type Track } from '@/domain/track'
 import { onPageShown } from '@/app/paging'
+import { stampedLoad } from '@/app/data-rev'
 
 /** Обзор: время, прослушивания, серия, календарь на 18 недель, часы, топ треков и исполнителей */
 type Period = '7' | '30' | '90' | '180' | '365' | 'all' | 'custom'
@@ -53,6 +55,8 @@ const streak = ref({ current: 0, longest: 0 })
 const days = shallowRef<Map<string, number>>(new Map())
 const hours = shallowRef<number[]>(Array(24).fill(0))
 const top = shallowRef<{ track: Track; plays: number; listenedMs: number }[]>([])
+/** Исполнители периода: по всем трекам, а не только по первой десятке */
+const artists = shallowRef<[string, number][]>([])
 const selectedDay = ref<string | null>(null)
 const selectedHour = ref<number | null>(null)
 
@@ -65,12 +69,13 @@ function clearOnOutside(e: PointerEvent) {
 onMounted(() => document.addEventListener('pointerdown', clearOnOutside, true))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', clearOnOutside, true))
 
-async function load() {
+/** Перечитываем, если история поменялась; смена периода — всегда (load(true)) */
+const load = stampedLoad(async () => {
   const now = Date.now()
   const r = range(now)
   if (!r) return
   const { since, until, span } = r
-  const [t, p, h, tt, ad, cal] = await Promise.all([
+  const [t, p, h, tt, ad, cal, ap] = await Promise.all([
     periodTotals(since, until),
     // Сравнение — с таким же по длине отрезком прямо перед периодом
     span ? periodTotals(since - span, since) : Promise.resolve(null),
@@ -78,6 +83,7 @@ async function load() {
     topTracks(since, 10, until),
     activeDays(),
     daily(now - 18 * 7 * DAY),
+    artistPlays(since, until),
   ])
   totals.value = t
   prevTotals.value = p
@@ -88,24 +94,37 @@ async function load() {
     const track = library.byKey.get(r.key)
     return track ? [{ track, plays: r.plays, listenedMs: r.listenedMs }] : []
   })
+  // Исполнители — как в медиатеке (с твоими правками тегов), а у трека, которого в ней нет, — из его тегов
+  const am = new Map<string, number>()
+  for (const r of ap) {
+    const names = library.byKey.get(r.key)?.artists ?? splitArtists(r.artist)
+    for (const a of names) am.set(a, (am.get(a) ?? 0) + r.plays)
+  }
+  artists.value = [...am.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
   streak.value = computeStreaks(ad, todayKey())
   days.value = new Map(cal.map((r) => [r.day, r.listenedMs]))
-}
+})
 
-onMounted(load)
-onPageShown(load)
-watch([period, from, to], load)
+onMounted(() => void load())
+onPageShown(() => void load())
+watch([period, from, to], () => void load(true))
+// Медиатеку перечитали (новые треки, правки тегов) — названия и исполнители могли поменяться
 watch(
   () => library.tracks,
   () => void load(),
 )
 
-function delta(cur: number, prev: number | undefined): string {
-  if (prev == null || prev === 0) return ''
+/** Сравнение с прошлым таким же отрезком: рост — зелёным вверх, спад — красным вниз */
+function delta(cur: number, prev: number | undefined): { text: string; dir: 'up' | 'down' | 'same' } | null {
+  if (prev == null || prev === 0) return null
   const pct = Math.round(((cur - prev) / prev) * 100)
-  if (pct === 0) return 'как раньше'
-  return `${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}%`
+  if (pct === 0) return { text: 'как раньше', dir: 'same' }
+  return { text: `${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}%`, dir: pct > 0 ? 'up' : 'down' }
 }
+const timeDelta = computed(() =>
+  totals.value && prevTotals.value ? delta(totals.value.listenedMs, prevTotals.value.listenedMs) : null,
+)
+const playsDelta = computed(() => (totals.value && prevTotals.value ? delta(totals.value.plays, prevTotals.value.plays) : null))
 
 /* ---- календарь: 18 недель, столбец = неделя, строка = день недели ---- */
 const calendar = computed(() => {
@@ -160,11 +179,7 @@ const hourText = computed(() => {
   return `${selectedHour.value == null ? 'Чаще всего' : 'В'} ${h}:00–${h + 1}:00 · ${formatListen(ms)}`
 })
 
-const topArtists = computed(() => {
-  const m = new Map<string, number>()
-  for (const r of top.value) for (const a of r.track.artists) m.set(a, (m.get(a) ?? 0) + r.plays)
-  return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
-})
+const topArtists = artists
 const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1])))
 </script>
 
@@ -178,11 +193,11 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
     <div v-if="totals" class="tiles">
       <div class="tile">
         <small>Время</small><b>{{ formatListen(totals.listenedMs) }}</b>
-        <i v-if="prevTotals">{{ delta(totals.listenedMs, prevTotals.listenedMs) }}</i>
+        <i v-if="timeDelta" :class="timeDelta.dir">{{ timeDelta.text }}</i>
       </div>
       <div class="tile">
         <small>Прослушивания</small><b>{{ totals.plays.toLocaleString('ru-RU') }}</b>
-        <i v-if="prevTotals">{{ delta(totals.plays, prevTotals.plays) }}</i>
+        <i v-if="playsDelta" :class="playsDelta.dir">{{ playsDelta.text }}</i>
       </div>
       <div class="tile">
         <small>Разных треков</small><b>{{ totals.uniqueTracks }}</b>
@@ -354,7 +369,11 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
   font-size: 11.5px;
   color: var(--good);
 }
-.tile i.plain {
+.tile i.down {
+  color: var(--bad);
+}
+.tile i.plain,
+.tile i.same {
   color: var(--ink-3);
 }
 .small {

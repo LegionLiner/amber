@@ -1,4 +1,4 @@
-import { batch, db } from '../db'
+import { all, batch, db } from '../db'
 
 /**
  * Плейлисты. Порядок треков — дробный индекс pos: чтобы вставить трек между
@@ -41,11 +41,30 @@ export interface PlaylistItemRow {
   addedAt: number
 }
 
+/**
+ * Список плейлистов. Число треков — только тех, что есть в медиатеке этого устройства: трек без файла
+ * в плейлисте не показывается, значит, и в длину не входит. Сама строка при этом остаётся — на другом
+ * устройстве этот трек может быть (плейлисты общие)
+ */
 export async function listPlaylists(): Promise<PlaylistRow[]> {
-  const rows = await db
+  const [rows, present] = await Promise.all([listPlaylistRows(), presentCounts()])
+  return rows.map((r) => ({ ...r, count: present.get(r.id) ?? 0 }))
+}
+
+async function presentCounts(): Promise<Map<number, number>> {
+  const rows = await all<{ id: number; n: number }>(
+    `SELECT i.playlist_id AS id, COUNT(*) AS n
+     FROM playlist_items i JOIN tracks t ON t.key = i.track_key
+     WHERE t.missing_since IS NULL AND t.key NOT IN (SELECT key FROM dismissed WHERE kind = 'hidden')
+     GROUP BY i.playlist_id`,
+  )
+  return new Map(rows.map((r) => [r.id, Number(r.n)]))
+}
+
+async function listPlaylistRows(): Promise<Omit<PlaylistRow, 'count'>[]> {
+  return db
     .selectFrom('playlists as p')
-    .leftJoin('playlistItems as i', 'i.playlistId', 'p.id')
-    .select(({ fn }) => [
+    .select([
       'p.id',
       'p.name',
       'p.kind',
@@ -57,13 +76,10 @@ export async function listPlaylists(): Promise<PlaylistRow[]> {
       'p.pos',
       'p.groupAt',
       'p.pinPos',
-      fn.count<number>('i.id').as('count'),
     ])
-    .groupBy('p.id')
     .orderBy('p.pos')
     .orderBy('p.updatedAt', 'desc')
     .execute()
-  return rows.map((r) => ({ ...r, count: Number(r.count) }))
 }
 
 export async function createPlaylist(
@@ -214,6 +230,15 @@ export async function playlistsContaining(keys: string[]): Promise<Map<number, n
 
 export async function removeTrackFromPlaylist(playlistId: number, trackKey: string): Promise<void> {
   await db.deleteFrom('playlistItems').where('playlistId', '=', playlistId).where('trackKey', '=', trackKey).execute()
+}
+
+/** Трек удалили из приложения: из всех плейлистов он уходит совсем (и на других устройствах тоже) */
+export async function removeKeysEverywhere(keys: readonly string[]): Promise<void> {
+  if (keys.length)
+    await db
+      .deleteFrom('playlistItems')
+      .where('trackKey', 'in', [...keys])
+      .execute()
 }
 
 export async function removeFromPlaylist(itemId: number): Promise<void> {

@@ -131,7 +131,7 @@ function playTop() {
           <h2 class="big display">{{ s.big }}</h2>
           <p v-if="s.title" class="stitle">{{ s.title }}</p>
           <p v-for="(l, n) in s.lines" :key="n" class="line">{{ l }}</p>
-          <ol v-if="s.list" class="list">
+          <ol v-if="s.list" class="list" :class="{ long: s.list.length > 5 }">
             <li v-for="it in s.list" :key="it.n">
               <span class="n display">{{ it.n }}</span>
               <span class="t"
@@ -300,6 +300,21 @@ function playTop() {
 .list .r {
   font-weight: 600;
   opacity: 0.85;
+  white-space: nowrap;
+}
+/* Топ-10 — плотнее, чтобы весь список помещался на экран телефона */
+.list.long {
+  gap: 7px;
+  margin-top: 4px;
+}
+.list.long .n {
+  font-size: 17px;
+}
+.list.long b {
+  font-size: 15px;
+}
+.list.long small {
+  font-size: 12px;
 }
 .actions {
   position: relative;

@@ -8,6 +8,7 @@ import { toTrack, type Track } from '@/domain/track'
 import { buildFolderTree, groupAlbums, groupArtists, groupGenres } from '@/domain/groups'
 import { scoreForRating } from '@/domain/rating'
 import { useSettings } from './settings'
+import { localRev } from '@/app/data-rev'
 
 /**
  * Версия чтения библиотеки. 2 — формат определяется по байтам (у многих «.mp3» внутри MP4/AAC,
@@ -154,6 +155,8 @@ export const useLibrary = defineStore('library', () => {
   }
 
   function onPlayLogged(e: PlayLoggedEvent) {
+    // Новое прослушивание — экраны статистики перечитают базу при следующем показе
+    localRev.value++
     const t = get(e.key)
     if (!t) return
     patch(e.key, {

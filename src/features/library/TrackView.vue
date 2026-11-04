@@ -20,6 +20,7 @@ import { displayArtist } from '@/domain/track'
 import { albumIdOf, artistIdOf } from '@/domain/groups'
 import IconAlbum from '~icons/solar/album-linear'
 import { formatBytes, formatDate, formatDuration, formatListen, relativeDay } from '@/domain/format'
+import TrackPlaysChart from './TrackPlaysChart.vue'
 import { starsLabel } from '@/domain/rating'
 import type { PlaySource } from '@/native/types'
 
@@ -53,19 +54,8 @@ watch(
   { immediate: true },
 )
 
-/** 12 последних недель: сколько раз трек засчитывался каждую неделю */
-const weeks = computed(() => {
-  const W = 7 * 86_400_000
-  const now = Date.now()
-  const out = Array.from({ length: 12 }, () => 0)
-  for (const e of events.value) {
-    if (!e.counted) continue
-    const w = Math.floor((now - e.startedAt) / W)
-    if (w >= 0 && w < 12) out[11 - w]!++
-  }
-  return out
-})
-const weekMax = computed(() => Math.max(1, ...weeks.value))
+/** Моменты засчитанных прослушиваний — для графика по месяцам и дням (TrackPlaysChart) */
+const counted = computed(() => events.value.filter((e) => e.counted).map((e) => e.startedAt))
 
 const dayparts = computed(() => {
   const parts = [
@@ -194,10 +184,7 @@ const tagsDiffer = computed(() => {
           </div>
         </div>
         <div v-if="t.plays" class="chart">
-          <div class="chart-title">По неделям, 12 недель</div>
-          <div class="bars">
-            <span v-for="(n, i) in weeks" :key="i" :style="{ height: `${(n / weekMax) * 100}%` }" :title="`${n}`" />
-          </div>
+          <TrackPlaysChart :key="t.key" :times="counted" />
           <div class="parts">
             <div v-for="p in dayparts" :key="p.label" class="part">
               <span>{{ p.label }}</span>
@@ -341,24 +328,6 @@ const tagsDiffer = computed(() => {
   padding: 12px 14px;
   border-radius: 16px;
   background: var(--surface);
-}
-.chart-title {
-  font-size: 12px;
-  color: var(--ink-2);
-  margin-bottom: 10px;
-}
-.bars {
-  height: 64px;
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
-}
-.bars span {
-  flex: 1;
-  min-height: 2px;
-  background: var(--amber);
-  border-radius: 4px 4px 0 0;
 }
 .parts {
   display: flex;

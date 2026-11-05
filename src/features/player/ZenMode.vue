@@ -276,11 +276,15 @@ function fit() {
   if (!c) return
   const w = Math.max(24, Math.round(c.clientWidth / SCALE))
   const h = Math.max(24, Math.round(c.clientHeight / SCALE))
-  if (c.width !== w || c.height !== h) {
+  const resized = c.width !== w || c.height !== h
+  if (resized) {
     c.width = w
     c.height = h
   }
   coverR = (coverEl.value?.getBoundingClientRect().width ?? 0) / 2 / SCALE
+  // Смена размера стирает холст (при повороте телефона экран на миг становился чёрным с обрезом):
+  // рисуем сразу, в том же кадре, не дожидаясь следующего
+  if (resized && ctx) draw(performance.now(), level)
 }
 
 /* ---------------- выход и курсор ---------------- */
@@ -344,6 +348,7 @@ onBeforeUnmount(() => {
   >
     <canvas ref="canvas" class="paint" aria-hidden="true" />
     <i class="grain" aria-hidden="true" />
+    <i class="edge" aria-hidden="true" />
     <div ref="coverEl" class="art" @click.stop>
       <Transition name="zc">
         <div v-if="item" :key="item.qid" class="slot">
@@ -377,6 +382,16 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   display: block;
+}
+/*
+ * Края сцены мягко уходят в цвет фона. При повороте телефона Android на миг показывает старую картинку
+ * в уже повёрнутом окне — без светлых краёв граница между ней и пустым местом не видна
+ */
+.edge {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 9vmin 3vmin #050506;
+  pointer-events: none;
 }
 .grain {
   position: absolute;

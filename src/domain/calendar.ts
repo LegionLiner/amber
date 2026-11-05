@@ -3,7 +3,8 @@ import { MONTHS_SHORT } from './format'
 
 /**
  * Календарь «Каждый день» в хронике.
- *  - масштаб: 18 недель или год по дням (столбец — неделя, строка — день недели), или все годы по неделям
+ *  - масштаб: 18 недель по дням (столбец — неделя, строка — день недели); год — двенадцать месяцев
+ *    календариками (клетки крупнее, чем у 53 узких столбцов, даже на телефоне); все годы по неделям
  *    (строка — год, клетка — неделя);
  *  - цвет: по времени (чем больше слушал, тем ярче) или по исполнителю — три главных исполнителя показанного
  *    отрезка своими цветами, остальные дни нейтральные. Больше трёх цветов в соседних клетках на глаз
@@ -36,6 +37,17 @@ export interface CalAxis {
 export type CalGrid =
   | { kind: 'days'; weeks: number; cells: CalCell[]; months: CalAxis[] }
   | { kind: 'weeks'; cols: number; rows: { year: number; cells: CalCell[] }[]; months: CalAxis[] }
+  | { kind: 'months'; months: CalMonth[] }
+
+/** Месяц календариком: lead — пустые клетки до 1-го числа (неделя с понедельника) */
+export interface CalMonth {
+  key: string
+  label: string
+  /** Год подписан у января и у самого первого месяца */
+  year: number | null
+  lead: number
+  cells: CalCell[]
+}
 
 const DAY = 86_400_000
 
@@ -130,6 +142,44 @@ export function dayGrid(
   return { grid: { kind: 'days', weeks, cells, months }, top }
 }
 
+/** Год по дням: текущий месяц и одиннадцать до него, каждый — календариком */
+export function monthsGrid(
+  days: ReadonlyMap<string, number>,
+  today = new Date(),
+  artists: readonly ArtistDay[] | null = null,
+): { grid: CalGrid; top: string[] } {
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const months: CalMonth[] = []
+  const cellsAll: CalCell[] = []
+  for (let i = 11; i >= 0; i--) {
+    const first = new Date(t.getFullYear(), t.getMonth() - i, 1)
+    const y = first.getFullYear()
+    const m = first.getMonth()
+    const n = new Date(y, m + 1, 0).getDate()
+    const cells: CalCell[] = []
+    for (let d = 1; d <= n; d++) {
+      const date = new Date(y, m, d)
+      const key = dayKeyOf(date)
+      const ms = days.get(key) ?? 0
+      cells.push({ key, from: key, to: key, ms, level: 0, future: date > t, artist: null, slot: null })
+    }
+    months.push({
+      key: `${y}-${m}`,
+      label: MONTHS_SHORT[m]!,
+      year: m === 0 || i === 11 ? y : null,
+      lead: (first.getDay() + 6) % 7,
+      cells,
+    })
+    cellsAll.push(...cells)
+  }
+  // Яркость — по дням этого года, а не по всей загруженной истории
+  const level = leveler(cellsAll.map((c) => c.ms))
+  for (const c of cellsAll) c.level = level(c.ms)
+  const inGrid = new Set(cellsAll.map((c) => c.key))
+  const top = paint(cellsAll, artists, (day) => (inGrid.has(day) ? day : null))
+  return { grid: { kind: 'months', months }, top }
+}
+
 /** Неделя года для клетки: от 0, понедельник — первый день; у 1 января неделя 0 */
 function weekOfYear(d: Date): number {
   const jan1 = new Date(d.getFullYear(), 0, 1)
@@ -196,6 +246,6 @@ export function yearsGrid(
 /** С какого дня нужна история для масштаба (null — вся) */
 export function sinceFor(scale: CalScale, today = new Date()): string | null {
   if (scale === 'years') return null
-  const weeks = scale === 'year' ? 53 : 18
-  return dayKeyOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - weeks * 7))
+  if (scale === 'year') return dayKeyOf(new Date(today.getFullYear(), today.getMonth() - 11, 1))
+  return dayKeyOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 18 * 7))
 }

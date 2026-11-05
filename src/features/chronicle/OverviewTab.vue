@@ -14,6 +14,7 @@ import { displayArtist, type Track } from '@/domain/track'
 import { onPageShown } from '@/app/paging'
 import { stampedLoad } from '@/app/data-rev'
 import { LOCALE, $t, $tp } from '@/i18n'
+import DateField from '@/components/DateField.vue'
 
 /** Обзор: время, прослушивания, серия, календарь на 18 недель, часы, топ треков и исполнителей */
 type Period = '7' | '30' | '90' | '180' | '365' | 'all' | 'custom'
@@ -142,11 +143,11 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
     <div v-if="period === 'custom'" class="range">
       <label
         ><span>{{ $t('С') }}</span
-        ><input v-model="from" type="date" class="field" :max="today" :aria-label="$t('Начало периода')"
+        ><DateField v-model="from" class="field" short :max="to || today" :title="$t('Начало периода')"
       /></label>
       <label
         ><span>{{ $t('По') }}</span
-        ><input v-model="to" type="date" class="field" :max="today" :aria-label="$t('Конец периода')"
+        ><DateField v-model="to" class="field" short :min="from" :max="today" :title="$t('Конец периода')"
       /></label>
     </div>
     <div v-if="totals" class="tiles">

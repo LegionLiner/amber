@@ -6,7 +6,7 @@ import { Readable } from 'node:stream'
 import { thumbIcons } from './icons'
 import { setMainLang, tr } from './lang'
 import { setYoutubeDataDir, youtubeDownload, youtubeInfo } from './youtube'
-import { voiceModelPath } from './voice'
+import { voiceModelFile, voiceModelPath, type VoiceLang } from './voice'
 import { DbFile } from './db-file'
 import os from 'node:os'
 import crypto from 'node:crypto'
@@ -103,8 +103,8 @@ async function serveApp(url: URL): Promise<Response> {
 }
 
 /** Модель распознавания речи для голосовых команд (готовит voice.ts) — её скачивает распознаватель на странице */
-async function serveVoice(): Promise<Response> {
-  const file = path.join(userData(), 'voice', 'model-ru-small.tar.gz')
+async function serveVoice(lang: VoiceLang): Promise<Response> {
+  const file = voiceModelFile(userData(), lang)
   try {
     const st = await fsp.stat(file)
     const stream = Readable.toWeb(fs.createReadStream(file)) as unknown as ReadableStream
@@ -399,6 +399,7 @@ const fileSync = new FileSyncServer({
     await fsp.rename(abs, path.join(dir, `${Date.now()}-${path.basename(abs)}`))
   },
   name: os.hostname(),
+  hubFile: () => path.join(userData(), 'hub.jsonl'),
   onActivity: (a) => {
     if (a.op !== 'list') win?.webContents.send('fs:activity', { ...a, at: Date.now() })
   },
@@ -409,6 +410,7 @@ function fileSyncState() {
   return {
     enabled: c.enabled,
     folder: c.folder,
+    data: c.data !== false,
     running: fileSync.running,
     port: fileSync.port,
     error: fileSync.error,
@@ -420,9 +422,10 @@ function fileSyncState() {
 
 function setupIpc() {
   ipcMain.handle('fs:get', () => fileSyncState())
-  ipcMain.handle('fs:set', async (_e, patch: { enabled?: boolean; folder?: string | null }) => {
+  ipcMain.handle('fs:set', async (_e, patch: { enabled?: boolean; folder?: string | null; data?: boolean }) => {
     const c = fileSyncConfig()
     if (patch.folder !== undefined) c.folder = patch.folder
+    if (patch.data !== undefined) c.data = patch.data
     if (patch.enabled !== undefined) c.enabled = patch.enabled
     saveConfig(true)
     // Папку сменили на ходу — перезапуск, чтобы маячок и список отдавали новое
@@ -431,6 +434,8 @@ function setupIpc() {
     return fileSyncState()
   })
   ipcMain.handle('fs:pair', () => fileSync.pairCode())
+  // Окно приложения синхронизирует свои данные с сервером этого же компьютера
+  ipcMain.handle('hub:local', () => fileSync.localAccess())
   ipcMain.handle('fs:unpair', (_e, id: string) => {
     fileSync.unpair(id)
     saveConfig(true)
@@ -571,9 +576,11 @@ function setupIpc() {
   ipcMain.on('app:quit', () => app.quit())
 
   // Голосовые команды: модель речи скачивается при первом включении, дальше лежит в папке данных
-  ipcMain.handle('voice:prepare', async (e) => {
-    await voiceModelPath(userData(), (p) => e.sender.send('voice:progress', p))
-    return 'app://amber/__voice/model.tar.gz'
+  ipcMain.handle('voice:prepare', async (e, lang: VoiceLang = 'ru') => {
+    const l: VoiceLang = lang === 'en' ? 'en' : 'ru'
+    await voiceModelPath(userData(), l, (p) => e.sender.send('voice:progress', p))
+    // Свой адрес на каждый язык: распознаватель кэширует распакованную модель по адресу
+    return l === 'ru' ? 'app://amber/__voice/model.tar.gz' : `app://amber/__voice/model-${l}.tar.gz`
   })
 
   ipcMain.handle('yt:info', (_e, url: string) => youtubeInfo(url))
@@ -609,7 +616,8 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle('app', (req) => {
       const url = new URL(req.url)
       if (url.pathname === '/__media') return serveMedia(req, url)
-      if (url.pathname === '/__voice/model.tar.gz') return serveVoice()
+      if (url.pathname === '/__voice/model.tar.gz') return serveVoice('ru')
+      if (url.pathname === '/__voice/model-en.tar.gz') return serveVoice('en')
       return serveApp(url)
     })
     setupIpc()

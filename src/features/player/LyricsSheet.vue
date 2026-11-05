@@ -164,8 +164,9 @@ watch(current, async (i) => {
   await nextTick()
   const list = listEl.value
   const el = list?.querySelector<HTMLElement>(`[data-i="${i}"]`)
-  // Прокручиваем только сам список (scrollIntoView двигал бы и плеер вокруг него)
-  if (list && el) list.scrollTo({ top: el.offsetTop - list.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' })
+  // Прокручиваем только сам список (scrollIntoView двигал бы и плеер вокруг него). Текущая строка — на трети
+  // высоты, а не посередине: в начале песни текст стоит у верха, без пустоты над ним
+  if (list && el) list.scrollTo({ top: el.offsetTop - list.clientHeight * 0.34 + el.clientHeight / 2, behavior: 'smooth' })
 })
 
 function seekTo(l: LyricLine) {
@@ -331,10 +332,13 @@ function stamp() {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 20vh 0;
+  /* Сверху — чуть больше затухания, снизу — запас, чтобы последние строки тоже поднимались к трети высоты */
+  padding: 7vh 0 40vh;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   max-height: 64vh;
-  mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(transparent, #000 9%, #000 82%, transparent);
 }
 .line {
   text-align: left;
@@ -345,6 +349,8 @@ function stamp() {
     color var(--t-mid) var(--ease),
     transform var(--t-mid) var(--ease);
   transform-origin: left center;
+  /* Длинное слово переносится, а не уезжает вбок (и вбок текст не прокручивается) */
+  overflow-wrap: anywhere;
 }
 .line.past {
   color: var(--ink-2);
@@ -353,10 +359,16 @@ function stamp() {
   color: var(--ink);
   transform: scale(1.03);
 }
+/* Увеличенная текущая строка не шире списка: запас справа под её 3% */
+.lines .line {
+  margin-right: 3%;
+}
 .plain {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font: 500 16px/1.6 var(--f-body);
   max-height: 64vh;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 .ta {
@@ -410,16 +422,19 @@ function stamp() {
   padding: 0;
   gap: 4px;
   scrollbar-width: none;
-  mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(transparent, #000 7%, #000 86%, transparent);
 }
 .inline .lines::-webkit-scrollbar {
   display: none;
 }
-/* Пустое место сверху и снизу: первая и последняя строки тоже встают посередине */
-.inline .lines::before,
+/* Сверху — немного места под затухание, снизу — запас, чтобы и последние строки вставали на треть высоты */
+.inline .lines::before {
+  content: '';
+  flex: 0 0 8%;
+}
 .inline .lines::after {
   content: '';
-  flex: 0 0 38%;
+  flex: 0 0 62%;
 }
 .inline .line {
   padding: 8px 4px;

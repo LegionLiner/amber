@@ -105,7 +105,7 @@ export interface MusicCorePlugin {
   fsPickFolder(): Promise<{ root: string }>
   /** Послушать маячки компьютеров в сети */
   fsDiscover(options: { ms: number }): Promise<{ found: { host: string; port: number; id: string; name: string }[] }>
-  fsHello(options: { base: string }): Promise<{ app: string; id: string; name: string; folder: string | null }>
+  fsHello(options: { base: string }): Promise<{ app: string; id: string; name: string; folder: string | null; data?: boolean }>
   fsPair(options: { base: string; code: string; name: string }): Promise<{ token: string; id: string; name: string }>
   fsRemoteList(options: { base: string; token: string }): Promise<{ folderId: string; files: FsEntry[] }>
   fsRemoteHash(options: { base: string; token: string; p: string }): Promise<{ h: string }>
@@ -137,6 +137,17 @@ export interface MusicCorePlugin {
 
   // файлы
   exportFile(options: { name: string; data: string; mime?: string; base64?: boolean }): Promise<FileResult>
+  /** Запрос окна к компьютеру в домашней сети (общие данные по Wi-Fi): http из https-окна делает Kotlin */
+  lanRequest(options: {
+    method: string
+    url: string
+    headers?: Record<string, string>
+    body?: string
+    timeoutMs?: number
+  }): Promise<{ status: number; body: string; contentType: string }>
+  /** Поток событий компьютера: события — lanEvent, конец — lanEventsClosed */
+  lanEventsOpen(options: { id: string; url: string; token: string }): Promise<void>
+  lanEventsClose(options: { id: string }): Promise<void>
   importFile(): Promise<ImportedFile>
   chooseBackupFolder(): Promise<{ uri: string }>
   writeBackup(options: { folderUri: string; json: string; keep: number }): Promise<{ uri: string }>
@@ -149,6 +160,11 @@ export interface MusicCorePlugin {
   addListener(event: 'analysisProgress', cb: (e: AnalysisProgress) => void): Promise<PluginListenerHandle>
   addListener(event: 'queueLow', cb: (e: { left: number }) => void): Promise<PluginListenerHandle>
   addListener(event: 'previewEnded', cb: () => void): Promise<PluginListenerHandle>
+  addListener(event: 'lanEvent', cb: (e: { id: string; name: string; data: string }) => void): Promise<PluginListenerHandle>
+  addListener(
+    event: 'lanEventsClosed',
+    cb: (e: { id: string; status: number; contentType: string; error: string }) => void,
+  ): Promise<PluginListenerHandle>
   addListener(event: 'youtubeProgress', cb: (e: YoutubeProgress) => void): Promise<PluginListenerHandle>
   /** Только браузер: трек из своей папки не открылся — нужен клик, чтобы вернуть доступ */
   addListener(event: 'folderAccess', cb: () => void): Promise<PluginListenerHandle>

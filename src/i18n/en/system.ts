@@ -35,8 +35,6 @@ export default {
   'Подсветка в такт музыке': 'Glow to the beat',
   'Фон в цветах обложки и свечение снизу дышат по басам. Выключи, если отвлекает':
     "The cover-colored background and the bottom glow breathe with the bass. Turn off if it's distracting",
-  '«Эмбер, стоп», «Эмбер, продолжи», «Эмбер, следующий», «Эмбер, назад», «Эмбер, тише», «Эмбер, громче», «Эмбер, лайк». Можно и отдельно: «Эмбер» — музыка притихнет — «следующий». Распознаётся на компьютере, без интернета; в первый раз скачается модель речи (45 МБ)':
-    'Commands are in Russian only: «Эмбер, стоп» (stop), «Эмбер, продолжи» (resume), «Эмбер, следующий» (next), «Эмбер, назад» (back), «Эмбер, тише» (quieter), «Эмбер, громче» (louder), «Эмбер, лайк» (like). Or separately: «Эмбер» — the music ducks — «следующий». Recognized on the computer, offline; the speech model (45 MB) downloads the first time',
   Слушаю: 'Listening',
   'через «{0}»': 'via “{0}”',
   '— выбранный микрофон не подключён, перейду на него, когда появится':
@@ -56,7 +54,6 @@ export default {
   'синхронизация: {0}': 'sync: {0}',
   'работает без сети, синхронизация — по желанию': 'works offline, sync is optional',
   'Политика конфиденциальности': 'Privacy policy',
-  'Голосовые команды — только на русском': 'Voice commands are Russian only',
   'История Spotify в статистике': 'Spotify history in stats',
   'Статистика — только Amber': 'Stats — Amber only',
   'Читаю архив…': 'Reading the archive…',
@@ -87,7 +84,6 @@ export default {
   'Вход выполнен, синхронизирую': 'Signed in, syncing',
   'Синхронизация выключена. Данные на устройстве остались': 'Sync turned off. Data on the device stays',
   'Аккаунт и данные на сервере удалены': 'Account and server data deleted',
-  Синхронизация: 'Sync',
   'Сервер {0}. Оценки, история, плейлисты, эпохи, контексты, дневник и общие настройки синхронизируются сами, треки остаются на устройствах.':
     'Server {0}. Ratings, history, playlists, eras, contexts, the diary and shared settings sync on their own; tracks stay on the devices.',
   'Сервер старой версии: изменения приходят раз в несколько минут. Обнови сервер — и они будут приходить сразу.':
@@ -102,8 +98,6 @@ export default {
   Пароль: 'Password',
   'Вход на сервер устарел: войди снова, синхронизация продолжится с того же места.':
     'The server sign-in expired: sign in again and sync will continue where it left off.',
-  'Свой сервер Amber связывает телефон и компьютер: оценки, история и плейлисты — общие. Музыка на сервер не загружается, без сети всё работает как раньше.':
-    'Your own Amber server links the phone and the computer: ratings, history and playlists are shared. Music is never uploaded to the server; without a network everything works as before.',
   Войти: 'Sign in',
   'Создать аккаунт': 'Create account',
   'Адрес сервера': 'Server address',
@@ -200,4 +194,23 @@ export default {
   'По этому адресу не сервер Amber': "There's no Amber server at this address",
   'Вход устарел: войди снова': 'Sign-in expired: sign in again',
   'Сервер не умеет мгновенную доставку: обнови его': "The server doesn't support instant delivery: update it",
+  'Свой сервер': 'Own server',
+  'Для тех, кто поднял свой сервер Amber: данные синхронизируются через интернет, даже когда устройства в разных сетях. Музыка на сервер не загружается.':
+    'For those running their own Amber server: data syncs over the internet even when devices are on different networks. Music is never uploaded to the server.',
+  'Подключить свой сервер': 'Connect your own server',
+  'Данные синхронизируются с телефоном, а копия': 'Data syncs with the phone, with a copy',
+  'Данные синхронизируются с компьютером, а копия': 'Data syncs with the computer, with a copy',
+  'Телефон на связи': 'Phone is online',
+  '«Эмбер, стоп», «Эмбер, продолжи», «Эмбер, следующий», «Эмбер, назад», «Эмбер, тише», «Эмбер, громче», «Эмбер, лайк». Можно и отдельно: «Эмбер» — музыка притихнет — «следующий». Распознаётся на компьютере, без интернета; в первый раз скачается модель речи (45 МБ)':
+    'Russian commands: «Эмбер, стоп» (stop), «Эмбер, продолжи» (resume), «Эмбер, следующий» (next), «Эмбер, назад» (back), «Эмбер, тише» (quieter), «Эмбер, громче» (louder), «Эмбер, лайк» (like). Or separately: «Эмбер» — the music ducks — «следующий». Recognized on the computer, offline; the speech model (45 MB) downloads the first time',
+  '«Amber, stop», «Amber, play», «Amber, next», «Amber, back», «Amber, volume down», «Amber, volume up», «Amber, like». Можно и отдельно: «Amber» — музыка притихнет — «next». Распознаётся на компьютере, без интернета; в первый раз скачается модель речи (40 МБ)':
+    '“Amber, stop”, “Amber, play”, “Amber, next”, “Amber, back”, “Amber, volume down”, “Amber, volume up”, “Amber, like”. Or separately: “Amber” — the music ducks — “next”. Recognized on the computer, offline; the speech model (40 MB) downloads the first time',
+  'Язык команд': 'Command language',
+  'Свой распознаватель на каждый язык: скачается при первом включении':
+    "Each language has its own recognizer: it downloads the first time it's used",
+  'Слушаю: «Amber, stop / next / back / volume down / volume up». Нажми, чтобы выключить':
+    'Listening: “Amber, stop / next / back / volume down / volume up”. Click to turn off',
+  Играю: 'Playing',
+  Тише: 'Quieter',
+  Громче: 'Louder',
 } as Record<string, string>

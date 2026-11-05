@@ -101,23 +101,15 @@ export default {
   'отправлено {0}': 'sent {0}',
   'в корзину {0}': 'to trash {0}',
   'всё совпадает': 'everything matches',
-  'Папка по Wi-Fi': 'Wi-Fi folder',
-  'Телефон забирает отсюда новую музыку и присылает свою, когда вы в одной сети, — как Syncthing, только внутри Amber. Замена и удаление на другой стороне ничего не стирают насовсем: прежние версии уходят в корзину.':
-    "The phone takes new music from here and sends its own when you're on the same network — like Syncthing, but inside Amber. Replacing or deleting on the other side never erases anything for good: old versions go to the trash.",
-  'Раздавать папку телефону': 'Share the folder with the phone',
   'Windows может спросить разрешение для частной сети — разреши': 'Windows may ask for private network permission — allow it',
   'Другая папка…': 'Another folder…',
   'Раздаю «{0}»': 'Sharing “{0}”',
   'нет сети': 'no network',
   'Код для телефона · {0}': 'Code for the phone · {0}',
-  'В Amber на телефоне: Настройки → Папка по Wi-Fi → Найти компьютер':
-    'In Amber on the phone: Settings → Wi-Fi folder → Find computer',
   'Подключить телефон': 'Connect phone',
   'на связи {0}': 'online {0}',
   'подключён {0}': 'connected {0}',
   Отключить: 'Disconnect',
-  'Новая музыка с компьютера приходит сюда, а своя уходит туда, когда телефон и компьютер в одной сети. Работает, пока Amber открыт; прежние версии и удалённое уходят в корзину, а не пропадают.':
-    'New music from the computer arrives here and yours goes there when the phone and computer share a network. Works while Amber is open; old versions and deletions go to the trash instead of disappearing.',
   'Нужен доступ ко всем файлам: без него Amber не сможет записывать в папку с музыкой.':
     "Needs access to all files: without it Amber can't write to the music folder.",
   Разрешить: 'Allow',
@@ -240,4 +232,26 @@ export default {
   'Например, Podcasts/': 'For example, Podcasts/',
   Добавить: 'Add',
   'Вернуть скрытые треки': 'Restore hidden tracks',
+  'Сейчас данные идут через свой сервер: выйди из него, чтобы делиться ими по Wi-Fi':
+    'Data currently goes through your own server: sign out of it to share data over Wi-Fi',
+  'Оценки, история, плейлисты, эпохи и дневник — общие. Видно, что играет на другом устройстве, и музыку можно перенести одним нажатием':
+    "Ratings, history, playlists, eras and the diary are shared. You see what's playing on the other device and can move the music with one tap",
+  'Связь с телефоном выключена': 'The phone connection is off',
+  'Телефон по Wi-Fi': 'Phone over Wi-Fi',
+  'Телефон и компьютер в одной сети обмениваются напрямую — без интернета, аккаунтов и серверов.':
+    'The phone and the computer on the same network talk directly — no internet, accounts or servers.',
+  'Связь с телефоном': 'Phone connection',
+  'Общие данные': 'Shared data',
+  'Раздавать папку с музыкой': 'Share the music folder',
+  'Новая музыка с компьютера приходит на телефон, а с телефона — сюда':
+    'New music from the computer goes to the phone, and from the phone — here',
+  'Ждёт телефон': 'Waiting for the phone',
+  'В Amber на телефоне: Настройки → Компьютер по Wi-Fi → Найти компьютер':
+    'In Amber on the phone: Settings → Computer over Wi-Fi → Find computer',
+  'Компьютер по Wi-Fi': 'Computer over Wi-Fi',
+  'Компьютер не делится данными: включи это в его настройках': "The computer doesn't share data: turn it on in its settings",
+  'Компьютер не раздаёт папку: включи это в его настройках': "The computer doesn't share a folder: turn it on in its settings",
+  'Новая музыка с компьютера приходит сюда, а своя уходит туда': 'New music from the computer comes here, and yours goes there',
+  'Компьютер не отвечает': "The computer doesn't respond",
+  'Компьютер ответил {0}': 'The computer responded {0}',
 } as Record<string, string>

@@ -33,6 +33,7 @@ import app.yantar.player.library.TagFiles
 import app.yantar.player.playback.Loudness
 import app.yantar.player.playback.PlayerHub
 import app.yantar.player.playback.WidgetUpdater
+import app.yantar.player.online.LanHttp
 import app.yantar.player.playback.Preview
 import app.yantar.player.tracking.PlayTracker
 import com.getcapacitor.JSArray
@@ -672,6 +673,51 @@ class MusicCorePlugin : Plugin() {
                 call.reject(e.message ?: e.toString())
             }
         }
+    }
+
+    /* ---------------- общие данные по Wi-Fi: запросы окна к компьютеру (online/LanHttp.kt) ---------------- */
+
+    @PluginMethod
+    fun lanRequest(call: PluginCall) {
+        LanHttp.io.execute {
+            try {
+                val r = LanHttp.request(
+                    call.getString("method") ?: "GET",
+                    call.getString("url")!!,
+                    call.getObject("headers"),
+                    call.getString("body"),
+                    call.getInt("timeoutMs") ?: 60_000,
+                )
+                call.resolve(JSObject().put("status", r.status).put("body", r.body).put("contentType", r.contentType ?: ""))
+            } catch (e: Exception) {
+                // Не дозвонились: компьютер выключен, другая сеть или сменился адрес
+                call.reject(e.message ?: e.toString(), "OFFLINE")
+            }
+        }
+    }
+
+    @PluginMethod
+    fun lanEventsOpen(call: PluginCall) {
+        val id = call.getString("id")!!
+        LanHttp.open(
+            id,
+            call.getString("url")!!,
+            call.getString("token") ?: "",
+            onEvent = { name, data -> notifyListeners("lanEvent", JSObject().put("id", id).put("name", name).put("data", data)) },
+            onClose = { status, type, error ->
+                notifyListeners(
+                    "lanEventsClosed",
+                    JSObject().put("id", id).put("status", status ?: 0).put("contentType", type ?: "").put("error", error ?: ""),
+                )
+            },
+        )
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun lanEventsClose(call: PluginCall) {
+        LanHttp.close(call.getString("id") ?: "")
+        call.resolve()
     }
 
     private fun fsRoot(call: PluginCall): File = File(call.getString("root") ?: error(Lang.t("Папка не задана", "No folder set")))

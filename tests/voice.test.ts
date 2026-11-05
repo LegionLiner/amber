@@ -22,4 +22,21 @@ describe('голосовые команды', () => {
     expect(g.at(-1)).toBe('[unk]')
     expect(new Set(g).size).toBe(g.length)
   })
+
+  it('по-английски: свои слова и фразы из нескольких слов', () => {
+    expect(parseVoice('amber next', 'en')).toEqual({ wake: true, command: 'next' })
+    expect(parseVoice('amber volume down', 'en')).toEqual({ wake: true, command: 'quieter' })
+    expect(parseVoice('turn it up', 'en')).toEqual({ wake: false, command: 'louder' })
+    expect(parseVoice('amber go back', 'en')).toEqual({ wake: true, command: 'prev' })
+    // Последняя прозвучавшая команда — главная
+    expect(parseVoice('amber stop no next song', 'en').command).toBe('next')
+    expect(parseVoice('amber', 'en')).toEqual({ wake: true, command: null })
+    // Русские слова английская модель не слушает
+    expect(parseVoice('эмбер следующий', 'en')).toEqual({ wake: false, command: null })
+    const g = voiceGrammar('en')
+    expect(g).toContain('amber next song')
+    expect(g).toContain('volume up')
+    expect(g.at(-1)).toBe('[unk]')
+    expect(new Set(g).size).toBe(g.length)
+  })
 })

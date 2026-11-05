@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import StoryViewer from './StoryViewer.vue'
 import { recapPeriods } from '@/data/repos/recap'
 import { MONTHS } from '@/domain/format'
@@ -8,14 +8,24 @@ import { onPageShown } from '@/app/paging'
 import { stampedLoad } from '@/app/data-rev'
 import { $t } from '@/i18n'
 
-/** Итоги: по месяцам и по годам, открываются историями на весь экран */
+/** Итоги: по годам и по каждому месяцу с музыкой (вся история, вместе со Spotify), открываются историями на весь экран */
 const months = ref<string[]>([])
 const years = ref<string[]>([])
 const open = ref<{ from: string; to: string; title: string } | null>(null)
+/** Месяцы по годам: свежие сверху */
+const monthsByYear = computed(() => {
+  const out: { year: string; months: string[] }[] = []
+  for (const m of months.value) {
+    const y = m.slice(0, 4)
+    if (out.at(-1)?.year !== y) out.push({ year: y, months: [] })
+    out.at(-1)!.months.push(m)
+  }
+  return out
+})
 
 const load = stampedLoad(async () => {
   const p = await recapPeriods()
-  months.value = p.months.slice(0, 24)
+  months.value = p.months
   years.value = p.years
 })
 onMounted(() => void load())
@@ -53,22 +63,24 @@ function openYear(y: string) {
           ><small>{{ $t('итоги года') }}</small>
         </button>
       </div>
-      <div class="section-title">
-        <span>{{ $t('Месяцы') }}</span>
-      </div>
-      <div class="grid">
-        <button
-          v-for="m in months"
-          :key="m"
-          type="button"
-          class="tile"
-          :style="{ background: coverGradient(`month-${m}`) }"
-          @click="openMonth(m)"
-        >
-          <b>{{ MONTHS[Number(m.slice(5, 7)) - 1] }}</b
-          ><small>{{ m.slice(0, 4) }}</small>
-        </button>
-      </div>
+      <template v-for="g in monthsByYear" :key="g.year">
+        <div class="section-title">
+          <span>{{ $t('Месяцы {0} года', g.year) }}</span>
+        </div>
+        <div class="grid">
+          <button
+            v-for="m in g.months"
+            :key="m"
+            type="button"
+            class="tile"
+            :style="{ background: coverGradient(`month-${m}`) }"
+            @click="openMonth(m)"
+          >
+            <b>{{ MONTHS[Number(m.slice(5, 7)) - 1] }}</b
+            ><small>{{ m.slice(0, 4) }}</small>
+          </button>
+        </div>
+      </template>
     </template>
     <div v-else class="empty">
       <h3>{{ $t('Итоги появятся с историей') }}</h3>

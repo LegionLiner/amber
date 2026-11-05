@@ -4,6 +4,7 @@ import IconWifi from '~icons/solar/wi-fi-router-linear'
 import IconSync from '~icons/solar/refresh-linear'
 import IconFolder from '~icons/solar/folder-2-linear'
 import { useFileSync } from '@/stores/filesync'
+import { useSync } from '@/stores/sync'
 import { useUi } from '@/stores/ui'
 import { desktop, isDesktop } from '@/native/desktop/bridge'
 import { isNative } from '@/native/paths'
@@ -12,11 +13,43 @@ import { countLabel, formatBytes } from '@/domain/format'
 import { LOCALE, $t, $tp } from '@/i18n'
 
 /**
- * Настройки → Папка по Wi-Fi: компьютер раздаёт папку с музыкой, телефон забирает новое и отдаёт своё,
- * когда они в одной сети (вместо Syncthing). На компьютере — что раздавать и код для телефона,
- * на телефоне — подключение, папка, доступ к файлам и ход синхронизации.
+ * Настройки → Телефон (на телефоне — Компьютер) по Wi-Fi: устройства в одной сети обмениваются напрямую,
+ * без интернета и серверов. Подключение по коду одно, а дальше два независимых переключателя:
+ *  - общие данные — оценки, история, плейлисты, «что играет» и перенос музыки (desktop/hub.ts, stores/sync.ts);
+ *  - папка с музыкой — компьютер раздаёт её, телефон забирает новое и отдаёт своё (вместо Syncthing).
  */
 const fs = useFileSync()
+const sync = useSync()
+/** Данные уже идут через свой сервер в интернете — по Wi-Fi их не включить, пока не выйти из него */
+const viaServer = computed(() => sync.signedIn && sync.mode === 'server')
+/** Как идут общие данные — одной строкой */
+const dataText = computed(() => {
+  if (viaServer.value) return $t('Сейчас данные идут через свой сервер: выйди из него, чтобы делиться ими по Wi-Fi')
+  if (!(sync.mode === 'lan' && sync.signedIn))
+    return $t(
+      'Оценки, история, плейлисты, эпохи и дневник — общие. Видно, что играет на другом устройстве, и музыку можно перенести одним нажатием',
+    )
+  switch (sync.status) {
+    case 'syncing':
+      return $t('Синхронизирую…')
+    case 'offline':
+      return isDesktop ? $t('Связь с телефоном выключена') : $t('Компьютер не в сети — синхронизирую, когда появится')
+    case 'error':
+    case 'auth':
+      return $t('Не получилось: {0}', sync.error)
+    default:
+      return sync.pending > 0
+        ? $t('Ждёт отправки: {0}', countLabel(sync.pending, $tp('запись|записи|записей')))
+        : $t('Всё синхронизировано · {0}', ago(sync.lastAt))
+  }
+})
+/** Кто-то из подключённых телефонов отзывался в последние минуты (данные он сверяет раз в 3 минуты) */
+const phoneOnline = computed(() => fs.pc?.devices.some((d) => d.lastSeenAt && now.value - d.lastSeenAt < 5 * 60_000) ?? false)
+async function toggleFolder(on: boolean) {
+  if (!on) return fs.setPc({ folder: null })
+  if (folders.value[0]) return fs.setPc({ folder: folders.value[0] })
+  await chooseOther()
+}
 /** Доступ ко всем файлам дают в настройках Android: открываем их, по возвращении проверяем снова */
 const requestAccess = () => void MusicCore.fsRequestAccess()
 const ui = useUi()
@@ -93,12 +126,17 @@ async function connect() {
     await fs.pair(address.value, pairCode.value)
     pairCode.value = ''
     ui.toast($t('Подключено к «{0}»', fs.link?.pcName))
-    void fs.syncNow()
+    if (fs.files) void fs.syncNow()
   } catch (e) {
     formError.value = e instanceof Error ? e.message : String(e)
   } finally {
     busy.value = false
   }
+}
+
+function syncAll() {
+  if (sync.mode === 'lan' && sync.signedIn) void sync.syncNow()
+  if (fs.files) void fs.syncNow()
 }
 
 const progressText = computed(() => {
@@ -121,20 +159,15 @@ const reportText = computed(() => {
 
 <template>
   <section class="group fsync">
-    <h2 class="gtitle">{{ $t('Папка по Wi-Fi') }}</h2>
-
-    <!-- Компьютер: раздаёт -->
+    <!-- Компьютер: связь с телефоном -->
     <template v-if="isDesktop && fs.pc">
+      <h2 class="gtitle">{{ $t('Телефон по Wi-Fi') }}</h2>
       <p class="note">
-        {{
-          $t(
-            'Телефон забирает отсюда новую музыку и присылает свою, когда вы в одной сети, — как Syncthing, только внутри Amber. Замена и удаление на другой стороне ничего не стирают насовсем: прежние версии уходят в корзину.',
-          )
-        }}
+        {{ $t('Телефон и компьютер в одной сети обмениваются напрямую — без интернета, аккаунтов и серверов.') }}
       </p>
       <label class="row">
         <span
-          ><b>{{ $t('Раздавать папку телефону') }}</b
+          ><b>{{ $t('Связь с телефоном') }}</b
           ><small>{{ $t('Windows может спросить разрешение для частной сети — разреши') }}</small></span
         >
         <input
@@ -142,11 +175,38 @@ const reportText = computed(() => {
           type="checkbox"
           class="switch"
           :checked="fs.pc.enabled"
-          @change="fs.setPc({ enabled: !fs.pc.enabled, folder: fs.pc.folder ?? folders[0] ?? null })"
+          @change="fs.setPc({ enabled: !fs.pc.enabled })"
         />
       </label>
       <template v-if="fs.pc.enabled">
-        <div class="pick">
+        <label class="row" :class="{ off: viaServer }">
+          <span
+            ><b>{{ $t('Общие данные') }}</b
+            ><small>{{ dataText }}</small></span
+          >
+          <input
+            id="opt-fsync-data"
+            type="checkbox"
+            class="switch"
+            :checked="fs.pc.data && !viaServer"
+            :disabled="viaServer"
+            @change="fs.setPc({ data: !fs.pc.data })"
+          />
+        </label>
+        <label class="row">
+          <span
+            ><b>{{ $t('Раздавать папку с музыкой') }}</b
+            ><small>{{ $t('Новая музыка с компьютера приходит на телефон, а с телефона — сюда') }}</small></span
+          >
+          <input
+            id="opt-fsync-folder"
+            type="checkbox"
+            class="switch"
+            :checked="!!fs.pc.folder"
+            @change="toggleFolder(!fs.pc.folder)"
+          />
+        </label>
+        <div v-if="fs.pc.folder" class="pick">
           <span class="lbl">{{ $t('Папка') }}</span>
           <button
             v-for="f in folders"
@@ -158,12 +218,7 @@ const reportText = computed(() => {
           >
             <IconFolder />{{ f }}
           </button>
-          <button
-            v-if="fs.pc.folder && !folders.includes(fs.pc.folder)"
-            type="button"
-            class="opt ellipsis on"
-            @click="chooseOther"
-          >
+          <button v-if="!folders.includes(fs.pc.folder)" type="button" class="opt ellipsis on" @click="chooseOther">
             <IconFolder />{{ fs.pc.folder }}
           </button>
           <button type="button" class="link" @click="chooseOther">{{ $t('Другая папка…') }}</button>
@@ -172,7 +227,13 @@ const reportText = computed(() => {
         <div v-else-if="fs.pc.running" class="state">
           <IconWifi />
           <span>
-            <b>{{ $t('Раздаю «{0}»', fs.pc.folder?.split(/[\\/]/).pop()) }}</b>
+            <b>{{
+              fs.pc.folder
+                ? $t('Раздаю «{0}»', fs.pc.folder.split(/[\\/]/).pop())
+                : phoneOnline
+                  ? $t('Телефон на связи')
+                  : $t('Ждёт телефон')
+            }}</b>
             <small>{{ fs.pc.addresses.map((a) => `${a}:${fs.pc!.port}`).join(', ') || $t('нет сети') }}</small>
           </span>
         </div>
@@ -181,7 +242,7 @@ const reportText = computed(() => {
         <div v-if="code && codeLeft !== '0:00'" class="code">
           <small>{{ $t('Код для телефона · {0}', codeLeft) }}</small>
           <b class="display num">{{ code.code.slice(0, 3) }} {{ code.code.slice(3) }}</b>
-          <small>{{ $t('В Amber на телефоне: Настройки → Папка по Wi-Fi → Найти компьютер') }}</small>
+          <small>{{ $t('В Amber на телефоне: Настройки → Компьютер по Wi-Fi → Найти компьютер') }}</small>
         </div>
         <button v-else type="button" class="btn" @click="showCode">{{ $t('Подключить телефон') }}</button>
 
@@ -197,81 +258,110 @@ const reportText = computed(() => {
       </template>
     </template>
 
-    <!-- Телефон: забирает и отдаёт -->
+    <!-- Телефон: подключение к компьютеру -->
     <template v-else-if="isNative">
+      <h2 class="gtitle">{{ $t('Компьютер по Wi-Fi') }}</h2>
       <p class="note">
-        {{
-          $t(
-            'Новая музыка с компьютера приходит сюда, а своя уходит туда, когда телефон и компьютер в одной сети. Работает, пока Amber открыт; прежние версии и удалённое уходят в корзину, а не пропадают.',
-          )
-        }}
+        {{ $t('Телефон и компьютер в одной сети обмениваются напрямую — без интернета, аккаунтов и серверов.') }}
       </p>
 
-      <div v-if="!fs.access" class="warn">
-        <span>{{ $t('Нужен доступ ко всем файлам: без него Amber не сможет записывать в папку с музыкой.') }}</span>
-        <button type="button" class="btn small" @click="requestAccess">{{ $t('Разрешить') }}</button>
-      </div>
-
       <template v-if="fs.paired">
-        <div class="state" :class="fs.status">
+        <div class="state" :class="sync.mode === 'lan' ? sync.status : fs.status">
           <IconWifi />
           <span>
             <b>{{ fs.link!.pcName }}</b>
-            <small>{{
-              fs.status === 'running'
-                ? progressText
-                : fs.status === 'offline'
-                  ? $t('Компьютер не в сети — синхронизирую, когда появится')
-                  : fs.status === 'error'
-                    ? fs.error
-                    : `${reportText} · ${ago(fs.lastAt)}`
-            }}</small>
+            <small>{{ fs.link!.base.replace(/^http:\/\//, '') }}</small>
           </span>
-          <button
-            type="button"
-            class="icon-btn"
-            :class="{ spin: fs.status === 'running' }"
-            :aria-label="$t('Синхронизировать сейчас')"
-            :disabled="!fs.access"
-            @click="fs.status === 'running' ? fs.cancel() : fs.syncNow()"
+        </div>
+
+        <label class="row" :class="{ off: viaServer || fs.link!.data === false }">
+          <span
+            ><b>{{ $t('Общие данные') }}</b
+            ><small>{{
+              fs.link!.data === false ? $t('Компьютер не делится данными: включи это в его настройках') : dataText
+            }}</small></span
           >
-            <IconSync />
+          <input
+            id="opt-fsync-data"
+            type="checkbox"
+            class="switch"
+            :checked="fs.dataOn"
+            :disabled="viaServer || (fs.link!.data === false && !fs.dataOn)"
+            @change="fs.setData(!fs.dataOn)"
+          />
+        </label>
+
+        <label class="row" :class="{ off: fs.link!.folder === null }">
+          <span
+            ><b>{{ $t('Папка с музыкой') }}</b
+            ><small>{{
+              fs.link!.folder === null
+                ? $t('Компьютер не раздаёт папку: включи это в его настройках')
+                : !fs.files
+                  ? $t('Новая музыка с компьютера приходит сюда, а своя уходит туда')
+                  : fs.status === 'running'
+                    ? progressText
+                    : fs.status === 'offline'
+                      ? $t('Компьютер не в сети — синхронизирую, когда появится')
+                      : fs.status === 'error'
+                        ? fs.error
+                        : `${reportText} · ${ago(fs.lastAt)}`
+            }}</small></span
+          >
+          <input
+            id="opt-fsync-files"
+            type="checkbox"
+            class="switch"
+            :checked="fs.files && fs.link!.folder !== null"
+            :disabled="fs.link!.folder === null"
+            @change="fs.setFiles(!fs.files)"
+          />
+        </label>
+
+        <template v-if="fs.files && fs.link!.folder !== null">
+          <div v-if="!fs.access" class="warn">
+            <span>{{ $t('Нужен доступ ко всем файлам: без него Amber не сможет записывать в папку с музыкой.') }}</span>
+            <button type="button" class="btn small" @click="requestAccess">{{ $t('Разрешить') }}</button>
+          </div>
+          <div v-if="fs.status === 'running' && fs.progress?.bytesTotal" class="bar">
+            <i :style="{ width: `${(fs.progress.bytesDone / fs.progress.bytesTotal) * 100}%` }" />
+          </div>
+          <div v-if="fs.report?.held" class="warn">
+            <span>{{
+              $t(
+                'На другой стороне удалили {0} — больше, чем обычно. Удалить и здесь? Они уйдут в корзину.',
+                countLabel(fs.report.held, $tp('файл|файла|файлов')),
+              )
+            }}</span>
+            <button type="button" class="btn small" @click="fs.syncNow({ confirmDeletes: true })">{{ $t('Удалить') }}</button>
+          </div>
+          <p v-if="fs.report?.conflicts.length" class="tiny">
+            {{ $t('Изменены с обеих сторон, оставлены более новые: {0}', fs.report.conflicts.slice(0, 3).join(', ')) }}
+          </p>
+          <p v-if="fs.report?.errors.length" class="tiny err">
+            {{
+              $t(
+                'Не получилось: {0}',
+                fs.report.errors
+                  .slice(0, 3)
+                  .map((e) => `${e.p.split('/').pop()} (${e.why})`)
+                  .join(', '),
+              )
+            }}
+          </p>
+          <div class="pick">
+            <span class="lbl">{{ $t('Папка на телефоне') }}</span>
+            <span class="path ellipsis">{{ fs.root }}</span>
+            <button type="button" class="link" @click="fs.chooseRoot()">{{ $t('Другая…') }}</button>
+          </div>
+        </template>
+
+        <div class="btns">
+          <button type="button" class="btn" :disabled="fs.status === 'running' || sync.status === 'syncing'" @click="syncAll">
+            <IconSync />{{ $t('Синхронизировать сейчас') }}
           </button>
+          <button type="button" class="link danger" @click="fs.unpair()">{{ $t('Отключить компьютер') }}</button>
         </div>
-        <div v-if="fs.status === 'running' && fs.progress?.bytesTotal" class="bar">
-          <i :style="{ width: `${(fs.progress.bytesDone / fs.progress.bytesTotal) * 100}%` }" />
-        </div>
-
-        <div v-if="fs.report?.held" class="warn">
-          <span>{{
-            $t(
-              'На другой стороне удалили {0} — больше, чем обычно. Удалить и здесь? Они уйдут в корзину.',
-              countLabel(fs.report.held, $tp('файл|файла|файлов')),
-            )
-          }}</span>
-          <button type="button" class="btn small" @click="fs.syncNow({ confirmDeletes: true })">{{ $t('Удалить') }}</button>
-        </div>
-        <p v-if="fs.report?.conflicts.length" class="tiny">
-          {{ $t('Изменены с обеих сторон, оставлены более новые: {0}', fs.report.conflicts.slice(0, 3).join(', ')) }}
-        </p>
-        <p v-if="fs.report?.errors.length" class="tiny err">
-          {{
-            $t(
-              'Не получилось: {0}',
-              fs.report.errors
-                .slice(0, 3)
-                .map((e) => `${e.p.split('/').pop()} (${e.why})`)
-                .join(', '),
-            )
-          }}
-        </p>
-
-        <div class="pick">
-          <span class="lbl">{{ $t('Папка на телефоне') }}</span>
-          <span class="path ellipsis">{{ fs.root }}</span>
-          <button type="button" class="link" @click="fs.chooseRoot()">{{ $t('Другая…') }}</button>
-        </div>
-        <button type="button" class="link danger" @click="fs.unpair()">{{ $t('Отключить компьютер') }}</button>
       </template>
 
       <template v-else>
@@ -324,6 +414,25 @@ const reportText = computed(() => {
 </template>
 
 <style scoped>
+.row.off {
+  opacity: 0.6;
+}
+.btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.btns .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btns .btn svg {
+  width: 18px;
+  height: 18px;
+}
 .state {
   display: grid;
   grid-template-columns: 22px 1fr auto;

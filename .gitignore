@@ -26,3 +26,6 @@ android/captures
 # компьютерная версия: сборка и установщики
 desktop/app/
 release/
+
+# Сборки для сайта (npm run site): большие файлы, в репозиторий не кладём
+site/download/

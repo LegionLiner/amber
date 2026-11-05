@@ -16,6 +16,7 @@ import { setupDesktop } from './desktop'
 import { setupVoice } from './voice'
 import { useSync } from '@/stores/sync'
 import { useFileSync } from '@/stores/filesync'
+import { isDesktop } from '@/native/desktop/bridge'
 import { formatDate } from '@/domain/format'
 import type { DbRecovery } from '@/native/types'
 import { LOCALE, $t, lang } from '@/i18n'
@@ -91,6 +92,14 @@ export async function boot(): Promise<void> {
       }
       // Папка по Wi-Fi (телефон): после сканирования — чтобы пришедшее сразу легло в медиатеку
       useFileSync().start()
+      // Компьютер: данные по Wi-Fi включены — окно синхронизирует их со своим же сервером (desktop/hub.ts).
+      // Сервер мог ещё подниматься — сверяемся и чуть позже
+      if (isDesktop) {
+        const fsync = useFileSync()
+        const check = () => fsync.loadPc().then(() => fsync.reconcilePc())
+        void check().catch(() => undefined)
+        window.setTimeout(() => void check().catch(() => undefined), 4000)
+      }
       void weeklyHousekeeping().catch((e) => console.warn('housekeeping failed', e))
       void runAutoBackup().catch((e) => console.warn('auto-backup failed', e))
     })

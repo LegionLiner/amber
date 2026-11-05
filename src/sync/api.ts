@@ -2,8 +2,16 @@ import type { SyncItem } from './kinds'
 import type { SyncResponse } from './engine'
 import type { DeviceState, LiveCommand } from './live'
 import { $t } from '@/i18n'
+import { isNative } from '@/native/paths'
+import { MusicCore } from '@/native/music-core'
 
-/** Запросы к серверу Amber (server/). Ошибки — с текстом для человека и видом: нет сети, нужно войти, прочее */
+/**
+ * Запросы к серверу Amber (server/) или к компьютеру в домашней сети (desktop/hub.ts — тот же протокол).
+ * Ошибки — с текстом для человека и видом: нет сети, нужно войти, прочее.
+ *
+ * Телефон к компьютеру ходит по http (192.168.…), а окно приложения открыто по https: такие запросы
+ * делает Kotlin (online/LanHttp.kt), здесь — только разбор ответа. Остальное — обычный fetch.
+ */
 
 /** Сколько поток событий может молчать, прежде чем считается мёртвым (сервер подаёт голос раз в 25 с) */
 const SILENCE_MS = 70_000
@@ -40,6 +48,11 @@ export function normalizeUrl(input: string): string {
   return u
 }
 
+/** Телефон и адрес по http (компьютер в домашней сети): запрос делает Kotlin */
+const viaNative = (base: string) => isNative && /^http:\/\//i.test(base)
+
+let streamSeq = 0
+
 export class SyncApi {
   constructor(
     readonly base: string,
@@ -47,6 +60,7 @@ export class SyncApi {
   ) {}
 
   private async req<T>(method: string, path: string, body?: unknown, timeoutMs = 60000): Promise<T> {
+    if (viaNative(this.base)) return this.nativeReq<T>(method, path, body, timeoutMs)
     const ctl = new AbortController()
     const timer = setTimeout(() => ctl.abort(), timeoutMs)
     let res: Response
@@ -74,6 +88,33 @@ export class SyncApi {
     if (!res.ok) {
       const msg = (data as { error?: string } | null)?.error ?? $t('Сервер ответил {0}', res.status)
       throw new ApiError(res.status === 401 ? 'auth' : 'server', msg)
+    }
+    if (data == null) throw new ApiError('server', $t('По этому адресу не сервер Amber'))
+    return data as T
+  }
+
+  private async nativeReq<T>(method: string, path: string, body: unknown, timeoutMs: number): Promise<T> {
+    let r: { status: number; body: string }
+    try {
+      r = await MusicCore.lanRequest({
+        method,
+        url: `${this.base}${path}`,
+        headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        timeoutMs,
+      })
+    } catch {
+      throw new ApiError('offline', $t('Компьютер не отвечает'))
+    }
+    let data: unknown = null
+    try {
+      data = r.body ? JSON.parse(r.body) : null
+    } catch {
+      /* не JSON */
+    }
+    if (r.status < 200 || r.status >= 300) {
+      const msg = (data as { error?: string } | null)?.error ?? $t('Компьютер ответил {0}', r.status)
+      throw new ApiError(r.status === 401 ? 'auth' : 'server', msg)
     }
     if (data == null) throw new ApiError('server', $t('По этому адресу не сервер Amber'))
     return data as T
@@ -129,6 +170,7 @@ export class SyncApi {
    * Ошибка вида 'server' — сервер старый и потока не знает.
    */
   async events(onEvent: (name: string, data: unknown) => void, signal: AbortSignal): Promise<void> {
+    if (viaNative(this.base)) return this.nativeEvents(onEvent, signal)
     const ctl = new AbortController()
     const stop = () => ctl.abort()
     signal.addEventListener('abort', stop)
@@ -195,6 +237,57 @@ export class SyncApi {
     } finally {
       clearTimeout(watchdog)
       signal.removeEventListener('abort', stop)
+    }
+  }
+
+  /** Тот же поток событий, но читает его Kotlin и отдаёт по событию */
+  private async nativeEvents(onEvent: (name: string, data: unknown) => void, signal: AbortSignal): Promise<void> {
+    const id = `s${Date.now().toString(36)}${streamSeq++}`
+    let finish: (err?: ApiError) => void = () => undefined
+    const done = new Promise<void>((resolve, reject) => {
+      finish = (err) => (err ? reject(err) : resolve())
+    })
+    let opened = false
+    // Слушатели — до открытия потока: первое событие («hello») не должно пройти мимо
+    const onData = await MusicCore.addListener('lanEvent', (e) => {
+      if (e.id !== id) return
+      opened = true
+      let parsed: unknown = null
+      try {
+        parsed = e.data ? JSON.parse(e.data) : null
+      } catch {
+        /* событие без данных */
+      }
+      try {
+        onEvent(e.name, parsed)
+      } catch (err) {
+        console.warn('live event failed', e.name, err)
+      }
+    })
+    const onClosed = await MusicCore.addListener('lanEventsClosed', (e) => {
+      if (e.id !== id) return
+      if (opened || signal.aborted) return finish()
+      if (e.status === 401) return finish(new ApiError('auth', $t('Вход устарел: войди снова')))
+      if (!e.status) return finish(new ApiError('offline', $t('Компьютер не отвечает')))
+      if (e.status !== 200 || !e.contentType.includes('text/event-stream'))
+        return finish(new ApiError('server', $t('Сервер не умеет мгновенную доставку: обнови его')))
+      finish()
+    })
+    const stop = () => {
+      void MusicCore.lanEventsClose({ id })
+      finish()
+    }
+    signal.addEventListener('abort', stop, { once: true })
+    try {
+      if (signal.aborted) return
+      await MusicCore.lanEventsOpen({ id, url: `${this.base}/v1/events?role=ui`, token: this.token ?? '' }).catch(() =>
+        finish(new ApiError('offline', $t('Компьютер не отвечает'))),
+      )
+      await done
+    } finally {
+      signal.removeEventListener('abort', stop)
+      void onData.remove()
+      void onClosed.remove()
     }
   }
 }

@@ -23,6 +23,8 @@ const code = ref('')
 const busy = ref(false)
 const formError = ref('')
 const showDevices = ref(false)
+/** Без входа форма свёрнута: свой сервер — для тех, кто его поднял; обычный путь — компьютер по Wi-Fi */
+const showForm = ref(false)
 const deleting = ref(false)
 const deletePassword = ref('')
 
@@ -96,8 +98,9 @@ async function removeAccount() {
 </script>
 
 <template>
-  <section class="group sync">
-    <h2 class="gtitle">{{ $t('Синхронизация') }}</h2>
+  <!-- Данные идут через компьютер по Wi-Fi: состояние — в разделе Wi-Fi, здесь показывать нечего -->
+  <section v-if="!(sync.mode === 'lan' && sync.signedIn)" class="group sync">
+    <h2 class="gtitle">{{ $t('Свой сервер') }}</h2>
 
     <template v-if="sync.signedIn && sync.status !== 'auth'">
       <div class="state" :class="sync.status">
@@ -171,51 +174,58 @@ async function removeAccount() {
           sync.status === 'auth'
             ? $t('Вход на сервер устарел: войди снова, синхронизация продолжится с того же места.')
             : $t(
-                'Свой сервер Amber связывает телефон и компьютер: оценки, история и плейлисты — общие. Музыка на сервер не загружается, без сети всё работает как раньше.',
+                'Для тех, кто поднял свой сервер Amber: данные синхронизируются через интернет, даже когда устройства в разных сетях. Музыка на сервер не загружается.',
               )
         }}
       </p>
-      <div v-if="sync.status !== 'auth'" class="seg">
-        <button type="button" :class="{ on: mode === 'login' }" @click="mode = 'login'">{{ $t('Войти') }}</button>
-        <button type="button" :class="{ on: mode === 'register' }" @click="mode = 'register'">{{ $t('Создать аккаунт') }}</button>
-      </div>
-      <label class="fl">
-        <span>{{ $t('Адрес сервера') }}</span>
-        <input
-          id="sync-url"
-          v-model="url"
-          class="field"
-          type="url"
-          inputmode="url"
-          placeholder="music.example.com"
-          autocomplete="url"
-        />
-      </label>
-      <label class="fl">
-        <span>{{ $t('Почта') }}</span>
-        <input id="sync-email" v-model="email" class="field" type="email" inputmode="email" autocomplete="username" />
-      </label>
-      <label class="fl">
-        <span>{{ $t('Пароль') }}</span>
-        <input
-          id="sync-password"
-          v-model="password"
-          class="field"
-          type="password"
-          :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
-          @keydown.enter="submit"
-        />
-      </label>
-      <label v-if="mode === 'register'" class="fl">
-        <span
-          >{{ $t('Код приглашения') }} <small class="muted">{{ $t('если сервер его просит') }}</small></span
-        >
-        <input id="sync-code" v-model="code" class="field" autocomplete="off" />
-      </label>
-      <p v-if="formError" class="err">{{ formError }}</p>
-      <button type="button" class="btn primary block" :disabled="busy || !url || !email || !password" @click="submit">
-        {{ busy ? $t('Подключаюсь…') : mode === 'register' ? $t('Создать аккаунт') : $t('Войти') }}
+      <button v-if="sync.status !== 'auth' && !showForm" type="button" class="btn" @click="showForm = true">
+        {{ $t('Подключить свой сервер') }}
       </button>
+      <template v-if="sync.status === 'auth' || showForm">
+        <div v-if="sync.status !== 'auth'" class="seg">
+          <button type="button" :class="{ on: mode === 'login' }" @click="mode = 'login'">{{ $t('Войти') }}</button>
+          <button type="button" :class="{ on: mode === 'register' }" @click="mode = 'register'">
+            {{ $t('Создать аккаунт') }}
+          </button>
+        </div>
+        <label class="fl">
+          <span>{{ $t('Адрес сервера') }}</span>
+          <input
+            id="sync-url"
+            v-model="url"
+            class="field"
+            type="url"
+            inputmode="url"
+            placeholder="music.example.com"
+            autocomplete="url"
+          />
+        </label>
+        <label class="fl">
+          <span>{{ $t('Почта') }}</span>
+          <input id="sync-email" v-model="email" class="field" type="email" inputmode="email" autocomplete="username" />
+        </label>
+        <label class="fl">
+          <span>{{ $t('Пароль') }}</span>
+          <input
+            id="sync-password"
+            v-model="password"
+            class="field"
+            type="password"
+            :autocomplete="mode === 'register' ? 'new-password' : 'current-password'"
+            @keydown.enter="submit"
+          />
+        </label>
+        <label v-if="mode === 'register'" class="fl">
+          <span
+            >{{ $t('Код приглашения') }} <small class="muted">{{ $t('если сервер его просит') }}</small></span
+          >
+          <input id="sync-code" v-model="code" class="field" autocomplete="off" />
+        </label>
+        <p v-if="formError" class="err">{{ formError }}</p>
+        <button type="button" class="btn primary block" :disabled="busy || !url || !email || !password" @click="submit">
+          {{ busy ? $t('Подключаюсь…') : mode === 'register' ? $t('Создать аккаунт') : $t('Войти') }}
+        </button>
+      </template>
     </template>
   </section>
 </template>

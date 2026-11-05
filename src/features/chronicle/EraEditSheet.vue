@@ -6,6 +6,7 @@ import { TINTS } from '@/domain/palette'
 import { deleteEra, saveEra, type EraRow } from '@/data/repos/eras'
 import { todayKey } from '@/domain/streaks'
 import { $t } from '@/i18n'
+import DateField from '@/components/DateField.vue'
 
 /** Своя эпоха: название и даты. Цвет — для карточки и историй. */
 const props = defineProps<{ era?: EraRow | null; onSaved?: (id: number | null) => void }>()
@@ -50,11 +51,11 @@ async function remove() {
     <div class="dates">
       <label
         ><span>{{ $t('С') }}</span
-        ><input id="era-from" v-model="form.startDay" type="date" class="field"
+        ><DateField id="era-from" v-model="form.startDay" class="field" :title="$t('С')"
       /></label>
       <label
         ><span>{{ $t('По') }}</span
-        ><input id="era-to" v-model="form.endDay" type="date" class="field"
+        ><DateField id="era-to" v-model="form.endDay" class="field" :title="$t('По')" :min="form.startDay"
       /></label>
     </div>
     <ColorPicker v-model="form.color" />

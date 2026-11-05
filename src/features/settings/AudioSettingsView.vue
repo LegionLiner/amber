@@ -12,6 +12,7 @@ import { outputLabel } from '@/domain/outputs'
 import { touchStoppedScroll } from '@/composables/tapGuard'
 import type { CrossfadeSettings, EqSettings, NormalizationSettings } from '@/native/types'
 import { $t } from '@/i18n'
+import SelectField from '@/components/SelectField.vue'
 
 /**
  * Звук: переходы между треками, выравнивание громкости и эквалайзер.
@@ -230,12 +231,18 @@ async function stopPreview() {
           ><b>{{ $t('Мягкий пропуск') }}</b
           ><small>{{ $t('Короткое затухание, когда листаешь треки') }}</small></span
         >
-        <select id="xf-skip" v-model.number="a.crossfade.skipFadeMs" class="select">
-          <option :value="0">{{ $t('выкл') }}</option>
-          <option :value="150">{{ $t('быстро') }}</option>
-          <option :value="250">{{ $t('обычно') }}</option>
-          <option :value="450">{{ $t('медленно') }}</option>
-        </select>
+        <SelectField
+          id="xf-skip"
+          v-model="a.crossfade.skipFadeMs"
+          class="select"
+          :title="$t('Мягкий пропуск')"
+          :options="[
+            { value: 0, label: $t('выкл') },
+            { value: 150, label: $t('быстро') },
+            { value: 250, label: $t('обычно') },
+            { value: 450, label: $t('медленно') },
+          ]"
+        />
       </label>
       <button type="button" class="btn block" @click="previewing ? stopPreview() : previewTransition()">
         {{ previewing ? $t('Остановить') : $t('Послушать переход') }}
@@ -261,9 +268,13 @@ async function stopPreview() {
           ><b>{{ $t('Уровень') }}</b
           ><small>{{ $t('−14 LUFS как у стримингов; −18 тише и с запасом для динамики') }}</small></span
         >
-        <select id="norm-target" v-model.number="a.normalization.targetLufs" class="select">
-          <option v-for="t in TARGETS" :key="t" :value="t">{{ t }} LUFS</option>
-        </select>
+        <SelectField
+          id="norm-target"
+          v-model="a.normalization.targetLufs"
+          class="select"
+          :title="$t('Уровень')"
+          :options="TARGETS.map((t) => ({ value: t, label: `${t} LUFS` }))"
+        />
       </label>
       <p class="note">
         {{ $t('Проанализировано {0} из {1}.', analyzedCount, library.tracks.length) }}

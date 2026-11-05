@@ -27,6 +27,12 @@ import { $t } from '@/i18n'
  *
  * Адрес сервера, почта и токен входа хранятся в таблице sync_state базы, а не в настройках:
  * настройки уходят в бэкап JSON, токену там не место.
+ *
+ * Два режима (mode):
+ *  - server — свой сервер Amber в интернете, вход по почте;
+ *  - lan — без серверов: компьютер в той же Wi-Fi-сети сам служит «сервером» (desktop/hub.ts), телефон
+ *    подключается к нему по коду с экрана (тот же вход, что у папки по Wi-Fi), а окно на компьютере — к себе же.
+ *    Адрес компьютера в сети может смениться: тогда его находят по маячку (setLocator) и идут уже туда.
  */
 
 /** Какие настройки общие для всех устройств. Тема, папки, звук устройства — у каждого свои */
@@ -49,6 +55,7 @@ const OUTBOX_POLL_MS = 2000
 const NO_LIVE_RETRY_MS = 10 * 60 * 1000
 
 export type SyncStatus = 'off' | 'idle' | 'syncing' | 'offline' | 'error' | 'auth'
+export type SyncMode = 'server' | 'lan'
 
 const sdb: SyncDb = {
   all: (sql, params) => all(sql, params ?? []),
@@ -80,6 +87,16 @@ export const useSync = defineStore('sync', () => {
   const url = ref('')
   const email = ref('')
   const token = ref<string | null>(null)
+  const mode = ref<SyncMode>('server')
+  /** Компьютер, через который идут данные в режиме lan */
+  const peer = ref('')
+  /** Кому показывать в подписях: почта аккаунта или имя компьютера */
+  const label = computed(() => (mode.value === 'lan' ? peer.value : email.value))
+  /** Режим lan на телефоне: найти компьютер, если он сменил адрес в сети (null — не нашёлся) */
+  let locate: (() => Promise<string | null>) | null = null
+  function setLocator(fn: (() => Promise<string | null>) | null) {
+    locate = fn
+  }
   const status = ref<SyncStatus>('off')
   const error = ref('')
   const lastAt = ref<number | null>(null)
@@ -119,6 +136,8 @@ export const useSync = defineStore('sync', () => {
     url.value = (await getState('url')) ?? ''
     email.value = (await getState('email')) ?? ''
     token.value = await getState('token')
+    mode.value = (await getState('mode')) === 'lan' ? 'lan' : 'server'
+    peer.value = (await getState('peer')) ?? ''
     lastAt.value = Number(await getState('lastAt')) || null
     status.value = token.value ? 'idle' : 'off'
     if (token.value) pending.value = await pendingCount(sdb)
@@ -134,7 +153,8 @@ export const useSync = defineStore('sync', () => {
     url.value = base
     email.value = r.email
     token.value = r.token
-    await setStates({ url: base, email: r.email, token: r.token })
+    mode.value = 'server'
+    await setStates({ url: base, email: r.email, token: r.token, mode: 'server', peer: null })
     await enableSync(sdb)
     status.value = 'idle'
     failures = 0
@@ -142,6 +162,41 @@ export const useSync = defineStore('sync', () => {
     await syncNow()
     void listen()
     relinkEngine()
+  }
+
+  /**
+   * Данные — через компьютер в той же сети (desktop/hub.ts). base и token — с подключения по коду (телефон)
+   * или из окна этого же компьютера. Всё, что есть на устройстве, отправляется туда, чужое приходит сюда
+   */
+  async function connectLan(base: string, lanToken: string, name: string) {
+    if (token.value) {
+      stopListening()
+      clearTimeout(timer)
+      await disableSync(sdb)
+    }
+    url.value = base
+    token.value = lanToken
+    email.value = ''
+    mode.value = 'lan'
+    peer.value = name
+    me.value = null
+    await setStates({ url: base, token: lanToken, mode: 'lan', peer: name, email: null })
+    await enableSync(sdb)
+    status.value = 'idle'
+    failures = 0
+    start()
+    await syncNow()
+    void listen()
+    relinkEngine()
+  }
+
+  /** Компьютер сменил адрес в сети: дальше ходим на новый */
+  async function moveLan(base: string) {
+    if (mode.value !== 'lan' || base === url.value) return
+    url.value = base
+    await setStates({ url: base })
+    relinkEngine()
+    reconnect()
   }
 
   /** Выйти на этом устройстве: данные остаются, синхронизация выключается */
@@ -155,6 +210,8 @@ export const useSync = defineStore('sync', () => {
     await a.logout().catch(() => undefined)
     await disableSync(sdb)
     await setStates({ token: null, lastAt: null })
+    mode.value = 'server'
+    peer.value = ''
     relinkEngine()
   }
 
@@ -234,6 +291,15 @@ export const useSync = defineStore('sync', () => {
       } catch (e) {
         failures++
         handleError(e)
+        // Компьютер не отвечает по старому адресу — может, он теперь на другом: ищем по маячку
+        if (mode.value === 'lan' && e instanceof ApiError && e.kind === 'offline' && locate) {
+          const moved = await locate().catch(() => null)
+          if (moved && moved !== url.value) {
+            await moveLan(moved)
+            again = true
+            ok = true
+          }
+        }
       } finally {
         pending.value = await pendingCount(sdb).catch(() => pending.value)
         // Что осталось в журнале (играющий трек, неотправленное без сети) — уже учтено: заново из-за него не идём
@@ -359,6 +425,9 @@ export const useSync = defineStore('sync', () => {
   return {
     url,
     email,
+    mode,
+    peer,
+    label,
     status,
     error,
     lastAt,
@@ -372,6 +441,9 @@ export const useSync = defineStore('sync', () => {
     load,
     signIn,
     signOut,
+    connectLan,
+    moveLan,
+    setLocator,
     deleteAccount,
     loadMe,
     forgetDevice,

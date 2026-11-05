@@ -1747,6 +1747,15 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   async fsDiscover() {
     return { found: [] }
   }
+  /** Только телефон: компьютер и браузер ходят в сеть сами (fetch) */
+  async lanRequest(): Promise<never> {
+    return this.noFs()
+  }
+  async lanEventsOpen(): Promise<never> {
+    return this.noFs()
+  }
+  async lanEventsClose(): Promise<void> {}
+
   async fsHello(): Promise<never> {
     return this.noFs()
   }

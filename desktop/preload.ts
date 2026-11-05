@@ -46,9 +46,10 @@ contextBridge.exposeInMainWorld('amberDesktop', {
   fileSyncState: () => invoke('fs:get'),
   fileSyncSet: (patch: unknown) => invoke('fs:set', patch),
   fileSyncPair: () => invoke('fs:pair'),
+  hubLocal: () => invoke('hub:local'),
   fileSyncUnpair: (id: string) => invoke('fs:unpair', id),
   onFileSyncActivity: (cb: (a: unknown) => void) => void ipcRenderer.on('fs:activity', (_e, a) => cb(a)),
 
-  voicePrepare: () => invoke('voice:prepare'),
+  voicePrepare: (lang: 'ru' | 'en') => invoke('voice:prepare', lang),
   onVoiceProgress: (cb: (p: unknown) => void) => void ipcRenderer.on('voice:progress', (_e, p) => cb(p)),
 })

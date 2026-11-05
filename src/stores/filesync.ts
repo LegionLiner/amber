@@ -8,6 +8,7 @@ import { keyOf, type BaseEntry } from '@/filesync/plan'
 import { runSync, type BaseStore, type SyncProgress, type SyncReport } from '@/filesync/run'
 import { nativeIO } from '@/filesync/native'
 import { useLibrary } from './library'
+import { useSync } from './sync'
 import { $t } from '@/i18n'
 
 /**
@@ -19,6 +20,9 @@ import { $t } from '@/i18n'
  * Компьютер не в сети — молча ждём следующего раза.
  *
  * Здесь же — состояние для настроек компьютера (раздаёт ли он, какую папку, кто подключён).
+ *
+ * Подключение по коду — одно на всё: через него же идут общие данные (оценки, история, плейлисты, «что играет»)
+ * — stores/sync.ts в режиме lan. Папку и данные можно включать по отдельности.
  */
 
 const AUTO_EVERY_MS = 10 * 60_000
@@ -33,6 +37,10 @@ interface Link {
   token: string
   pcId: string
   pcName: string
+  /** Компьютер раздаёт папку (по последнему ответу) */
+  folder?: string | null
+  /** Компьютер делится данными */
+  data?: boolean
 }
 
 async function getState(k: string): Promise<string | null> {
@@ -80,6 +88,13 @@ export const useFileSync = defineStore('filesync', () => {
   const report = shallowRef<SyncReport | null>(null)
   const lastAt = ref<number | null>(null)
   const paired = computed(() => !!link.value)
+  /** Папка с музыкой по Wi-Fi включена на телефоне (данные — отдельно, в stores/sync.ts) */
+  const files = ref(true)
+  /** Общие данные идут через этот компьютер */
+  const dataOn = computed(() => {
+    const sync = useSync()
+    return sync.mode === 'lan' && sync.signedIn
+  })
   let loaded = false
   let ctl: AbortController | null = null
   let timer = 0
@@ -89,6 +104,7 @@ export const useFileSync = defineStore('filesync', () => {
     loaded = true
     const raw = await getState('link')
     link.value = raw ? (JSON.parse(raw) as Link) : null
+    files.value = (await getState('files')) !== '0'
     root.value = (await getState('root')) ?? (await MusicCore.fsDefaultRoot()).root
     lastAt.value = Number(await getState('lastAt')) || null
     const r = await getState('report')
@@ -114,16 +130,45 @@ export const useFileSync = defineStore('filesync', () => {
       .split(':')
     const base = baseUrl(host!, Number(port) || 47862)
     const r = await MusicCore.fsPair({ base, code: code.trim(), name: $t('Телефон') })
-    link.value = { base, token: r.token, pcId: r.id, pcName: r.name }
+    const hello = await MusicCore.fsHello({ base }).catch(() => null)
+    link.value = { base, token: r.token, pcId: r.id, pcName: r.name, folder: hello?.folder ?? null, data: hello?.data ?? false }
+    // Папку — если компьютер её раздаёт
+    files.value = !!hello?.folder
     // Новый компьютер — память о прошлых проходах к нему не относится
     await run(`DELETE FROM filesync_base`)
-    await setStates({ link: JSON.stringify(link.value), pairKey: null, report: null, lastAt: null })
+    await setStates({
+      link: JSON.stringify(link.value),
+      files: files.value ? '1' : '0',
+      pairKey: null,
+      report: null,
+      lastAt: null,
+    })
     report.value = null
     lastAt.value = null
+    // Данные — сразу через этот компьютер, если они ещё не идут через свой сервер
+    const sync = useSync()
+    if (link.value.data && (!sync.signedIn || sync.mode === 'lan')) await setData(true)
+  }
+
+  /** Общие данные через этот компьютер: включить или выключить */
+  async function setData(on: boolean) {
+    const sync = useSync()
+    const l = link.value
+    if (on && l) await sync.connectLan(l.base, l.token, l.pcName)
+    else if (!on && sync.mode === 'lan' && sync.signedIn) await sync.signOut()
+  }
+
+  /** Папка с музыкой по Wi-Fi на телефоне: включить или выключить */
+  async function setFiles(on: boolean) {
+    files.value = on
+    await setStates({ files: on ? '1' : '0' })
+    if (on) void syncNow()
+    else ctl?.abort()
   }
 
   async function unpair() {
     ctl?.abort()
+    await setData(false)
     link.value = null
     await run(`DELETE FROM filesync_base`)
     await setStates({ link: null, pairKey: null, report: null, lastAt: null })
@@ -140,23 +185,33 @@ export const useFileSync = defineStore('filesync', () => {
 
   /** Компьютер на прежнем адресе? Если нет — ищем его маячок (адрес в сети мог смениться) */
   async function reach(l: Link): Promise<Link | null> {
+    let base = l.base
+    let h: Awaited<ReturnType<typeof MusicCore.fsHello>> | null = null
     try {
-      const h = await MusicCore.fsHello({ base: l.base })
-      if (h.id === l.pcId) return l
+      h = await MusicCore.fsHello({ base })
+      if (h.id !== l.pcId) h = null
     } catch {
       /* не отвечает — ищем */
     }
-    const found = (await discover()).find((f) => f.id === l.pcId)
-    if (!found) return null
-    const moved = { ...l, base: baseUrl(found.host, found.port) }
-    link.value = moved
-    await setStates({ link: JSON.stringify(moved) })
-    return moved
+    if (!h) {
+      const found = (await discover()).find((f) => f.id === l.pcId)
+      if (!found) return null
+      base = baseUrl(found.host, found.port)
+      h = await MusicCore.fsHello({ base }).catch(() => null)
+    }
+    const next: Link = { ...l, base, folder: h ? h.folder : l.folder, data: h ? !!h.data : l.data }
+    if (JSON.stringify(next) !== JSON.stringify(l)) {
+      link.value = next
+      await setStates({ link: JSON.stringify(next) })
+    }
+    // Данные идут через этот компьютер — туда же, по новому адресу
+    if (base !== l.base) await useSync().moveLan(base)
+    return next
   }
 
   /** Один проход. auto — по расписанию: «компьютер не в сети» тогда не ошибка */
   async function syncNow(opts: { confirmDeletes?: boolean; auto?: boolean } = {}) {
-    if (!isNative || status.value === 'running' || !link.value || !root.value) return
+    if (!isNative || status.value === 'running' || !link.value || !root.value || !files.value) return
     if (!(await checkAccess())) {
       if (!opts.auto) error.value = $t('Нужен доступ к файлам')
       return
@@ -169,6 +224,11 @@ export const useFileSync = defineStore('filesync', () => {
       const l = await reach(link.value)
       if (!l) {
         status.value = 'offline'
+        return
+      }
+      // Компьютер папку не раздаёт (только данные) — сверять нечего
+      if (l.folder === null) {
+        status.value = 'idle'
         return
       }
       const listing = await MusicCore.fsRemoteList({ base: l.base, token: l.token })
@@ -220,6 +280,11 @@ export const useFileSync = defineStore('filesync', () => {
   /** Автозапуск: при старте, при возвращении в приложение и раз в 10 минут, пока оно открыто */
   function start() {
     if (!isNative) return
+    // Данные через компьютер: он сменил адрес в сети — находим его по маячку
+    useSync().setLocator(async () => {
+      const l = link.value
+      return l ? ((await reach(l))?.base ?? null) : null
+    })
     void load().then(() => syncNow({ auto: true }))
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return
@@ -240,8 +305,31 @@ export const useFileSync = defineStore('filesync', () => {
     if (!desktop) return
     pc.value = await desktop.fileSyncState()
   }
-  async function setPc(patch: { enabled?: boolean; folder?: string | null }) {
-    if (desktop) pc.value = await desktop.fileSyncSet(patch)
+  async function setPc(patch: { enabled?: boolean; folder?: string | null; data?: boolean }) {
+    if (!desktop) return
+    pc.value = await desktop.fileSyncSet(patch)
+    await reconcilePc()
+  }
+
+  /**
+   * Окно компьютера и его общие данные: связь включена и данные общие — окно синхронизирует свои данные
+   * с сервером этого же компьютера; выключили — перестаёт. Если данные уже идут через свой сервер в интернете,
+   * ничего не трогаем: одно из двух
+   */
+  async function reconcilePc() {
+    const s = pc.value
+    if (!desktop || !s) return
+    const sync = useSync()
+    const want = s.enabled && s.data && s.running
+    if (want && !sync.signedIn) {
+      const a = await desktop.hubLocal()
+      await sync.connectLan(a.base, a.token, s.name)
+    } else if (want && sync.mode === 'lan') {
+      const a = await desktop.hubLocal()
+      await sync.moveLan(a.base)
+    } else if (!(s.enabled && s.data) && sync.mode === 'lan' && sync.signedIn) {
+      await sync.signOut()
+    }
   }
   async function unpairPc(id: string) {
     if (desktop) pc.value = await desktop.fileSyncUnpair(id)
@@ -271,6 +359,11 @@ export const useFileSync = defineStore('filesync', () => {
     activity,
     loadPc,
     setPc,
+    reconcilePc,
+    files,
+    dataOn,
+    setData,
+    setFiles,
     unpairPc,
   }
 })

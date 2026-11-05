@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSettings } from '@/stores/settings'
 import { useLibrary } from '@/stores/library'
 import { artistDays, dailyTime } from '@/data/repos/stats'
-import { dayGrid, sinceFor, yearsGrid, type ArtistDay, type CalCell, type CalColor, type CalScale } from '@/domain/calendar'
+import {
+  dayGrid,
+  monthsGrid,
+  sinceFor,
+  yearsGrid,
+  type ArtistDay,
+  type CalCell,
+  type CalColor,
+  type CalScale,
+} from '@/domain/calendar'
 import { dayLabel, parseDay } from '@/domain/weeks'
 
 import { dayRange, formatListen } from '@/domain/format'
@@ -16,6 +26,7 @@ import { $t } from '@/i18n'
  * цвет — по времени (как раньше) или по исполнителю (domain/calendar.ts). Выбор запоминается.
  */
 const settings = useSettings()
+const router = useRouter()
 const library = useLibrary()
 const view = computed(() => settings.s.dailyView)
 
@@ -39,18 +50,27 @@ const ARTIST_COLORS = computed(() => (light.value ? ['#2a78d6', '#eb6834', '#1ba
 
 /** Ключ трека — 20 шестнадцатеричных знаков (отпечаток файла) */
 const KEY_RE = /^[0-9a-f]{20}$/
-const days = shallowRef<Map<string, number>>(new Map())
-const artistRows = shallowRef<ArtistDay[] | null>(null)
+/**
+ * Загруженное — вместе с масштабом и цветом, для которых оно загружено. Сетка строится по нему, а не по
+ * кнопкам: при смене масштаба она один раз перерисовывается уже с новыми данными, а не сначала со старыми
+ */
+const loaded = shallowRef<{ scale: CalScale; color: CalColor; days: Map<string, number>; artists: ArtistDay[] | null }>({
+  scale: view.value.scale,
+  color: view.value.color,
+  days: new Map(),
+  artists: null,
+})
 const load = stampedLoad(async () => {
-  const since = sinceFor(view.value.scale)
-  const [d, a] = await Promise.all([dailyTime(since), view.value.color === 'artists' ? artistDays(since) : null])
-  days.value = new Map(d.map((r) => [r.day, r.listenedMs]))
+  const { scale, color } = view.value
+  const since = sinceFor(scale)
+  const [d, a] = await Promise.all([dailyTime(since), color === 'artists' ? artistDays(since) : null])
   // Трек без исполнителя в тегах пришёл ключом: имя — как в медиатеке; нет его там — исполнитель неизвестен
-  artistRows.value =
+  const artists =
     a?.map((r) => {
       const t = library.byKey.get(r.who)
       return { day: r.day, ms: r.ms, artist: t ? t.artists.join(', ') : KEY_RE.test(r.who) ? null : r.who }
     }) ?? null
+  loaded.value = { scale, color, days: new Map(d.map((r) => [r.day, r.listenedMs])), artists }
 })
 onMounted(() => void load())
 onPageShown(() => void load())
@@ -63,40 +83,59 @@ watch(
 )
 
 const built = computed(() => {
-  const a = view.value.color === 'artists' ? artistRows.value : null
-  return view.value.scale === 'years'
-    ? yearsGrid(days.value, new Date(), a)
-    : dayGrid(days.value, view.value.scale === 'year' ? 53 : 18, new Date(), a)
+  const { scale, color, days, artists } = loaded.value
+  const a = color === 'artists' ? artists : null
+  if (scale === 'years') return yearsGrid(days, new Date(), a)
+  if (scale === 'year') return monthsGrid(days, new Date(), a)
+  return dayGrid(days, 18, new Date(), a)
 })
 const grid = computed(() => built.value.grid)
 const top = computed(() => built.value.top)
-const allCells = computed(() => (grid.value.kind === 'days' ? grid.value.cells : grid.value.rows.flatMap((r) => r.cells)))
+const shownColor = computed(() => loaded.value.color)
+const allCells = computed(() => {
+  const g = grid.value
+  return g.kind === 'days' ? g.cells : g.kind === 'months' ? g.months.flatMap((m) => m.cells) : g.rows.flatMap((r) => r.cells)
+})
+const byKey = computed(() => new Map(allCells.value.map((c) => [c.key, c])))
 
-function cellClass(c: CalCell) {
-  const sel = selected.value === c.key
-  if (view.value.color === 'artists' && c.ms > 0)
-    return [c.slot != null && c.slot >= 0 ? `a${c.slot}` : 'ao', { future: c.future, sel }]
-  return [`l${c.level}`, { future: c.future, sel }]
+/** Цвет клетки строкой: клеток сотни, без объектов классов и обработчиков на каждой */
+function cellClass(c: CalCell): string {
+  const tone = shownColor.value === 'artists' && c.ms > 0 ? (c.slot != null && c.slot >= 0 ? `a${c.slot}` : 'ao') : `l${c.level}`
+  return c.future ? `cell ${tone} future` : `cell ${tone}`
+}
+/** Одно нажатие на всю сетку: клетка узнаётся по data-k */
+function cellOf(e: Event): CalCell | null {
+  const k = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-k]')?.dataset.k
+  return k ? (byKey.value.get(k) ?? null) : null
+}
+function pick(e: Event) {
+  const c = cellOf(e)
+  // Будущее ещё не наступило — выбирать нечего
+  if (c && !c.future) selected.value = c.key
+}
+function openDay(e: Event) {
+  const c = cellOf(e)
+  if (c && c.ms && c.from === c.to) void router.push(`/day/${c.key}`)
 }
 
 /* ---------------- выбранная клетка ---------------- */
 const selected = ref<string | null>(null)
-const selCell = computed(() => (selected.value ? (allCells.value.find((c) => c.key === selected.value) ?? null) : null))
+const selCell = computed(() => (selected.value ? (byKey.value.get(selected.value) ?? null) : null))
 /** «14 октября 2026», неделя — «6–12 октября 2026» (на языке интерфейса) */
 function rangeLabel(c: CalCell): string {
   return c.from === c.to ? dayLabel(c.from, true) : dayRange(parseDay(c.from), parseDay(c.to), true)
 }
 const caption = computed(() => {
   const c = selCell.value
-  const unit = view.value.scale === 'years' ? $t('неделю') : $t('день')
-  if (!c) return $t('Нажми на {0}, чтобы увидеть время{1}', unit, view.value.color === 'artists' ? $t(' и исполнителя') : '')
+  const unit = loaded.value.scale === 'years' ? $t('неделю') : $t('день')
+  if (!c) return $t('Нажми на {0}, чтобы увидеть время{1}', unit, shownColor.value === 'artists' ? $t(' и исполнителя') : '')
   if (!c.ms) return $t('{0}: тишина', rangeLabel(c))
-  return `${rangeLabel(c)}: ${formatListen(c.ms)}${view.value.color === 'artists' && c.artist ? $t(' · больше всего {0}', c.artist) : ''}`
+  return `${rangeLabel(c)}: ${formatListen(c.ms)}${shownColor.value === 'artists' && c.artist ? $t(' · больше всего {0}', c.artist) : ''}`
 })
 /** Нажатие мимо календаря снимает выбор */
 function clearOnOutside(e: PointerEvent) {
   const t = e.target as Element | null
-  if (selected.value && !t?.closest('.cal .cell, .cal .open')) selected.value = null
+  if (selected.value && !t?.closest('.cal [data-k], .cal .open')) selected.value = null
 }
 onMounted(() => document.addEventListener('pointerdown', clearOnOutside, true))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', clearOnOutside, true))
@@ -140,45 +179,57 @@ const hint = computed(() => SCALES.find((s) => s.id === view.value.scale)?.hint 
         </div>
       </div>
 
-      <template v-if="grid.kind === 'days'">
-        <div class="months" :style="{ gridTemplateColumns: `repeat(${grid.weeks}, 1fr)` }">
-          <span v-for="m in grid.months" :key="m.col" :style="{ gridColumn: `${m.col + 1}` }">{{ m.label }}</span>
-        </div>
-        <div class="heat" :class="{ dense: grid.weeks > 30 }" role="img" :aria-label="$t('Календарь прослушиваний: {0}', hint)">
-          <button
-            v-for="c in grid.cells"
-            :key="c.key"
-            type="button"
-            class="cell"
-            :class="cellClass(c)"
-            :aria-label="c.key"
-            @click="selected = c.key"
-            @dblclick="c.ms && $router.push(`/day/${c.key}`)"
-          />
-        </div>
-      </template>
-      <template v-else>
-        <div class="ymonths" :style="{ gridTemplateColumns: `repeat(${grid.cols}, 1fr)` }">
-          <span v-for="m in grid.months" :key="m.col" :style="{ gridColumn: `${m.col + 1}` }">{{ m.label }}</span>
-        </div>
-        <div v-for="r in grid.rows" :key="r.year" class="yrow">
-          <span class="yl num">{{ r.year }}</span>
-          <div class="ycells" :style="{ gridTemplateColumns: `repeat(${grid.cols}, 1fr)` }">
-            <button
-              v-for="c in r.cells"
+      <!-- Клетки — простые span: на одну сетку один обработчик (pick по data-k), так смена масштаба не подлагивает -->
+      <div class="grid" role="img" :aria-label="$t('Календарь прослушиваний: {0}', hint)" @click="pick" @dblclick="openDay">
+        <template v-if="grid.kind === 'days'">
+          <div class="months" :style="{ gridTemplateColumns: `repeat(${grid.weeks}, 1fr)` }">
+            <span v-for="m in grid.months" :key="m.col" :style="{ gridColumn: `${m.col + 1}` }">{{ m.label }}</span>
+          </div>
+          <div class="heat">
+            <span
+              v-for="c in grid.cells"
               :key="c.key"
-              type="button"
-              class="cell"
-              :class="cellClass(c)"
-              :aria-label="`${c.from} – ${c.to}`"
-              @click="selected = c.key"
+              :class="selected === c.key ? cellClass(c) + ' sel' : cellClass(c)"
+              :data-k="c.key"
             />
           </div>
+        </template>
+        <div v-else-if="grid.kind === 'months'" class="mgrid">
+          <div v-for="m in grid.months" :key="m.key" class="mon">
+            <span class="mt"
+              >{{ m.label }}<small v-if="m.year" class="num"> {{ m.year }}</small></span
+            >
+            <div class="mdays">
+              <i v-if="m.lead" class="lead" :style="{ gridColumn: `span ${m.lead}` }" />
+              <span
+                v-for="c in m.cells"
+                :key="c.key"
+                :class="selected === c.key ? cellClass(c) + ' sel' : cellClass(c)"
+                :data-k="c.key"
+              />
+            </div>
+          </div>
         </div>
-      </template>
+        <template v-else>
+          <div class="ymonths" :style="{ gridTemplateColumns: `repeat(${grid.cols}, 1fr)` }">
+            <span v-for="m in grid.months" :key="m.col" :style="{ gridColumn: `${m.col + 1}` }">{{ m.label }}</span>
+          </div>
+          <div v-for="r in grid.rows" :key="r.year" class="yrow">
+            <span class="yl num">{{ r.year }}</span>
+            <div class="ycells" :style="{ gridTemplateColumns: `repeat(${grid.cols}, 1fr)` }">
+              <span
+                v-for="c in r.cells"
+                :key="c.key"
+                :class="selected === c.key ? cellClass(c) + ' sel' : cellClass(c)"
+                :data-k="c.key"
+              />
+            </div>
+          </div>
+        </template>
+      </div>
 
       <div class="legend">
-        <template v-if="view.color === 'time'">
+        <template v-if="shownColor === 'time'">
           <span>{{ $t('меньше') }}</span
           ><span class="steps"><i class="cell l1" /><i class="cell l2" /><i class="cell l3" /><i class="cell l4" /></span
           ><span>{{ $t('больше') }}</span>
@@ -255,12 +306,33 @@ const hint = computed(() => SCALES.find((s) => s.id === view.value.scale)?.hint 
   grid-auto-columns: 1fr;
   gap: 3px;
 }
-/* Год по дням: 53 столбца — точки поменьше и почти без зазоров */
-.heat.dense {
-  gap: 1.5px;
+/* Год: месяцы календариками — на телефоне по три в ряд, на компьютере сколько влезет */
+.mgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 12px 14px;
 }
-.heat.dense .cell {
-  border-radius: 1.5px;
+.mt {
+  display: block;
+  margin-bottom: 4px;
+  font: 600 11px/1.2 var(--f-body);
+  color: var(--ink-2);
+}
+.mt small {
+  margin-left: 3px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.mdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.mdays .cell {
+  border-radius: 2.5px;
+}
+.grid [data-k] {
+  cursor: pointer;
 }
 .yrow {
   display: flex;
@@ -361,9 +433,6 @@ const hint = computed(() => SCALES.find((s) => s.id === view.value.scale)?.hint 
 .open {
   margin-left: 8px;
   color: var(--amber-ink);
-}
-.muted {
-  color: var(--ink-3);
 }
 /* Компьютер: карточка — стекло, как остальные блоки обзора */
 :root.desktop .card {

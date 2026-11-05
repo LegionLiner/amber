@@ -8,6 +8,7 @@ import { deleteContext, saveContext, type ContextRow } from '@/data/repos/contex
 import { outputLabel } from '@/domain/outputs'
 import { CONTEXT_ICONS } from './contextIcons'
 import { $t } from '@/i18n'
+import SelectField from '@/components/SelectField.vue'
 
 /**
  * Контекст: название, значок и (необязательно) правила — когда музыка сама к нему относится.
@@ -100,12 +101,20 @@ async function remove() {
       <input id="ctx-hours" v-model="form.useHours" type="checkbox" class="switch" />
     </label>
     <div v-if="form.useHours" class="hours">
-      <select id="ctx-from" v-model.number="form.from" class="select">
-        <option v-for="h in 24" :key="h" :value="h - 1">{{ $t('с {0}:00', h - 1) }}</option>
-      </select>
-      <select id="ctx-to" v-model.number="form.to" class="select">
-        <option v-for="h in 24" :key="h" :value="h % 24">{{ $t('до {0}:00', h % 24) }}</option>
-      </select>
+      <SelectField
+        id="ctx-from"
+        v-model="form.from"
+        class="select"
+        :title="$t('По времени')"
+        :options="Array.from({ length: 24 }, (_, h) => ({ value: h, label: $t('с {0}:00', h) }))"
+      />
+      <SelectField
+        id="ctx-to"
+        v-model="form.to"
+        class="select"
+        :title="$t('По времени')"
+        :options="Array.from({ length: 24 }, (_, k) => ({ value: (k + 1) % 24, label: $t('до {0}:00', (k + 1) % 24) }))"
+      />
     </div>
     <div class="pills">
       <button

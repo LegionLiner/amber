@@ -28,7 +28,8 @@ import { APP_VERSION } from '@/app/version'
 import { listMics, voice } from '@/app/voice'
 import { ACCENTS, accentOf, BACKDROPS, baseOf, type Shade } from '@/domain/themes'
 import PlayerToolsEditor from './PlayerToolsEditor.vue'
-import { $t, $tp, isEn, lang, setLang, type Lang } from '@/i18n'
+import { $t, $tp, lang, setLang, type Lang } from '@/i18n'
+import SelectField from '@/components/SelectField.vue'
 
 const settings = useSettings()
 const library = useLibrary()
@@ -41,8 +42,15 @@ const mics = ref<{ id: string; label: string }[]>([])
 async function refreshMics() {
   if (isDesktop) mics.value = await listMics()
 }
-function pickMic(e: Event) {
-  const id = (e.target as HTMLSelectElement).value
+/** Микрофоны для выбора; выбранный раньше, но сейчас отключённый, — тоже в списке */
+const micOptions = computed(() => [
+  { value: '', label: $t('Основной в Windows') },
+  ...mics.value.map((m) => ({ value: m.id, label: m.label })),
+  ...(s.voiceMic && !mics.value.some((m) => m.id === s.voiceMic!.id)
+    ? [{ value: s.voiceMic.id, label: $t('{0} (не подключён)', s.voiceMic.label) }]
+    : []),
+])
+function pickMic(id: string) {
   const m = mics.value.find((x) => x.id === id)
   s.voiceMic = id && m ? { id, label: m.label } : null
 }
@@ -287,7 +295,7 @@ async function backupNow() {
       <section class="group">
         <h2 class="gtitle">{{ $t('Внешний вид') }}</h2>
         <div class="pick-title">
-          <b>Язык · Language</b><small v-if="isDesktop && isEn">{{ $t('Голосовые команды — только на русском') }}</small>
+          <b>Язык · Language</b>
         </div>
         <div class="seg lang-seg" role="radiogroup" aria-label="Язык · Language">
           <button
@@ -609,12 +617,18 @@ async function backupNow() {
             ><b>{{ $t('Короче, чем') }}</b
             ><small>{{ $t('Такие файлы не попадут в библиотеку') }}</small></span
           >
-          <select id="opt-min-dur" v-model.number="s.scan.minDurationMs" class="select">
-            <option :value="0">{{ $t('без ограничений') }}</option>
-            <option :value="15000">{{ $t('15 секунд') }}</option>
-            <option :value="30000">{{ $t('30 секунд') }}</option>
-            <option :value="60000">{{ $t('1 минута') }}</option>
-          </select>
+          <SelectField
+            id="opt-min-dur"
+            v-model="s.scan.minDurationMs"
+            class="select"
+            :title="$t('Короче, чем')"
+            :options="[
+              { value: 0, label: $t('без ограничений') },
+              { value: 15000, label: $t('15 секунд') },
+              { value: 30000, label: $t('30 секунд') },
+              { value: 60000, label: $t('1 минута') },
+            ]"
+          />
         </label>
         <div class="folders">
           <b>{{ $t('Не сканировать папки') }}</b>
@@ -643,19 +657,25 @@ async function backupNow() {
             ><b>{{ $t('Просить оценить') }}</b
             ><small>{{ $t('Когда трек без оценки прозвучал столько раз') }}</small></span
           >
-          <select id="opt-ask" v-model.number="s.askRatingAfterPlays" class="select">
-            <option :value="0">{{ $t('не просить') }}</option>
-            <option :value="3">{{ $t('3 раза') }}</option>
-            <option :value="5">{{ $t('5 раз') }}</option>
-            <option :value="10">{{ $t('10 раз') }}</option>
-          </select>
+          <SelectField
+            id="opt-ask"
+            v-model="s.askRatingAfterPlays"
+            class="select"
+            :title="$t('Просить оценить')"
+            :options="[
+              { value: 0, label: $t('не просить') },
+              { value: 3, label: $t('3 раза') },
+              { value: 5, label: $t('5 раз') },
+              { value: 10, label: $t('10 раз') },
+            ]"
+          />
         </label>
       </section>
 
       <SpotifySection />
 
-      <SyncSection />
       <FileSyncSection v-if="isDesktop || isNative" />
+      <SyncSection />
 
       <section class="group">
         <h2 class="gtitle">{{ $t('Данные') }}</h2>
@@ -663,9 +683,13 @@ async function backupNow() {
           {{
             $t(
               '{0} на этом {1}. Бэкап — один JSON со всем сразу{2}.',
-              sync.signedIn
-                ? $t('Данные синхронизируются с сервером, а копия')
-                : $t('Все оценки, история и настройки живут только'),
+              !sync.signedIn
+                ? $t('Все оценки, история и настройки живут только')
+                : sync.mode === 'server'
+                  ? $t('Данные синхронизируются с сервером, а копия')
+                  : isDesktop
+                    ? $t('Данные синхронизируются с телефоном, а копия')
+                    : $t('Данные синхронизируются с компьютером, а копия'),
               isDesktop ? $t('компьютере') : $t('телефоне'),
               isDesktop ? $t(': так же можно перенести историю с телефона') : '',
             )
@@ -707,12 +731,13 @@ async function backupNow() {
             <span
               ><b>{{ $t('Сколько копий хранить') }}</b></span
             >
-            <select id="opt-keep" v-model.number="s.backup.keep" class="select">
-              <option :value="7">7</option>
-              <option :value="14">14</option>
-              <option :value="30">30</option>
-              <option :value="90">90</option>
-            </select>
+            <SelectField
+              id="opt-keep"
+              v-model="s.backup.keep"
+              class="select"
+              :title="$t('Сколько копий хранить')"
+              :options="[7, 14, 30, 90].map((n) => ({ value: n, label: String(n) }))"
+            />
           </label>
           <div class="btns">
             <button v-if="isNative || isDesktop" type="button" class="btn" @click="chooseBackupFolder">
@@ -749,12 +774,32 @@ async function backupNow() {
           <span
             ><b>{{ $t('Голосовые команды') }}</b
             ><small>{{
-              $t(
-                '«Эмбер, стоп», «Эмбер, продолжи», «Эмбер, следующий», «Эмбер, назад», «Эмбер, тише», «Эмбер, громче», «Эмбер, лайк». Можно и отдельно: «Эмбер» — музыка притихнет — «следующий». Распознаётся на компьютере, без интернета; в первый раз скачается модель речи (45 МБ)',
-              )
+              s.voiceLang === 'en'
+                ? $t(
+                    '«Amber, stop», «Amber, play», «Amber, next», «Amber, back», «Amber, volume down», «Amber, volume up», «Amber, like». Можно и отдельно: «Amber» — музыка притихнет — «next». Распознаётся на компьютере, без интернета; в первый раз скачается модель речи (40 МБ)',
+                  )
+                : $t(
+                    '«Эмбер, стоп», «Эмбер, продолжи», «Эмбер, следующий», «Эмбер, назад», «Эмбер, тише», «Эмбер, громче», «Эмбер, лайк». Можно и отдельно: «Эмбер» — музыка притихнет — «следующий». Распознаётся на компьютере, без интернета; в первый раз скачается модель речи (45 МБ)',
+                  )
             }}</small></span
           >
           <input id="opt-voice" v-model="s.voice" type="checkbox" class="switch" />
+        </label>
+        <label class="row">
+          <span
+            ><b>{{ $t('Язык команд') }}</b
+            ><small>{{ $t('Свой распознаватель на каждый язык: скачается при первом включении') }}</small></span
+          >
+          <SelectField
+            id="opt-voice-lang"
+            v-model="s.voiceLang"
+            class="select"
+            :title="$t('Язык команд')"
+            :options="[
+              { value: 'ru', label: 'Русский' },
+              { value: 'en', label: 'English' },
+            ]"
+          />
         </label>
         <p v-if="s.voice" class="note voice-state" :class="voice.state">
           <template v-if="voice.state === 'loading'"
@@ -776,13 +821,15 @@ async function backupNow() {
               $t('Например, всегда наушники — даже если подключён другой микрофон. Музыка играет туда же, куда и раньше')
             }}</small></span
           >
-          <select id="opt-voice-mic" class="select" :value="s.voiceMic?.id ?? ''" @focus="refreshMics" @change="pickMic">
-            <option value="">{{ $t('Основной в Windows') }}</option>
-            <option v-for="m in mics" :key="m.id" :value="m.id">{{ m.label }}</option>
-            <option v-if="s.voiceMic && !mics.some((m) => m.id === s.voiceMic!.id)" :value="s.voiceMic.id">
-              {{ $t('{0} (не подключён)', s.voiceMic.label) }}
-            </option>
-          </select>
+          <SelectField
+            id="opt-voice-mic"
+            class="select"
+            :title="$t('Микрофон для команд')"
+            :model-value="s.voiceMic?.id ?? ''"
+            :options="micOptions"
+            @open="refreshMics"
+            @update:model-value="pickMic"
+          />
         </label>
         <p class="note">
           {{
@@ -808,7 +855,7 @@ async function backupNow() {
 
     <p class="about muted">
       Amber {{ APP_VERSION }} ·
-      {{ sync.signedIn ? $t('синхронизация: {0}', sync.email) : $t('работает без сети, синхронизация — по желанию') }}
+      {{ sync.signedIn ? $t('синхронизация: {0}', sync.label) : $t('работает без сети, синхронизация — по желанию') }}
     </p>
     <!-- Нужна для Google Play: ссылка на политику и в самом приложении. Откроется в браузере -->
     <p class="about">

@@ -5,12 +5,23 @@ import path from 'node:path'
 import { tr } from './lang'
 
 /**
- * Модель распознавания речи для голосовых команд — офлайн, маленькая русская модель Vosk (~45 МБ).
- * Скачивается один раз при включении голосового управления, хранится в папке данных приложения.
+ * Модель распознавания речи для голосовых команд — офлайн, маленькая модель Vosk на язык команд
+ * (русская ~45 МБ, английская ~40 МБ). Скачивается один раз, когда голосом начинают пользоваться на этом языке,
+ * и хранится в папке данных приложения.
  * Распознаватель на странице (vosk-browser) ждёт архив tar.gz с папкой model/ внутри: модель приходит
  * zip-архивом, поэтому распаковываем и упаковываем заново системным tar.exe (он есть в Windows 10 и 11).
  */
-const MODEL_URL = 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip'
+export type VoiceLang = 'ru' | 'en'
+
+const MODELS: Record<VoiceLang, { url: string; file: string }> = {
+  ru: { url: 'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip', file: 'model-ru-small.tar.gz' },
+  en: { url: 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip', file: 'model-en-small.tar.gz' },
+}
+
+/** Готовый архив модели языка */
+export function voiceModelFile(userData: string, lang: VoiceLang): string {
+  return path.join(userData, 'voice', MODELS[lang].file)
+}
 
 export interface VoiceProgress {
   stage: 'download' | 'unpack'
@@ -34,23 +45,27 @@ function tar(args: string[], cwd: string): Promise<void> {
   })
 }
 
-let pending: Promise<string> | null = null
+const pending = new Map<VoiceLang, Promise<string>>()
 
-/** Путь к готовому архиву модели; при первом вызове — скачать и подготовить */
-export function voiceModelPath(userData: string, progress: (p: VoiceProgress) => void): Promise<string> {
-  pending ??= prepare(userData, progress).finally(() => (pending = null))
-  return pending
+/** Путь к готовому архиву модели языка; при первом вызове — скачать и подготовить */
+export function voiceModelPath(userData: string, lang: VoiceLang, progress: (p: VoiceProgress) => void): Promise<string> {
+  let p = pending.get(lang)
+  if (!p) {
+    p = prepare(userData, lang, progress).finally(() => pending.delete(lang))
+    pending.set(lang, p)
+  }
+  return p
 }
 
-async function prepare(userData: string, progress: (p: VoiceProgress) => void): Promise<string> {
+async function prepare(userData: string, lang: VoiceLang, progress: (p: VoiceProgress) => void): Promise<string> {
   const dir = path.join(userData, 'voice')
-  const file = path.join(dir, 'model-ru-small.tar.gz')
+  const file = voiceModelFile(userData, lang)
   if (fs.existsSync(file)) return file
   await fsp.mkdir(dir, { recursive: true })
 
-  const zip = path.join(dir, 'model.zip')
+  const zip = path.join(dir, `model-${lang}.zip`)
   if (!fs.existsSync(zip)) {
-    const res = await fetch(MODEL_URL)
+    const res = await fetch(MODELS[lang].url)
     if (!res.ok || !res.body)
       throw new Error(tr(`Не удалось скачать модель речи (${res.status})`, `Couldn't download the speech model (${res.status})`))
     const total = Number(res.headers.get('content-length') ?? 0)
@@ -71,7 +86,7 @@ async function prepare(userData: string, progress: (p: VoiceProgress) => void): 
   }
 
   progress({ stage: 'unpack', done: 0, total: 0 })
-  const work = path.join(dir, 'unpack')
+  const work = path.join(dir, `unpack-${lang}`)
   await fsp.rm(work, { recursive: true, force: true })
   await fsp.mkdir(work, { recursive: true })
   await tar(['-xf', zip], work)

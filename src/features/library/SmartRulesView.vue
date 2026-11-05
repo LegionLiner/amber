@@ -12,6 +12,7 @@ import { applyRules, DEFAULT_RULES, FIELD_LABEL, parseRules, type Condition, typ
 import { TRACK_SORTS } from '@/domain/sort'
 import { countLabel } from '@/domain/format'
 import { $t, $tp } from '@/i18n'
+import SelectField from '@/components/SelectField.vue'
 
 /**
  * Условия умного плейлиста. Сверху — сколько треков подходит прямо сейчас,
@@ -54,6 +55,16 @@ const FIELDS: { id: Condition['field']; kind: Kind }[] = [
   { id: 'duration', kind: 'num' },
   { id: 'bpm', kind: 'num' },
   { id: 'energy', kind: 'num' },
+]
+const FIELD_OPTIONS = FIELDS.map((f) => ({ value: f.id, label: FIELD_LABEL[f.id] }))
+/** Оценка в полузвёздах: 1 — ½★ … 10 — 5★ */
+const RATING_OPTIONS = Array.from({ length: 10 }, (_, k) => {
+  const r = k + 1
+  return { value: r, label: r % 2 ? `${Math.floor(r / 2)}½★` : `${r / 2}★` }
+})
+const LIMIT_OPTIONS: { value: number | null; label: string }[] = [
+  { value: null, label: $t('все') },
+  ...[25, 50, 100, 200, 500].map((n) => ({ value: n, label: String(n) })),
 ]
 const kindOf = (f: Condition['field']) => FIELDS.find((x) => x.id === f)!.kind
 
@@ -166,24 +177,34 @@ async function save() {
 
     <section v-for="(c, i) in rules.conditions" :key="i" class="group cond">
       <div class="line">
-        <select
+        <SelectField
           :id="`cf-${i}`"
           class="select wide"
-          :value="c.field"
-          @change="setField(i, ($event.target as HTMLSelectElement).value as Condition['field'])"
-        >
-          <option v-for="f in FIELDS" :key="f.id" :value="f.id">{{ FIELD_LABEL[f.id] }}</option>
-        </select>
+          :title="$t('Условия')"
+          :model-value="c.field"
+          :options="FIELD_OPTIONS"
+          @update:model-value="setField(i, $event)"
+        />
         <button type="button" class="icon-btn" :aria-label="$t('Убрать условие')" @click="remove(i)"><IconTrash /></button>
       </div>
       <div class="line">
-        <select :id="`co-${i}`" class="select wide" :value="c.op" @change="setOp(i, ($event.target as HTMLSelectElement).value)">
-          <option v-for="o in ops(c)" :key="o.id" :value="o.id">{{ o.label }}</option>
-        </select>
+        <SelectField
+          :id="`co-${i}`"
+          class="select wide"
+          :title="FIELD_LABEL[c.field]"
+          :model-value="c.op"
+          :options="ops(c).map((o) => ({ value: o.id, label: o.label }))"
+          @update:model-value="setOp(i, $event)"
+        />
         <template v-if="'value' in c">
-          <select v-if="c.field === 'rating'" :id="`cv-${i}`" v-model.number="c.value" class="select">
-            <option v-for="r in 10" :key="r" :value="r">{{ r % 2 ? `${Math.floor(r / 2)}½★` : `${r / 2}★` }}</option>
-          </select>
+          <SelectField
+            v-if="c.field === 'rating'"
+            :id="`cv-${i}`"
+            v-model="c.value"
+            class="select"
+            :title="$t('Оценка')"
+            :options="RATING_OPTIONS"
+          />
           <input
             v-else-if="typeof c.value === 'string'"
             :id="`cv-${i}`"
@@ -207,29 +228,21 @@ async function save() {
         <span
           ><b>{{ $t('Сортировка') }}</b></span
         >
-        <select
+        <SelectField
           id="smart-sort"
           class="select"
-          :value="rules.sort.key"
-          @change="
-            rules.sort = {
-              key: ($event.target as HTMLSelectElement).value as SmartRules['sort']['key'],
-              dir: TRACK_SORTS.find((s) => s.key === ($event.target as HTMLSelectElement).value)!.dir,
-            }
-          "
-        >
-          <option v-for="s in TRACK_SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
-        </select>
+          :title="$t('Сортировка')"
+          :model-value="rules.sort.key"
+          :options="TRACK_SORTS.map((s) => ({ value: s.key, label: s.label }))"
+          @update:model-value="(k) => (rules.sort = { key: k, dir: TRACK_SORTS.find((s) => s.key === k)!.dir })"
+        />
       </label>
       <label class="row">
         <span
           ><b>{{ $t('Не больше') }}</b
           ><small>{{ $t('Пусто — без ограничения') }}</small></span
         >
-        <select id="smart-limit" v-model="rules.limit" class="select">
-          <option :value="null">{{ $t('все') }}</option>
-          <option v-for="n in [25, 50, 100, 200, 500]" :key="n" :value="n">{{ n }}</option>
-        </select>
+        <SelectField id="smart-limit" v-model="rules.limit" class="select" :title="$t('Не больше')" :options="LIMIT_OPTIONS" />
       </label>
       <button type="button" class="btn primary block" :disabled="busy" @click="save">{{ $t('Сохранить') }}</button>
     </section>

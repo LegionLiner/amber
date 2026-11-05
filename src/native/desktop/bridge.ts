@@ -31,8 +31,12 @@ export interface DesktopYtProgress {
 export type DesktopCommand = 'toggle' | 'next' | 'prev'
 
 export interface DesktopFileSyncState {
+  /** Связь с телефоном по Wi-Fi включена */
   enabled: boolean
+  /** Раздаваемая папка; null — не раздаётся */
   folder: string | null
+  /** Делится общими данными (оценки, история, плейлисты, «что играет») */
+  data: boolean
   running: boolean
   port: number
   /** Не запустился (порт занят) */
@@ -89,14 +93,16 @@ export interface DesktopBridge {
 
   // Папка с музыкой по Wi-Fi для телефона (desktop/filesync.ts)
   fileSyncState(): Promise<DesktopFileSyncState>
-  fileSyncSet(patch: { enabled?: boolean; folder?: string | null }): Promise<DesktopFileSyncState>
+  fileSyncSet(patch: { enabled?: boolean; folder?: string | null; data?: boolean }): Promise<DesktopFileSyncState>
+  /** Вход окна в общие данные этого компьютера (desktop/hub.ts) */
+  hubLocal(): Promise<{ base: string; token: string }>
   /** Код для подключения телефона: 6 цифр на 10 минут */
   fileSyncPair(): Promise<{ code: string; expiresAt: number }>
   fileSyncUnpair(id: string): Promise<DesktopFileSyncState>
   onFileSyncActivity(cb: (a: { device: string; op: 'pull' | 'push' | 'trash' | 'pair'; path?: string; at: number }) => void): void
 
   // Голосовые команды: подготовить модель речи (первый раз — скачать) → её адрес для распознавателя
-  voicePrepare(): Promise<string>
+  voicePrepare(lang: 'ru' | 'en'): Promise<string>
   onVoiceProgress(cb: (p: { stage: 'download' | 'unpack'; done: number; total: number }) => void): void
 }
 

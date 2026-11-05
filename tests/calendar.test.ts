@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayGrid, sinceFor, yearsGrid, type ArtistDay } from '@/domain/calendar'
+import { dayGrid, monthsGrid, sinceFor, yearsGrid, type ArtistDay } from '@/domain/calendar'
 
 // Среда, 5 ноября 2026
 const today = new Date(2026, 10, 5, 15)
@@ -102,6 +102,29 @@ describe('календарь по годам', () => {
   it('с какого дня нужна история', () => {
     expect(sinceFor('years', today)).toBeNull()
     expect(sinceFor('18w', today)).toBe('2026-07-02')
-    expect(sinceFor('year', today)).toBe('2025-10-30')
+    expect(sinceFor('year', today)).toBe('2025-12-01')
+  })
+
+  it('год — двенадцать месяцев календариками, до текущего', () => {
+    const H = 3_600_000
+    const days = new Map([
+      ['2026-11-03', 2 * H],
+      ['2025-12-01', H],
+      ['2025-11-30', 5 * H], // раньше года — не показывается
+    ])
+    const { grid } = monthsGrid(days, today)
+    if (grid.kind !== 'months') throw new Error('kind')
+    expect(grid.months).toHaveLength(12)
+    expect(grid.months[0]!.key).toBe('2025-11')
+    expect(grid.months[0]!.year).toBe(2025)
+    expect(grid.months[1]!.year).toBe(2026)
+    expect(grid.months[11]!.cells).toHaveLength(30)
+    // 1 декабря 2025 — понедельник, 1 ноября 2026 — воскресенье
+    expect(grid.months[0]!.lead).toBe(0)
+    expect(grid.months[11]!.lead).toBe(6)
+    const cells = grid.months.flatMap((m) => m.cells)
+    expect(cells.find((c) => c.key === '2026-11-03')!.level).toBeGreaterThan(0)
+    expect(cells.find((c) => c.key === '2026-11-06')!.future).toBe(true)
+    expect(cells.reduce((s, c) => s + c.ms, 0)).toBe(3 * H)
   })
 })

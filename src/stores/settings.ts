@@ -8,7 +8,7 @@ import type { ShuffleKind } from '@/domain/shuffle'
 import type { AccentId, BackdropId } from '@/domain/themes'
 import { cleanTools, DEFAULT_PLAYER_TOOLS, type PlayerToolId } from '@/domain/player-tools'
 import type { CalColor, CalScale } from '@/domain/calendar'
-import { $t } from '@/i18n'
+import { $t, isEn } from '@/i18n'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type SortDir = 'asc' | 'desc'
@@ -82,6 +82,8 @@ export interface AppSettings {
   voice: boolean
   /** Компьютер: какой микрофон слушают голосовые команды; null — основной в Windows. Своё у каждого устройства */
   voiceMic: { id: string; label: string } | null
+  /** Компьютер: на каком языке голосовые команды (своя модель речи на каждый язык); сначала — как интерфейс */
+  voiceLang: 'ru' | 'en'
   /** Компьютер: панель «Сейчас играет» справа */
   nowPanel: boolean
   /** Компьютер: фон и свечение снизу дышат в такт басам */
@@ -146,6 +148,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   collapsedGroups: [],
   voice: false,
   voiceMic: null,
+  voiceLang: isEn ? 'en' : 'ru',
   nowPanel: true,
   desktopPulse: true,
 }

@@ -8,6 +8,7 @@ import crypto from 'node:crypto'
 import { pipeline } from 'node:stream/promises'
 import { ignored } from '../src/filesync/plan'
 import { tr } from './lang'
+import { cors, HubError, LocalHub } from './hub'
 
 /**
  * Папка с музыкой по Wi-Fi: компьютер раздаёт её телефону в локальной сети (как Syncthing, только проще).
@@ -27,6 +28,10 @@ import { tr } from './lang'
  *
  * Без Electron: корзину и сохранение настроек передаёт main.ts, а тесты (tests/filesync-server.test.ts)
  * запускают тот же сервер в Node.
+ *
+ * На том же порту и с тем же подключением — общие данные (desktop/hub.ts): оценки, история, плейлисты,
+ * «что играет» и перенос музыки между устройствами. Поэтому сервер работает, когда включена связь
+ * с телефоном, даже если папка не раздаётся.
  */
 
 export const FILESYNC_PORT = 47862
@@ -43,9 +48,14 @@ export interface PairedDevice {
 }
 
 export interface FileSyncConfig {
+  /** Связь с телефоном по Wi-Fi включена: сервер слушает */
   enabled: boolean
-  /** Какую папку раздаём (одна из папок с музыкой) */
+  /** Какую папку раздаём (одна из папок с музыкой); null — папку не раздаём, только данные */
   folder: string | null
+  /** Делиться данными (оценки, история, плейлисты…); по умолчанию — да */
+  data?: boolean
+  /** Токен окна приложения на этом компьютере: оно синхронизирует свои данные с этим же сервером */
+  localToken?: string
   devices: PairedDevice[]
   /** Постоянный номер этого компьютера: по нему телефон узнаёт его после смены адреса */
   id: string
@@ -64,6 +74,8 @@ export interface FileSyncHost {
   trash(abs: string): Promise<void>
   name: string
   onActivity?(a: FileSyncActivity): void
+  /** Журнал общих данных (desktop/hub.ts); без него — только папка */
+  hubFile?: () => string
 }
 
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex')
@@ -102,8 +114,49 @@ export class FileSyncServer {
   /** Ошибка запуска (порт занят) — показать в настройках */
   error: string | null = null
   port = FILESYNC_PORT
+  /** Общие данные: тот же сервер, пути /v1/… */
+  readonly hub: LocalHub | null
 
-  constructor(private readonly host: FileSyncHost) {}
+  constructor(private readonly host: FileSyncHost) {
+    this.hub = host.hubFile
+      ? new LocalHub({
+          file: host.hubFile,
+          device: (token) => this.deviceByToken(token),
+          devices: () => {
+            const c = this.host.config()
+            return [
+              { ...this.selfDevice(), lastSeenAt: Date.now() },
+              ...c.devices.map((d) => ({ id: d.id, name: d.name, platform: 'android', lastSeenAt: d.lastSeenAt ?? null })),
+            ]
+          },
+        })
+      : null
+  }
+
+  /** Этот компьютер как устройство общих данных */
+  selfDevice() {
+    return { id: `pc-${this.host.config().id}`, name: this.host.name, platform: 'desktop' }
+  }
+
+  /** Вход окна приложения на этом компьютере в общие данные: адрес и токен (создаётся один раз) */
+  localAccess(): { base: string; token: string } {
+    const c = this.host.config()
+    if (!c.localToken) this.host.save({ ...c, localToken: crypto.randomBytes(24).toString('base64url') })
+    return { base: `http://127.0.0.1:${this.port}`, token: this.host.config().localToken! }
+  }
+
+  /** Устройство по токену: подключённый телефон или окно этого компьютера */
+  private deviceByToken(token: string) {
+    const c = this.host.config()
+    if (c.localToken && token === c.localToken) return this.selfDevice()
+    const d = c.devices.find((x) => x.tokenHash === sha(token))
+    if (!d) return null
+    if (!d.lastSeenAt || Date.now() - d.lastSeenAt > 60_000) {
+      d.lastSeenAt = Date.now()
+      this.host.save({ ...c })
+    }
+    return { id: d.id, name: d.name, platform: 'android' }
+  }
 
   get running(): boolean {
     return this.server?.listening === true
@@ -112,7 +165,7 @@ export class FileSyncServer {
   /** Запустить или остановить по настройкам */
   async apply(): Promise<void> {
     const c = this.host.config()
-    const want = c.enabled && !!c.folder
+    const want = c.enabled && (!!c.folder || c.data !== false)
     if (want && !this.running) await this.start()
     else if (!want && this.running) await this.stop()
   }
@@ -145,6 +198,8 @@ export class FileSyncServer {
     this.beacon = null
     const s = this.server
     this.server = null
+    // Открытые потоки событий иначе держали бы close() вечно
+    this.hub?.close()
     if (s) await new Promise<void>((r) => s.close(() => r()))
   }
 
@@ -184,6 +239,16 @@ export class FileSyncServer {
   private async handle(req: http.IncomingMessage, res: http.ServerResponse) {
     try {
       const url = new URL(req.url ?? '/', 'http://x')
+      // Окно приложения на этом компьютере обращается с другого источника: сначала спрашивает разрешения
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, cors())
+        return void res.end()
+      }
+      if (url.pathname.startsWith('/v1/')) {
+        if (!this.hub || this.host.config().data === false)
+          throw new HttpError(404, 'Компьютер не делится данными', 'nodata', 'The computer does not share data')
+        if (await this.hub.handle(req, res, url)) return
+      }
       if (!url.pathname.startsWith(API)) throw new HttpError(404, 'Не найдено', undefined, 'Not found')
       const route = `${req.method} ${url.pathname.slice(API.length)}`
       if (route === 'GET /hello') return this.json(res, this.hello())
@@ -207,9 +272,14 @@ export class FileSyncServer {
       }
       throw new HttpError(404, 'Не найдено', undefined, 'Not found')
     } catch (e) {
-      const err = e instanceof HttpError ? e : new HttpError(500, e instanceof Error ? e.message : String(e))
+      const err =
+        e instanceof HttpError
+          ? e
+          : e instanceof HubError
+            ? new HttpError(e.status, e.message, undefined, e.en)
+            : new HttpError(500, e instanceof Error ? e.message : String(e))
       const en = /^en/i.test(req.headers['accept-language'] ?? '')
-      if (!res.headersSent) this.json(res, { error: en ? err.en : err.message, why: err.why }, err.status)
+      if (!res.headersSent) this.json(res, { error: en ? err.en : err.message, why: err.why }, err.status, true)
       else res.destroy()
       // Недочитанное тело (отказали до приёма файла) не держим
       req.resume()
@@ -218,7 +288,14 @@ export class FileSyncServer {
 
   private hello() {
     const c = this.host.config()
-    return { app: 'amber', v: 1, id: c.id, name: this.host.name, folder: c.folder ? path.basename(c.folder) : null }
+    return {
+      app: 'amber',
+      v: 1,
+      id: c.id,
+      name: this.host.name,
+      folder: c.folder ? path.basename(c.folder) : null,
+      data: !!this.hub && c.data !== false,
+    }
   }
 
   private pair(b: { code?: string; name?: string }) {
@@ -270,7 +347,8 @@ export class FileSyncServer {
 
   private root(): string {
     const f = this.host.config().folder
-    if (!f || !fs.existsSync(f))
+    if (!f) throw new HttpError(503, 'Компьютер не раздаёт папку', 'nofolder', 'The computer does not share a folder')
+    if (!fs.existsSync(f))
       throw new HttpError(503, 'Папка для синхронизации недоступна', undefined, 'The sync folder is unavailable')
     return path.resolve(f)
   }
@@ -375,9 +453,13 @@ export class FileSyncServer {
     })
   }
 
-  private json(res: http.ServerResponse, data: unknown, status = 200) {
+  private json(res: http.ServerResponse, data: unknown, status = 200, withCors = false) {
     const body = JSON.stringify(data)
-    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) })
+    res.writeHead(status, {
+      ...(withCors ? cors() : {}),
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(body),
+    })
     res.end(body)
   }
 }

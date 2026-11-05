@@ -21,6 +21,8 @@ export const useUi = defineStore('ui', () => {
   /** «Сцена»: только обложка на весь экран, вокруг — свет и цвет в такт музыке (ZenMode) */
   const zen = ref(false)
   const sheet = shallowRef<SheetRequest | null>(null)
+  /** Открытый выбор (список, календарь) поверх всего: «назад» и Esc сначала закрывают его */
+  const popup = shallowRef<(() => void) | null>(null)
   const toasts = ref<Toast[]>([])
   /** Повторный тап по активной вкладке: экран прокручивается наверх */
   const reselect = ref<{ tab: string; n: number }>({ tab: '', n: 0 })
@@ -53,6 +55,10 @@ export const useUi = defineStore('ui', () => {
 
   /** Системная кнопка «назад»: закрывает верхний слой. true, если что-то закрыли. */
   function back(): boolean {
+    if (popup.value) {
+      popup.value()
+      return true
+    }
     if (zen.value) {
       zen.value = false
       return true
@@ -72,5 +78,19 @@ export const useUi = defineStore('ui', () => {
     return false
   }
 
-  return { fullPlayer, playerDrag, queueOpen, zen, sheet, toasts, reselect, tabReselected, openSheet, closeSheet, toast, back }
+  return {
+    fullPlayer,
+    playerDrag,
+    queueOpen,
+    zen,
+    sheet,
+    popup,
+    toasts,
+    reselect,
+    tabReselected,
+    openSheet,
+    closeSheet,
+    toast,
+    back,
+  }
 })

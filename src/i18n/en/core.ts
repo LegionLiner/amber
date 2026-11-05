@@ -155,7 +155,7 @@ export default {
   'Открыть плеер': 'Open player',
   'Голосовые команды выключены. Нажми, чтобы включить': 'Voice commands are off. Click to turn on',
   'Слушаю: «Эмбер, стоп / дальше / назад / тише / громче». Нажми, чтобы выключить':
-    'Listening: “Эмбер, стоп / дальше / назад / тише / громче” (Russian only). Click to turn off',
+    'Listening: “Эмбер, стоп / дальше / назад / тише / громче” (Russian commands). Click to turn off',
   'Голосовые команды: {0}': 'Voice commands: {0}',
   'Голосовые команды': 'Voice commands',
   'В избранное (Ctrl+L)': 'Add to Favorites (Ctrl+L)',

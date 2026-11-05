@@ -1,7 +1,7 @@
 import { reactive, watch } from 'vue'
 import type { Model, KaldiRecognizer } from 'vosk-browser'
 import { desktop } from '@/native/desktop/bridge'
-import { ARMED_MS, COMMAND_LABELS, parseVoice, voiceGrammar, type VoiceCommand } from '@/domain/voice'
+import { ARMED_MS, commandLabel, parseVoice, voiceGrammar, type VoiceCommand, type VoiceLang } from '@/domain/voice'
 import { setVolume, volume } from './desktop'
 import { useSettings } from '@/stores/settings'
 import { usePlayer } from '@/stores/player'
@@ -42,6 +42,8 @@ let ctx: AudioContext | null = null
 let stream: MediaStream | null = null
 let node: ScriptProcessorNode | null = null
 let armedUntil = 0
+/** Язык, на котором сейчас слушаем */
+let lang: VoiceLang = 'ru'
 /** Отладка: localStorage.amberVoiceDebug = '1' — в консоль идёт услышанное и уровень микрофона */
 const debug = (() => {
   try {
@@ -67,9 +69,9 @@ export function setupVoice(): void {
     (on) => void (on ? startVoice() : stopVoice()),
     { immediate: true },
   )
-  // Выбрали другой микрофон — переслушиваем им
+  // Выбрали другой микрофон или язык команд — переслушиваем (у каждого языка своя модель)
   watch(
-    () => settings.s.voiceMic?.id,
+    () => [settings.s.voiceMic?.id, settings.s.voiceLang],
     () => {
       if (settings.s.voice && voice.state === 'listening') restartVoice()
     },
@@ -156,13 +158,14 @@ async function startVoice() {
   voice.stage = $t('Готовлю модель речи')
   voice.progress = null
   try {
-    const url = await desktop.voicePrepare()
+    lang = useSettings().s.voiceLang
+    const url = await desktop.voicePrepare(lang)
     voice.stage = $t('Загружаю распознаватель')
     voice.progress = null
     const m = await loadModel(url)
     if (my !== run) return m.terminate()
     model = m
-    const rec = new m.KaldiRecognizer(16000, JSON.stringify(voiceGrammar()))
+    const rec = new m.KaldiRecognizer(16000, JSON.stringify(voiceGrammar(lang)))
     rec.on('result', (msg) => onResult((msg as { result: { text: string } }).result.text))
     rec.on('partialresult', (msg) => onPartial((msg as { result: { partial: string } }).result.partial))
     recognizer = rec
@@ -248,12 +251,12 @@ function stopVoice() {
 
 function onPartial(text: string) {
   if (debug && text) console.info('[voice] …', text)
-  if (parseVoice(text).wake) wake()
+  if (parseVoice(text, lang).wake) wake()
 }
 
 function onResult(text: string) {
   if (debug && text) console.info('[voice] =', text)
-  const h = parseVoice(text)
+  const h = parseVoice(text, lang)
   if (!h.wake && !h.command) return
   const now = Date.now()
   if (h.wake && !h.command) {
@@ -317,11 +320,11 @@ function exec(cmd: VoiceCommand) {
         .then((on) => useUi().toast(on ? $t('«{0}» в избранном', title) : $t('«{0}» убран из избранного', title)))
     }
   }
-  voice.last = COMMAND_LABELS[cmd]
+  voice.last = commandLabel(cmd)
   voice.wakeAt = 0
   if (cmd !== 'like') {
     const label =
-      cmd === 'quieter' || cmd === 'louder' ? `${COMMAND_LABELS[cmd]}: ${Math.round(volume.value * 100)}%` : COMMAND_LABELS[cmd]
+      cmd === 'quieter' || cmd === 'louder' ? `${commandLabel(cmd)}: ${Math.round(volume.value * 100)}%` : commandLabel(cmd)
     useUi().toast($t('Голос: {0}', label), undefined, 1600)
   }
 }

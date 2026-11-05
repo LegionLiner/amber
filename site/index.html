@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amber — офлайн-плеер, который помнит каждое прослушивание</title>
+<meta name="description" content="Amber — бесплатный музыкальный плеер для своих mp3 на Android и Windows. История прослушиваний, итоги года, рейтинг, умные плейлисты, переходы как у диджея. Без рекламы, аккаунтов и серверов.">
+<meta name="theme-color" content="#0e0d0c">
+<meta property="og:title" content="Amber — офлайн-плеер, который помнит каждое прослушивание">
+<meta property="og:description" content="Бесплатно, без рекламы и серверов. Android и Windows.">
+<meta property="og:type" content="website">
+<link rel="alternate" hreflang="ru" href="https://amber.legionliner.ru/?lang=ru">
+<link rel="alternate" hreflang="en" href="https://amber.legionliner.ru/?lang=en">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ffc35a'/%3E%3Cstop offset='1' stop-color='%23e8681e'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='%230e0d0c'/%3E%3Ccircle cx='32' cy='32' r='17' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  /*
+   * Сайт приложения: что это, что умеет, скачать. Один файл, два языка (переключатель вверху, ?lang=en,
+   * иначе — язык браузера). Тексты — парами <span lang="ru">…</span><span lang="en">…</span>, показывается
+   * пара текущего языка. Версии и размеры файлов — из download/version.json (кладёт npm run site),
+   * без него — ссылки всё равно работают.
+   */
+  :root {
+    color-scheme: dark;
+    --bg: #0e0d0c;
+    --bg-2: #141210;
+    --card: #1a1815;
+    --card-2: #221f1b;
+    --ink: #f5f1ea;
+    --ink-2: #b4ab9e;
+    --ink-3: #7d756a;
+    --line: rgba(255, 240, 220, 0.09);
+    --amber: #ffb23e;
+    --ember: #e8681e;
+    --amber-soft: rgba(255, 178, 62, 0.14);
+    --good: #4fc08d;
+    --r: 22px;
+    --f-display: 'Unbounded', system-ui, sans-serif;
+    --f-body: 'Onest', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 var(--f-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  /* Язык: показывается только своя половина пары */
+  html[lang='ru'] [lang='en']:not(html), html[lang='en'] [lang='ru']:not(html) { display: none !important; }
+  a { color: var(--amber); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: 0 20px; }
+  @media (max-width: 560px) { .wrap { padding: 0 16px; } }
+
+  /* ---------- шапка ---------- */
+  .top {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(16px) saturate(1.3);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    border-bottom: 1px solid var(--line);
+  }
+  .top .wrap { display: flex; align-items: center; gap: 20px; height: 64px; }
+  .logo { display: flex; align-items: center; gap: 10px; color: var(--ink); font: 700 19px/1 var(--f-display); letter-spacing: -0.01em; }
+  .logo:hover { text-decoration: none; }
+  .logo i { width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffd27a, var(--amber) 45%, var(--ember)); box-shadow: 0 0 18px rgba(255, 178, 62, 0.45); }
+  .nav { display: flex; gap: 22px; margin-left: auto; font-size: 14.5px; }
+  .nav a { color: var(--ink-2); }
+  .nav a:hover { color: var(--ink); text-decoration: none; }
+  .langs { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); }
+  .langs button { border: 0; background: none; color: var(--ink-2); font: 600 12.5px/1 var(--f-body); padding: 7px 11px; border-radius: 999px; cursor: pointer; }
+  .langs button[aria-pressed='true'] { background: var(--card-2); color: var(--ink); }
+  @media (max-width: 760px) { .nav { display: none; } .langs { margin-left: auto; } }
+
+  /* ---------- первый экран ---------- */
+  .hero { position: relative; padding: 72px 0 40px; overflow: hidden; }
+  .hero::before {
+    content: ''; position: absolute; inset: -20% -10% auto; height: 720px; z-index: -1;
+    background:
+      radial-gradient(40% 50% at 70% 30%, rgba(255, 178, 62, 0.22), transparent 70%),
+      radial-gradient(35% 45% at 25% 10%, rgba(232, 104, 30, 0.16), transparent 70%),
+      radial-gradient(30% 40% at 90% 70%, rgba(142, 108, 240, 0.10), transparent 70%);
+  }
+  .hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
+  @media (max-width: 920px) { .hero .wrap { grid-template-columns: 1fr; } .hero { padding-top: 40px; } }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 13.5px; font-weight: 600; }
+  h1 { font: 700 clamp(34px, 5.4vw, 60px)/1.04 var(--f-display); letter-spacing: -0.035em; margin: 18px 0 18px; }
+  h1 em { font-style: normal; background: linear-gradient(100deg, #ffd27a, var(--amber) 40%, var(--ember)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lead { font-size: clamp(17px, 1.7vw, 19.5px); color: var(--ink-2); max-width: 34em; margin: 0 0 28px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px; padding: 14px 20px; border-radius: 16px;
+    font: 600 15.5px/1.15 var(--f-body); color: var(--ink); background: var(--card-2); border: 1px solid var(--line);
+    transition: transform .15s ease, background .15s ease;
+  }
+  .btn:hover { text-decoration: none; transform: translateY(-1px); background: #2a2621; }
+  .btn svg { width: 22px; height: 22px; flex: none; }
+  .btn small { display: block; font-size: 12px; font-weight: 500; color: var(--ink-3); margin-top: 2px; }
+  .btn.primary { background: linear-gradient(100deg, var(--amber), var(--ember)); color: #1a1206; border: 0; box-shadow: 0 10px 30px -10px rgba(255, 140, 40, 0.6); }
+  .btn.primary small { color: rgba(26, 18, 6, 0.7); }
+  .btn.primary:hover { background: linear-gradient(100deg, #ffbf55, #f07428); }
+  .btn.soon { opacity: 0.6; cursor: default; }
+  .btn.soon:hover { transform: none; background: var(--card-2); }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 22px; color: var(--ink-3); font-size: 14px; }
+  .facts > span::before { content: '✓ '; color: var(--good); font-weight: 700; }
+
+  /* ---------- нарисованный телефон ---------- */
+  .stage { position: relative; height: 600px; }
+  @media (max-width: 920px) { .stage { height: 560px; } }
+  .phone {
+    position: absolute; left: 50%; top: 0; width: 290px; height: 590px; transform: translateX(-50%) rotate(-3deg);
+    border-radius: 44px; padding: 10px; background: #050505;
+    box-shadow: 0 0 0 1.5px #2b2722, 0 40px 80px -20px rgba(0, 0, 0, 0.8), 0 0 120px -30px rgba(255, 160, 50, 0.35);
+  }
+  @media (max-width: 560px) { .phone { transform: translateX(-50%) rotate(-2deg); width: 270px; height: 550px; } }
+  .screen {
+    position: relative; height: 100%; border-radius: 34px; overflow: hidden; padding: 38px 20px 18px;
+    background: radial-gradient(120% 70% at 30% 10%, #8a5a1c 0%, transparent 60%), radial-gradient(90% 60% at 90% 80%, #5a2410 0%, transparent 70%), #1a120b;
+    display: flex; flex-direction: column;
+  }
+  .screen .from { text-align: center; font-size: 10.5px; color: rgba(255,255,255,0.6); line-height: 1.3; }
+  .screen .from b { display: block; color: #fff; font-size: 12px; }
+  .cover {
+    margin: 18px auto 0; width: 100%; aspect-ratio: 1; border-radius: 18px; position: relative; overflow: hidden;
+    background: radial-gradient(70% 70% at 30% 25%, #ffd27a 0%, #f2963a 40%, #8a3a12 80%), #8a3a12;
+    box-shadow: 0 24px 40px -14px rgba(0,0,0,0.7);
+  }
+  .cover::before { content: ''; position: absolute; inset: 22% 18% auto auto; width: 46%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 40%, rgba(255,255,255,0.6), rgba(255,255,255,0) 60%); filter: blur(2px); }
+  .cover::after { content: ''; position: absolute; left: -10%; right: -10%; bottom: -8%; height: 46%; background: repeating-linear-gradient(90deg, rgba(30,10,4,0.55) 0 6px, transparent 6px 14px); transform: skewY(-8deg); filter: blur(0.4px); }
+  .track { margin-top: 18px; }
+  .track b { display: block; font: 700 19px/1.15 var(--f-display); color: #fff; letter-spacing: -0.02em; }
+  .track span { font-size: 12.5px; color: rgba(255,255,255,0.62); }
+  .stars { display: flex; gap: 4px; margin-top: 10px; color: #ffcf6e; font-size: 15px; letter-spacing: 1px; }
+  .stars .off { color: rgba(255,255,255,0.25); }
+  .wave { display: flex; align-items: center; gap: 2px; height: 34px; margin-top: 12px; }
+  .wave i { flex: 1; border-radius: 2px; background: rgba(255,255,255,0.28); }
+  .wave i.p { background: linear-gradient(var(--amber), var(--ember)); }
+  .times { display: flex; justify-content: space-between; font-size: 10px; color: rgba(255,255,255,0.55); margin-top: 4px; }
+  .ctrl { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding: 0 6px 6px; color: #fff; }
+  .ctrl svg { width: 22px; height: 22px; }
+  .ctrl .play { width: 58px; height: 58px; border-radius: 20px; background: #f5f1ea; color: #111; display: grid; place-items: center; }
+  .ctrl .play svg { width: 26px; height: 26px; }
+
+  /* Карточки вокруг телефона */
+  .float {
+    position: absolute; z-index: 2; border-radius: 18px; padding: 14px 16px; background: rgba(26, 24, 21, 0.92); border: 1px solid var(--line);
+    box-shadow: 0 24px 50px -20px rgba(0,0,0,0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .float b { color: var(--ink); font-size: 13.5px; }
+  .f-cal { left: -36px; bottom: 150px; width: 188px; transform: rotate(-4deg); }
+  .f-cal .grid { display: grid; grid-template-columns: repeat(14, 1fr); gap: 3px; margin-top: 10px; }
+  .f-cal .grid i { aspect-ratio: 1; border-radius: 3px; background: rgba(255,255,255,0.06); }
+  .f-cal .grid i.l1 { background: rgba(255,178,62,0.25); }
+  .f-cal .grid i.l2 { background: rgba(255,178,62,0.45); }
+  .f-cal .grid i.l3 { background: rgba(255,178,62,0.7); }
+  .f-cal .grid i.l4 { background: var(--amber); }
+  .f-sync { right: 0; bottom: 40px; width: 236px; display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center; }
+  .f-sync .ic { width: 34px; height: 34px; border-radius: 10px; background: rgba(79,192,141,0.15); color: var(--good); display: grid; place-items: center; }
+  .f-sync .ic svg { width: 20px; height: 20px; }
+  .f-recap { right: 0; top: 36px; width: 150px; padding: 0; overflow: hidden; transform: rotate(4deg); }
+  .f-recap .story { aspect-ratio: 9 / 13; padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; background: linear-gradient(160deg, #8e6cf0, #1d1640); color: #fff; }
+  .f-recap .story small { font-size: 9.5px; letter-spacing: .12em; opacity: .75; }
+  .f-recap .story b { font: 700 22px/1.05 var(--f-display); color: #fff; margin: 4px 0; }
+  .f-recap .story span { font-size: 10.5px; color: rgba(255,255,255,0.8); }
+  @media (max-width: 920px) { .f-cal { left: 2%; } .f-sync { right: 2%; } .f-recap { right: 4%; } }
+  @media (min-width: 921px) and (max-width: 1100px) { .f-cal { left: -10px; } .f-recap { right: -10px; } }
+  @media (max-width: 560px) { .f-cal, .f-recap { display: none; } .f-sync { right: 50%; transform: translateX(50%); bottom: -6px; } }
+
+  /* ---------- разделы ---------- */
+  section { padding: 76px 0; }
+  .sec-head { max-width: 680px; margin-bottom: 34px; }
+  .sec-head h2 { font: 700 clamp(26px, 3.4vw, 38px)/1.12 var(--f-display); letter-spacing: -0.03em; margin: 0 0 12px; }
+  .sec-head p { color: var(--ink-2); font-size: 17px; margin: 0; }
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 920px) { .features { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
+  .feat { padding: 22px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
+  .feat .ic { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: var(--amber-soft); color: var(--amber); margin-bottom: 14px; }
+  .feat .ic svg { width: 22px; height: 22px; }
+  .feat h3 { font-size: 17.5px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .feat p { margin: 0; color: var(--ink-2); font-size: 15px; }
+  .feat.wide { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: center; }
+  /* Последняя — во всю ширину: про приватность, итог списка */
+  .feat.full { grid-column: 1 / -1; display: grid; grid-template-columns: 42px 1fr; gap: 6px 18px; align-items: start; background: linear-gradient(100deg, rgba(255,178,62,0.10), transparent 60%), var(--card); }
+  .feat.full .ic { grid-row: span 2; margin: 0; }
+  @media (max-width: 600px) { .feat.wide { grid-column: auto; grid-template-columns: 1fr; } }
+
+  /* Хроника крупно */
+  .chron { padding: 16px; border-radius: 16px; background: var(--bg-2); border: 1px solid var(--line); }
+  .chron .months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .chron .m small { display: block; font-size: 10.5px; color: var(--ink-3); font-weight: 600; margin-bottom: 4px; }
+  .chron .m div { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .chron .m i { aspect-ratio: 1; border-radius: 2px; background: rgba(255,255,255,0.06); }
+  .chron .m i.l1 { background: rgba(255,178,62,0.25); }
+  .chron .m i.l2 { background: rgba(255,178,62,0.45); }
+  .chron .m i.l3 { background: rgba(255,178,62,0.7); }
+  .chron .m i.l4 { background: var(--amber); }
+  .chron .m i.e { background: transparent; }
+
+  /* Телефон и компьютер */
+  .duo { display: grid; grid-template-columns: 1fr 1.1fr; gap: 40px; align-items: center; }
+  @media (max-width: 920px) { .duo { grid-template-columns: 1fr; } }
+  .bridge { position: relative; padding: 28px; border-radius: 28px; background: var(--card); border: 1px solid var(--line); }
+  .bridge svg.map { width: 100%; height: auto; display: block; color: var(--ink-2); }
+  .bullets { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 14px; }
+  .bullets li { display: grid; grid-template-columns: 26px 1fr; gap: 12px; color: var(--ink-2); }
+  .bullets li b { color: var(--ink); display: block; }
+  .bullets li i { width: 26px; height: 26px; border-radius: 8px; background: var(--amber-soft); color: var(--amber); display: grid; place-items: center; font-style: normal; font-weight: 700; font-size: 13px; }
+
+  /* Скачать */
+  .downloads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 920px) { .downloads { grid-template-columns: 1fr; } }
+  .dl { display: flex; flex-direction: column; gap: 14px; padding: 24px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
+  .dl .head { display: flex; align-items: center; gap: 14px; }
+  .dl .head .ic { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--card-2); color: var(--ink); }
+  .dl .head .ic svg { width: 26px; height: 26px; }
+  .dl h3 { margin: 0; font-size: 19px; }
+  .dl .meta { color: var(--ink-3); font-size: 13.5px; }
+  .dl p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+  .dl .btn { justify-content: center; margin-top: auto; }
+  .dl.soon { border-style: dashed; }
+  details.how { color: var(--ink-2); font-size: 14px; }
+  details.how summary { cursor: pointer; color: var(--ink); font-weight: 600; }
+  details.how ol { margin: 8px 0 0; padding-left: 20px; }
+
+  /* Вопросы */
+  .faq { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .faq { grid-template-columns: 1fr; } }
+  .faq div { padding: 20px 22px; border-radius: var(--r); background: var(--card); border: 1px solid var(--line); }
+  .faq b { display: block; font-size: 16.5px; margin-bottom: 6px; }
+  .faq p { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+  footer { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+  footer .sp { margin-left: auto; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#"><i aria-hidden="true"></i>Amber</a>
+    <nav class="nav">
+      <a href="#features"><span lang="ru">Возможности</span><span lang="en">Features</span></a>
+      <a href="#wifi"><span lang="ru">Телефон и ПК</span><span lang="en">Phone &amp; PC</span></a>
+      <a href="#download"><span lang="ru">Скачать</span><span lang="en">Download</span></a>
+      <a href="#faq"><span lang="ru">Вопросы</span><span lang="en">FAQ</span></a>
+    </nav>
+    <div class="langs" role="group" aria-label="Язык · Language">
+      <button type="button" data-lang="ru" aria-pressed="true">RU</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ================= первый экран ================= -->
+  <div class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow">
+          <span lang="ru">Бесплатно · без рекламы · без серверов</span>
+          <span lang="en">Free · no ads · no servers</span>
+        </span>
+        <h1>
+          <span lang="ru">Твоя музыка.<br><em>Твоя история.</em></span>
+          <span lang="en">Your music.<br><em>Your story.</em></span>
+        </h1>
+        <p class="lead">
+          <span lang="ru">Amber — плеер для своих mp3, который помнит каждое прослушивание: календарь, итоги месяца и года, рейтинг и умные подборки. Всё хранится на твоём устройстве, а телефон и компьютер обмениваются напрямую по Wi‑Fi.</span>
+          <span lang="en">Amber is a player for your own mp3s that remembers every listen: a calendar, monthly and yearly recaps, rankings and smart picks. Everything stays on your device, and your phone and computer talk directly over Wi‑Fi.</span>
+        </p>
+        <div class="cta">
+          <a class="btn primary" href="download/Amber.apk" data-dl="apk">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 00-.66-.38l-1.86 3.22a11.5 11.5 0 00-9.84 0L5.22 5.92a.38.38 0 00-.66.38L6.4 9.48A10.8 10.8 0 001 18h22a10.8 10.8 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/></svg>
+            <span><span lang="ru">Скачать для Android</span><span lang="en">Get it for Android</span><small class="ver" data-ver="apk">APK</small></span>
+          </a>
+          <a class="btn" href="download/Amber-Setup.exe" data-dl="exe">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3v-6zm8.5-1.15L21 3v8.5h-9.5V4.35zM3 12.5h7.5v7L3 18.5v-6zm8.5 0H21V21l-9.5-1.35V12.5z"/></svg>
+            <span><span lang="ru">Для Windows</span><span lang="en">For Windows</span><small class="ver" data-ver="exe">.exe</small></span>
+          </a>
+        </div>
+        <div class="facts">
+          <span><span lang="ru">Работает без интернета</span><span lang="en">Works offline</span></span>
+          <span><span lang="ru">Без аккаунта</span><span lang="en">No account</span></span>
+          <span><span lang="ru">Русский и English</span><span lang="en">English and Russian</span></span>
+        </div>
+      </div>
+
+      <div class="stage" aria-hidden="true">
+        <div class="float f-cal">
+          <b><span lang="ru">Каждый день</span><span lang="en">Every day</span></b>
+          <div class="grid" id="mini-cal"></div>
+        </div>
+        <div class="float f-recap">
+          <div class="story">
+            <small><span lang="ru">ИТОГИ 2026</span><span lang="en">2026 RECAP</span></small>
+            <b>412 <span lang="ru">ч</span><span lang="en">h</span></b>
+            <span><span lang="ru">музыки за год</span><span lang="en">of music this year</span></span>
+          </div>
+        </div>
+        <div class="phone">
+          <div class="screen">
+            <div class="from"><span lang="ru">Играет из</span><span lang="en">Playing from</span><b><span lang="ru">Чаще всего</span><span lang="en">Most played</span></b></div>
+            <div class="cover"></div>
+            <div class="track">
+              <b><span lang="ru">Ночной проспект</span><span lang="en">Night Avenue</span></b>
+              <span><span lang="ru">Янтарные огни</span><span lang="en">Amber Lights</span></span>
+            </div>
+            <div class="stars">★★★★<span class="off">★</span></div>
+            <div class="wave" id="wave"></div>
+            <div class="times"><span>1:42</span><span>−2:07</span></div>
+            <div class="ctrl">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+              <span class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg></span>
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 014-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 01-4 4H3"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="float f-sync">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0114 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01"/></svg></span>
+          <span><b><span lang="ru">Играет на компьютере</span><span lang="en">Playing on the computer</span></b><br><span lang="ru">Продолжить здесь — одним нажатием</span><span lang="en">Continue here with one tap</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= возможности ================= -->
+  <section id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2><span lang="ru">Плеер, который помнит</span><span lang="en">A player that remembers</span></h2>
+        <p><span lang="ru">Обычный плеер просто играет файлы. Amber ещё и записывает, что, когда и как ты слушал, — и превращает это в историю, которую интересно листать.</span>
+        <span lang="en">A regular player just plays files. Amber also records what, when and how you listened — and turns it into a story worth scrolling through.</span></p>
+      </div>
+      <div class="features">
+        <div class="feat wide">
+          <div>
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+            <h3><span lang="ru">Хроника</span><span lang="en">Chronicle</span></h3>
+            <p><span lang="ru">Календарь каждого дня с музыкой, часы, когда ты слушаешь, серии, дневник с настроением, эпохи твоей жизни и их саундтреки. Можно подгрузить историю из Spotify.</span>
+            <span lang="en">A calendar of every day with music, the hours you listen, streaks, a diary with moods, the eras of your life and their soundtracks. You can even import your Spotify history.</span></p>
+          </div>
+          <div class="chron" aria-hidden="true"><div class="months" id="big-cal"></div></div>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
+          <h3><span lang="ru">Итоги месяца и года</span><span lang="en">Monthly and yearly recaps</span></h3>
+          <p><span lang="ru">Истории на весь экран: трек периода, топ‑10 по прослушиваниям и по минутам, исполнители, открытия. Любой слайд — картинкой, чтобы поделиться.</span>
+          <span lang="en">Full-screen stories: track of the period, top 10 by plays and by minutes, artists, discoveries. Any slide can be saved as an image to share.</span></p>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></div>
+          <h3><span lang="ru">Рейтинг и дуэли</span><span lang="en">Ratings and duels</span></h3>
+          <p><span lang="ru">Оценки с половинками звёзд и личный топ. Не можешь выбрать между двумя треками — устрой дуэль, места уточнятся сами.</span>
+          <span lang="en">Half-star ratings and a personal top. Can't decide between two tracks? Run a duel and the ranking sorts itself out.</span></p>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h10M4 17h6"/><path d="M17 14l3 3-3 3"/><path d="M20 17h-4a2 2 0 01-2-2V7"/></svg></div>
+          <h3><span lang="ru">Умные плейлисты и миксы</span><span lang="en">Smart playlists and mixes</span></h3>
+          <p><span lang="ru">Подборки по условиям, «Моё радио» по похожести, умное перемешивание и миксы со своим переходом на каждом стыке — как у диджея.</span>
+          <span lang="en">Rule-based collections, “My radio” by similarity, smart shuffle and mixes with a custom transition at every joint — like a DJ.</span></p>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 18V6M9 18V9M14 18v-6M19 18V4"/></svg></div>
+          <h3><span lang="ru">Звук</span><span lang="en">Sound</span></h3>
+          <p><span lang="ru">Кроссфейд и альбомы без пауз, одинаковая громкость по LUFS, эквалайзер с профилем для каждых наушников, скорость, тон и эффекты.</span>
+          <span lang="en">Crossfade and gapless albums, loudness normalization by LUFS, an equalizer with a profile for each pair of headphones, speed, pitch and effects.</span></p>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M5 12h10M5 17h12"/></svg></div>
+          <h3><span lang="ru">Тексты песен</span><span lang="en">Lyrics</span></h3>
+          <p><span lang="ru">Из тегов файла или открытой базы LRCLIB, синхронные строки подсвечиваются под музыку. Можно вставить и подогнать свой текст.</span>
+          <span lang="en">From file tags or the open LRCLIB database, with synced lines that follow the music. You can paste and time your own lyrics too.</span></p>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 012-2h3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/><rect x="8" y="8" width="8" height="8" rx="1.5"/></svg></div>
+          <h3><span lang="ru">Сцена</span><span lang="en">Stage</span></h3>
+          <p><span lang="ru">Только обложка на весь экран, а вокруг — мягкий свет в цветах обложки, который дышит в такт басам. Телефон можно положить боком.</span>
+          <span lang="en">Just the cover, full screen, surrounded by soft light in the cover's colors that breathes with the bass. Works in landscape too.</span></p>
+        </div>
+        <div class="feat">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
+          <h3><span lang="ru">Голосовые команды на ПК</span><span lang="en">Voice commands on PC</span></h3>
+          <p><span lang="ru">«Эмбер, дальше», «Amber, volume down» — по-русски и по-английски. Распознаётся прямо на компьютере, без интернета.</span>
+          <span lang="en">“Amber, next”, “Amber, volume down” — in English and Russian. Recognized right on your computer, offline.</span></p>
+        </div>
+        <div class="feat full">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3><span lang="ru">Только твоё</span><span lang="en">Yours only</span></h3>
+          <p><span lang="ru">Ни рекламы, ни аналитики, ни аккаунтов. Медиатека, история и оценки лежат на твоих устройствах — их можно выгрузить одним файлом.</span>
+          <span lang="en">No ads, no analytics, no accounts. Your library, history and ratings live on your devices — export them as a single file any time.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= телефон и компьютер ================= -->
+  <section id="wifi">
+    <div class="wrap duo">
+      <div>
+        <div class="sec-head" style="margin-bottom: 0">
+          <h2><span lang="ru">Телефон и компьютер — одна медиатека</span><span lang="en">Phone and computer — one library</span></h2>
+          <p><span lang="ru">Без облака и серверов: устройства дома в одной Wi‑Fi‑сети связываются напрямую. Подключаешь один раз по шестизначному коду с экрана компьютера.</span>
+          <span lang="en">No cloud, no servers: devices on your home Wi‑Fi talk to each other directly. You connect once with a six-digit code from the computer screen.</span></p>
+        </div>
+        <ul class="bullets">
+          <li><i>1</i><span><b><span lang="ru">Общие данные</span><span lang="en">Shared data</span></b><span lang="ru">Оценки, история, плейлисты, эпохи и дневник одинаковые на обоих устройствах.</span><span lang="en">Ratings, history, playlists, eras and the diary are the same on both devices.</span></span></li>
+          <li><i>2</i><span><b><span lang="ru">Музыка переходит за тобой</span><span lang="en">Music follows you</span></b><span lang="ru">Видно, что играет на компьютере, — «Продолжить здесь», и трек звучит с того же места на телефоне. И обратно.</span><span lang="en">See what's playing on the computer, tap “Continue here”, and the track carries on from the same spot on the phone. And back.</span></span></li>
+          <li><i>3</i><span><b><span lang="ru">Папка с музыкой</span><span lang="en">Music folder</span></b><span lang="ru">Новые песни с компьютера сами приходят на телефон, а с телефона — на компьютер. Удалённое уходит в корзину, а не пропадает.</span><span lang="en">New songs from the computer arrive on the phone by themselves, and the other way round. Deleted files go to the trash instead of vanishing.</span></span></li>
+        </ul>
+      </div>
+      <div class="bridge">
+        <svg class="map" viewBox="0 0 460 260" role="img" aria-label="Телефон и компьютер связаны по Wi-Fi напрямую · Phone and computer linked directly over Wi-Fi">
+          <defs>
+            <linearGradient id="amb" x1="0" x2="1"><stop offset="0" stop-color="#ffb23e"/><stop offset="1" stop-color="#e8681e"/></linearGradient>
+            <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ffb23e"/></marker>
+          </defs>
+          <!-- компьютер -->
+          <rect x="18" y="44" width="170" height="112" rx="12" fill="#221f1b" stroke="rgba(255,240,220,0.14)"/>
+          <rect x="30" y="56" width="146" height="78" rx="6" fill="#141210"/>
+          <rect x="40" y="66" width="44" height="44" rx="6" fill="url(#amb)"/>
+          <rect x="92" y="70" width="70" height="7" rx="3.5" fill="#f5f1ea" opacity=".85"/>
+          <rect x="92" y="84" width="48" height="6" rx="3" fill="#b4ab9e" opacity=".6"/>
+          <rect x="40" y="118" width="126" height="4" rx="2" fill="rgba(255,255,255,.15)"/>
+          <rect x="40" y="118" width="58" height="4" rx="2" fill="url(#amb)"/>
+          <path d="M80 156h46l6 22H74z" fill="#1a1815" stroke="rgba(255,240,220,0.14)"/>
+          <!-- телефон -->
+          <rect x="330" y="30" width="96" height="190" rx="18" fill="#221f1b" stroke="rgba(255,240,220,0.14)"/>
+          <rect x="340" y="44" width="76" height="162" rx="11" fill="#141210"/>
+          <rect x="350" y="58" width="56" height="56" rx="8" fill="url(#amb)"/>
+          <rect x="350" y="124" width="46" height="7" rx="3.5" fill="#f5f1ea" opacity=".85"/>
+          <rect x="350" y="137" width="32" height="6" rx="3" fill="#b4ab9e" opacity=".6"/>
+          <circle cx="378" cy="180" r="12" fill="#f5f1ea"/>
+          <!-- связь -->
+          <path d="M196 92 C 250 70, 280 70, 322 92" fill="none" stroke="#ffb23e" stroke-width="2.2" marker-end="url(#ar)"/>
+          <path d="M322 130 C 280 152, 250 152, 196 130" fill="none" stroke="#ffb23e" stroke-width="2.2" stroke-dasharray="5 6" marker-end="url(#ar)"/>
+          <g font-family="Onest, system-ui, sans-serif" font-size="12" fill="currentColor" text-anchor="middle">
+            <text x="259" y="64" lang="ru">данные · «что играет»</text>
+            <text x="259" y="64" lang="en">data · “now playing”</text>
+            <text x="259" y="170" lang="ru">новая музыка</text>
+            <text x="259" y="170" lang="en">new music</text>
+            <text x="103" y="208" lang="ru">Компьютер</text>
+            <text x="103" y="208" lang="en">Computer</text>
+            <text x="378" y="240" lang="ru">Телефон</text>
+            <text x="378" y="240" lang="en">Phone</text>
+          </g>
+          <g transform="translate(244 104)" fill="none" stroke="#4fc08d" stroke-width="2" stroke-linecap="round">
+            <path d="M0 8a20 20 0 0130 0M5 13a12 12 0 0120 0"/><circle cx="15" cy="18" r="1.6" fill="#4fc08d" stroke="none"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= скачать ================= -->
+  <section id="download">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2><span lang="ru">Скачать</span><span lang="en">Download</span></h2>
+        <p><span lang="ru">Amber бесплатный и останется таким. Поставь на телефон и на компьютер — и свяжи их по Wi‑Fi.</span>
+        <span lang="en">Amber is free and will stay that way. Install it on your phone and computer, then link them over Wi‑Fi.</span></p>
+      </div>
+      <div class="downloads">
+        <div class="dl">
+          <div class="head">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 00-.66-.38l-1.86 3.22a11.5 11.5 0 00-9.84 0L5.22 5.92a.38.38 0 00-.66.38L6.4 9.48A10.8 10.8 0 001 18h22a10.8 10.8 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/></svg></span>
+            <span><h3>Android</h3><span class="meta" data-meta="apk"><span lang="ru">Android 11 и новее</span><span lang="en">Android 11 or newer</span></span></span>
+          </div>
+          <p><span lang="ru">Находит mp3, m4a, flac и другие файлы на телефоне сам. Играет в фоне, на экране блокировки, на часах и в виджете.</span>
+          <span lang="en">Finds mp3, m4a, flac and other files on your phone by itself. Plays in the background, on the lock screen, on your watch and in a widget.</span></p>
+          <details class="how">
+            <summary><span lang="ru">Как установить APK</span><span lang="en">How to install the APK</span></summary>
+            <ol>
+              <li><span lang="ru">Скачай файл и открой его из уведомления или «Загрузок».</span><span lang="en">Download the file and open it from the notification or Downloads.</span></li>
+              <li><span lang="ru">Android спросит разрешение устанавливать из этого источника — разреши.</span><span lang="en">Android will ask to allow installs from this source — allow it.</span></li>
+              <li><span lang="ru">Нажми «Установить». Обновления ставятся так же, поверх.</span><span lang="en">Tap “Install”. Updates install the same way, on top.</span></li>
+            </ol>
+          </details>
+          <a class="btn primary" href="download/Amber.apk" data-dl="apk"><span lang="ru">Скачать APK</span><span lang="en">Download APK</span></a>
+        </div>
+        <div class="dl">
+          <div class="head">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3v-6zm8.5-1.15L21 3v8.5h-9.5V4.35zM3 12.5h7.5v7L3 18.5v-6zm8.5 0H21V21l-9.5-1.35V12.5z"/></svg></span>
+            <span><h3>Windows</h3><span class="meta" data-meta="exe"><span lang="ru">Windows 10 и 11</span><span lang="en">Windows 10 and 11</span></span></span>
+          </div>
+          <p><span lang="ru">Медиатека из папок на диске, трей и клавиши мультимедиа, панель «Сейчас играет», голосовые команды и раздача музыки телефону.</span>
+          <span lang="en">A library from folders on your disk, tray and media keys, a “Now playing” panel, voice commands and sharing music with your phone.</span></p>
+          <details class="how">
+            <summary><span lang="ru">Если Windows предупреждает</span><span lang="en">If Windows shows a warning</span></summary>
+            <ol>
+              <li><span lang="ru">SmartScreen может не знать новую программу: нажми «Подробнее» → «Выполнить в любом случае».</span><span lang="en">SmartScreen may not know a new app yet: click “More info” → “Run anyway”.</span></li>
+              <li><span lang="ru">Установка — в папку пользователя, права администратора не нужны.</span><span lang="en">It installs into your user folder, no admin rights needed.</span></li>
+            </ol>
+          </details>
+          <a class="btn primary" href="download/Amber-Setup.exe" data-dl="exe"><span lang="ru">Скачать для Windows</span><span lang="en">Download for Windows</span></a>
+        </div>
+        <div class="dl soon">
+          <div class="head">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 2.6v18.8c0 .5.5.8 1 .6l10.4-9.4L5 2c-.5-.2-1 .1-1 .6zM16.6 13.7l2.9 2.6 2.7-1.6c.7-.4.7-1.4 0-1.8l-2.7-1.6-2.9 2.4zM6.3 22.3l9.2-8.3 1.3 1.2-10.5 7.1zM6.3 1.7l10.5 7.1-1.3 1.2z"/></svg></span>
+            <span><h3>Google Play</h3><span class="meta"><span lang="ru">Скоро</span><span lang="en">Coming soon</span></span></span>
+          </div>
+          <p><span lang="ru">Приложение готовится к публикации в Google Play — тогда обновления будут приходить сами. Пока можно поставить APK отсюда: данные потом не потеряются.</span>
+          <span lang="en">The app is on its way to Google Play — then updates will arrive by themselves. Meanwhile, install the APK from here: your data will carry over.</span></p>
+          <a class="btn soon" href="#download" id="play-link" aria-disabled="true"><span lang="ru">Скоро в Google Play</span><span lang="en">Soon on Google Play</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= вопросы ================= -->
+  <section id="faq">
+    <div class="wrap">
+      <div class="sec-head"><h2><span lang="ru">Вопросы</span><span lang="en">Questions</span></h2></div>
+      <div class="faq">
+        <div><b><span lang="ru">Это правда бесплатно?</span><span lang="en">Is it really free?</span></b>
+          <p><span lang="ru">Да. Без рекламы, подписок и платных функций.</span><span lang="en">Yes. No ads, subscriptions or paid features.</span></p></div>
+        <div><b><span lang="ru">Нужен интернет?</span><span lang="en">Do I need internet?</span></b>
+          <p><span lang="ru">Нет. Сеть нужна только для поиска текстов песен (можно выключить) и чтобы телефон с компьютером видели друг друга дома.</span><span lang="en">No. The network is only used to look up lyrics (can be turned off) and for your phone and computer to see each other at home.</span></p></div>
+        <div><b><span lang="ru">Где хранятся мои данные?</span><span lang="en">Where is my data stored?</span></b>
+          <p><span lang="ru">Только на твоих устройствах. Никаких серверов и аккаунтов; бэкап — один JSON-файл, который можно сохранять автоматически раз в день.</span><span lang="en">Only on your devices. No servers or accounts; a backup is a single JSON file that can be saved automatically once a day.</span></p></div>
+        <div><b><span lang="ru">А стриминг? Spotify, Яндекс Музыка?</span><span lang="en">What about streaming services?</span></b>
+          <p><span lang="ru">Amber играет твои собственные файлы. Историю из Spotify можно загрузить в статистику — она дополнит хронику и итоги.</span><span lang="en">Amber plays your own files. You can import your Spotify history into the stats — it fills in your chronicle and recaps.</span></p></div>
+        <div><b><span lang="ru">Будет версия для iPhone и Mac?</span><span lang="en">Will there be iPhone and Mac versions?</span></b>
+          <p><span lang="ru">Пока только Android и Windows. Mac — в планах.</span><span lang="en">For now, Android and Windows only. Mac is planned.</span></p></div>
+        <div><b><span lang="ru">Как перенести историю на новый телефон?</span><span lang="en">How do I move my history to a new phone?</span></b>
+          <p><span lang="ru">Свяжи новый телефон с компьютером по Wi‑Fi — данные придут сами. Или перенеси бэкап JSON: Настройки → Данные.</span><span lang="en">Link the new phone with your computer over Wi‑Fi — the data comes over by itself. Or move a JSON backup: Settings → Data.</span></p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="logo" style="font-size: 15px"><i aria-hidden="true" style="width: 18px; height: 18px"></i>Amber</span>
+    <a href="privacy/"><span lang="ru">Политика конфиденциальности</span><span lang="en">Privacy policy</span></a>
+    <span class="sp">© 2026 <span lang="ru">Дмитрий Королев</span><span lang="en">Dmitry Korolev</span></span>
+  </div>
+</footer>
+
+<script>
+  // Язык: ?lang=…, затем выбор с прошлого раза, затем язык браузера
+  ;(function () {
+    var KEY = 'amber.site.lang'
+    function pick() {
+      var q = new URLSearchParams(location.search).get('lang')
+      if (q === 'ru' || q === 'en') return q
+      try {
+        var s = localStorage.getItem(KEY)
+        if (s === 'ru' || s === 'en') return s
+      } catch (e) {}
+      return /^ru\b/i.test(navigator.language || '') ? 'ru' : 'en'
+    }
+    function apply(l) {
+      document.documentElement.lang = l
+      document.title = l === 'en' ? 'Amber — an offline player that remembers every listen' : 'Amber — офлайн-плеер, который помнит каждое прослушивание'
+      document.querySelectorAll('.langs button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === l)) })
+    }
+    apply(pick())
+    document.querySelectorAll('.langs button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        apply(b.dataset.lang)
+        try { localStorage.setItem(KEY, b.dataset.lang) } catch (e) {}
+      })
+    })
+
+    // Нарисованный интерфейс: волна трека и календари (одинаковые при каждом открытии)
+    var seed = 7
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
+    var wave = document.getElementById('wave')
+    for (var i = 0; i < 46; i++) {
+      var h = 25 + Math.round(70 * Math.abs(Math.sin(i * 0.55) * 0.6 + (rnd() - 0.5) * 0.7))
+      var el = document.createElement('i')
+      el.style.height = Math.min(100, h) + '%'
+      if (i < 20) el.className = 'p'
+      wave.appendChild(el)
+    }
+    function level() { var r = rnd(); return r < 0.3 ? '' : r < 0.5 ? 'l1' : r < 0.7 ? 'l2' : r < 0.88 ? 'l3' : 'l4' }
+    var mini = document.getElementById('mini-cal')
+    for (var j = 0; j < 14 * 6; j++) { var c = document.createElement('i'); c.className = level(); mini.appendChild(c) }
+    var big = document.getElementById('big-cal')
+    var months = { ru: ['Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек', 'Янв', 'Фев'], en: ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'] }
+    for (var m = 0; m < 8; m++) {
+      var box = document.createElement('div'); box.className = 'm'
+      box.innerHTML = '<small><span lang="ru">' + months.ru[m] + '</span><span lang="en">' + months.en[m] + '</span></small>'
+      var g = document.createElement('div')
+      var lead = (m * 3) % 7
+      for (var k = 0; k < lead; k++) { var e0 = document.createElement('i'); e0.className = 'e'; g.appendChild(e0) }
+      for (var d = 0; d < 30 + (m % 2); d++) { var dd = document.createElement('i'); dd.className = level(); g.appendChild(dd) }
+      box.appendChild(g)
+      big.appendChild(box)
+    }
+
+    // Версии и размеры файлов: download/version.json кладёт npm run site (нет файла — просто без них)
+    fetch('download/version.json', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (v) {
+        if (!v) return
+        var mb = function (b) { return b ? ' · ' + (b / 1048576).toFixed(0) + ' MB' : '' }
+        document.querySelectorAll('[data-ver]').forEach(function (s) {
+          var k = s.dataset.ver; var f = v[k]
+          if (f) s.textContent = (k === 'apk' ? 'APK ' : '.exe ') + v.version + mb(f.size)
+        })
+        if (v.play) {
+          var p = document.getElementById('play-link')
+          p.href = v.play; p.classList.remove('soon'); p.removeAttribute('aria-disabled')
+        }
+      })
+      .catch(function () {})
+  })()
+</script>
+</body>
+</html>

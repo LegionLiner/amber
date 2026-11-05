@@ -49,7 +49,9 @@ const micTitle = computed(() =>
   !settings.s.voice
     ? $t('Голосовые команды выключены. Нажми, чтобы включить')
     : voice.state === 'listening'
-      ? $t('Слушаю: «Эмбер, стоп / дальше / назад / тише / громче». Нажми, чтобы выключить')
+      ? settings.s.voiceLang === 'en'
+        ? $t('Слушаю: «Amber, stop / next / back / volume down / volume up». Нажми, чтобы выключить')
+        : $t('Слушаю: «Эмбер, стоп / дальше / назад / тише / громче». Нажми, чтобы выключить')
       : voice.state === 'loading'
         ? `${voice.stage}…`
         : voice.state === 'error'

@@ -320,4 +320,6 @@ export default {
     'Only download what you have rights to: your own recordings, free licenses, personal copies.',
   Без: 'None',
   'Треки идут встык, без пауз.': 'Tracks play back to back, no gaps.',
+  'Выбрать месяц и год': 'Choose month and year',
+  Позже: 'Later',
 } as Record<string, string>

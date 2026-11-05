@@ -195,7 +195,7 @@ export default {
   'Каждое прослушивание записывается, даже при выключенном экране.': 'Every play is recorded, even with the screen off.',
   '{0} год': '{0}',
   'итоги года': 'year in review',
-  Месяцы: 'Months',
+  'Месяцы {0} года': 'Months of {0}',
   'Итоги появятся с историей': "Recaps appear once there's history",
   'Месяц с музыкой — и можно будет посмотреть его историей на весь экран.':
     'One month of music — and you can watch it as a full-screen story.',

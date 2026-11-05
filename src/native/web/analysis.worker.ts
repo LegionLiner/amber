@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import { TrackAnalyzer, analyzeChannels, type AnalysisResult } from './analysis'
 import { synthPcm } from './tone'
+import { $t } from '@/i18n'
 
 /**
  * Анализ в отдельном потоке: интерфейс не подтормаживает, пока считаются громкость и волна.
@@ -50,7 +51,7 @@ self.onmessage = (e: MessageEvent<AnalysisJob>) => {
       case 'finish': {
         const a = open.get(job.id)
         open.delete(job.id)
-        if (!a) throw new Error('анализ не начат')
+        if (!a) throw new Error($t('анализ не начат'))
         reply({ result: a.finish() })
         break
       }

@@ -10,6 +10,7 @@ import { formatDuration } from '@/domain/format'
 import { haptic } from '@/native/haptics'
 import { afterSlide, motionReduced } from '@/app/motion'
 import type { QueueItem } from '@/native/types'
+import { $t } from '@/i18n'
 
 /**
  * Мини-плеер над навигацией. Жесты:
@@ -275,7 +276,13 @@ function toggle() {
         </template>
       </div>
     </div>
-    <button type="button" class="pp" :aria-label="player.playing ? 'Пауза' : 'Играть'" @pointerdown.stop @click.stop="toggle">
+    <button
+      type="button"
+      class="pp"
+      :aria-label="player.playing ? $t('Пауза') : $t('Играть')"
+      @pointerdown.stop
+      @click.stop="toggle"
+    >
       <Transition name="icon-swap">
         <IconPause v-if="player.playing" key="pause" />
         <IconPlay v-else key="play" />

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import IconBack from '~icons/solar/alt-arrow-left-linear'
 import { countLabel } from '@/domain/format'
 import { dayBars, monthBars, type HistoryBar } from '@/domain/track-history'
+import { $t, $tp } from '@/i18n'
 
 /**
  * Сколько раз слушал трек: вся история по месяцам — от первого прослушивания до текущего месяца.
@@ -12,7 +13,7 @@ import { dayBars, monthBars, type HistoryBar } from '@/domain/track-history'
  */
 const props = defineProps<{ times: readonly number[] }>()
 
-const PLAYS: [string, string, string] = ['прослушивание', 'прослушивания', 'прослушиваний']
+const PLAYS: [string, string, string] = $tp('прослушивание|прослушивания|прослушиваний')
 
 const month = ref<HistoryBar | null>(null)
 const months = computed(() => monthBars(props.times))
@@ -126,7 +127,7 @@ function wheel(e: WheelEvent) {
 <template>
   <div class="plays">
     <div class="head" aria-live="polite">
-      <button v-if="month" type="button" class="back" @click="back"><IconBack />Все месяцы</button>
+      <button v-if="month" type="button" class="back" @click="back"><IconBack />{{ $t('Все месяцы') }}</button>
       <template v-if="selBar">
         <b>{{ countLabel(selBar.n, PLAYS) }}</b
         ><span>{{ selBar.tip }}</span>
@@ -163,7 +164,7 @@ function wheel(e: WheelEvent) {
               type="button"
               class="col"
               :class="{ dim: sel !== null && sel !== i, future: b.future }"
-              :aria-label="`${b.tip}: ${countLabel(b.n, PLAYS)}${month ? '' : '. Открыть по дням'}`"
+              :aria-label="`${b.tip}: ${countLabel(b.n, PLAYS)}${month ? '' : $t('. Открыть по дням')}`"
               @pointerenter="hover(i, $event)"
               @click="pick(b, i)"
             >
@@ -178,7 +179,7 @@ function wheel(e: WheelEvent) {
         </Transition>
       </div>
     </div>
-    <p v-if="!month" class="hint">Нажми на месяц — покажу его по дням</p>
+    <p v-if="!month" class="hint">{{ $t('Нажми на месяц — покажу его по дням') }}</p>
   </div>
 </template>
 

@@ -9,6 +9,7 @@ import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
 import { formatDuration } from '@/domain/format'
 import type { YoutubeInfo } from '@/native/types'
+import { $t } from '@/i18n'
 
 /**
  * Аудио из YouTube по ссылке — единственное, что приложению нужно от интернета.
@@ -75,18 +76,18 @@ async function download() {
 }
 
 const progressText = computed(() => {
-  if (stage.value === 'save') return 'Сохраняю в «Музыку»…'
+  if (stage.value === 'save') return $t('Сохраняю в «Музыку»…')
   const pct = `${Math.round(progress.value * 100)}%`
   // Компьютер в первый раз скачивает загрузчик yt-dlp (около 18 МБ)
-  if (stage.value === 'prepare') return `Готовлю загрузчик, это один раз… ${pct}`
-  return `Скачиваю… ${pct}`
+  if (stage.value === 'prepare') return $t('Готовлю загрузчик, это один раз… {0}', pct)
+  return $t('Скачиваю… {0}', pct)
 })
 
 /** Только что скачанный трек: ищем по имени файла среди свежих */
 function play() {
   const name = savedPath.value.split('/').pop()
   const t = library.tracks.find((x) => x.fileName === name) ?? library.tracks.find((x) => x.title === title.value)
-  if (!t) return ui.toast('Трек появится в медиатеке через пару секунд')
+  if (!t) return ui.toast($t('Трек появится в медиатеке через пару секунд'))
   void player.playTracks([t], 0, { type: 'track', title: t.title }, { shuffle: false })
   emit('close')
   ui.fullPlayer = true
@@ -95,13 +96,13 @@ function play() {
 
 <template>
   <div class="sheet-body form">
-    <h3 class="sheet-head">Скачать с YouTube</h3>
+    <h3 class="sheet-head">{{ $t('Скачать с YouTube') }}</h3>
     <p v-if="!isNative && !isDesktop" class="note">
-      Загрузка работает в приложении на телефоне и на компьютере: браузер не пускает к YouTube напрямую.
+      {{ $t('Загрузка работает в приложении на телефоне и на компьютере: браузер не пускает к YouTube напрямую.') }}
     </p>
     <template v-else>
       <label class="fl"
-        ><span>Ссылка на видео</span
+        ><span>{{ $t('Ссылка на видео') }}</span
         ><input
           id="yt-link"
           v-model="link"
@@ -120,7 +121,7 @@ function play() {
         :disabled="!looksLikeYoutube || stage === 'looking'"
         @click="look"
       >
-        {{ stage === 'looking' ? 'Смотрю, что там…' : 'Найти' }}
+        {{ stage === 'looking' ? $t('Смотрю, что там…') : $t('Найти') }}
       </button>
 
       <template v-if="info && stage !== 'idle' && stage !== 'looking'">
@@ -132,24 +133,32 @@ function play() {
             >
           </div>
         </div>
-        <label class="fl"><span>Исполнитель</span><input id="yt-artist" v-model="artist" class="field" /></label>
-        <label class="fl"><span>Название</span><input id="yt-title" v-model="title" class="field" /></label>
+        <label class="fl"
+          ><span>{{ $t('Исполнитель') }}</span
+          ><input id="yt-artist" v-model="artist" class="field"
+        /></label>
+        <label class="fl"
+          ><span>{{ $t('Название') }}</span
+          ><input id="yt-title" v-model="title" class="field"
+        /></label>
 
         <div v-if="stage === 'prepare' || stage === 'download' || stage === 'save'" class="progress">
           <div class="bar"><i :style="{ transform: `scaleX(${stage === 'save' ? 1 : progress})` }" /></div>
           <small>{{ progressText }}</small>
         </div>
         <template v-else-if="stage === 'done'">
-          <p class="done">Готово: трек в медиатеке, папка «Музыка/Amber». Играет без интернета.</p>
+          <p class="done">{{ $t('Готово: трек в медиатеке, папка «Музыка/Amber». Играет без интернета.') }}</p>
           <div class="btns">
-            <button type="button" class="btn" @click="emit('close')">Закрыть</button>
-            <button type="button" class="btn primary" @click="play">Слушать</button>
+            <button type="button" class="btn" @click="emit('close')">{{ $t('Закрыть') }}</button>
+            <button type="button" class="btn primary" @click="play">{{ $t('Слушать') }}</button>
           </div>
         </template>
-        <button v-else type="button" class="btn primary block" :disabled="!title.trim()" @click="download">Скачать аудио</button>
+        <button v-else type="button" class="btn primary block" :disabled="!title.trim()" @click="download">
+          {{ $t('Скачать аудио') }}
+        </button>
       </template>
       <p v-if="error" class="err">{{ error }}</p>
-      <p class="note">Скачивай то, на что у тебя есть права: свои записи, свободные лицензии, личные копии.</p>
+      <p class="note">{{ $t('Скачивай то, на что у тебя есть права: свои записи, свободные лицензии, личные копии.') }}</p>
     </template>
   </div>
 </template>

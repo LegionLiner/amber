@@ -4,6 +4,7 @@ import IconFolder from '~icons/solar/folder-open-linear'
 import { MusicCore, MusicCoreWeb, type WebFolderInfo } from '@/native/music-core'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
+import { $t } from '@/i18n'
 
 /**
  * Только в браузере: после перезагрузки страницы Chrome не отдаёт папку без клика.
@@ -24,7 +25,7 @@ onMounted(async () => {
 async function restore() {
   const r = await MusicCoreWeb.restoreFolder().catch(() => ({ count: 0 }))
   if (!r.count) {
-    ui.toast('Браузер не дал доступ. Выбери папку заново в настройках')
+    ui.toast($t('Браузер не дал доступ. Выбери папку заново в настройках'))
     return
   }
   await library.scan(false)
@@ -36,8 +37,8 @@ async function restore() {
   <Transition name="banner">
     <div v-if="info?.needsAccess" class="banner glass">
       <IconFolder />
-      <span>Папка «{{ info.savedName }}» ждёт подтверждения</span>
-      <button type="button" class="btn primary" @click="restore">Открыть</button>
+      <span>{{ $t('Папка «{0}» ждёт подтверждения', info.savedName) }}</span>
+      <button type="button" class="btn primary" @click="restore">{{ $t('Открыть') }}</button>
     </div>
   </Transition>
 </template>

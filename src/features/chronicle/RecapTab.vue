@@ -6,6 +6,7 @@ import { MONTHS } from '@/domain/format'
 import { coverGradient } from '@/domain/palette'
 import { onPageShown } from '@/app/paging'
 import { stampedLoad } from '@/app/data-rev'
+import { $t } from '@/i18n'
 
 /** Итоги: по месяцам и по годам, открываются историями на весь экран */
 const months = ref<string[]>([])
@@ -29,14 +30,16 @@ function openMonth(m: string) {
   open.value = { from: `${m}-01`, to: `${m}-${String(last).padStart(2, '0')}`, title: monthTitle(m) }
 }
 function openYear(y: string) {
-  open.value = { from: `${y}-01-01`, to: `${y}-12-31`, title: `${y} год` }
+  open.value = { from: `${y}-01-01`, to: `${y}-12-31`, title: $t('{0} год', y) }
 }
 </script>
 
 <template>
   <section>
     <template v-if="years.length">
-      <div class="section-title"><span>Годы</span></div>
+      <div class="section-title">
+        <span>{{ $t('Годы') }}</span>
+      </div>
       <div class="grid">
         <button
           v-for="y in years"
@@ -47,10 +50,12 @@ function openYear(y: string) {
           @click="openYear(y)"
         >
           <b class="display">{{ y }}</b
-          ><small>итоги года</small>
+          ><small>{{ $t('итоги года') }}</small>
         </button>
       </div>
-      <div class="section-title"><span>Месяцы</span></div>
+      <div class="section-title">
+        <span>{{ $t('Месяцы') }}</span>
+      </div>
       <div class="grid">
         <button
           v-for="m in months"
@@ -66,8 +71,8 @@ function openYear(y: string) {
       </div>
     </template>
     <div v-else class="empty">
-      <h3>Итоги появятся с историей</h3>
-      <p>Месяц с музыкой — и можно будет посмотреть его историей на весь экран.</p>
+      <h3>{{ $t('Итоги появятся с историей') }}</h3>
+      <p>{{ $t('Месяц с музыкой — и можно будет посмотреть его историей на весь экран.') }}</p>
     </div>
     <Teleport to="body">
       <Transition name="fade">

@@ -22,6 +22,7 @@ import { isDesktop } from '@/native/desktop/bridge'
 import { pickImage } from '@/app/pick-image'
 import { nudge } from '@/domain/playlist-tree'
 import type { PlaylistGroupRow, PlaylistRow } from '@/data/repos/playlists'
+import { $t } from '@/i18n'
 
 /**
  * Меню плейлиста: со страницы плейлиста (кнопка ⋯) и по удержанию в списке плейлистов.
@@ -35,44 +36,48 @@ export function openPlaylistMenu(p: PlaylistRow, router: Router, onDeleted?: () 
     void router.push(path)
   }
   const actions = [
-    ...(p.kind !== 'smart' ? [{ label: 'Добавить треки', icon: IconAdd, run: () => go(`/playlist/${p.id}/add`) }] : []),
-    ...(p.kind === 'smart' ? [{ label: 'Условия', icon: IconRules, run: () => go(`/playlist/${p.id}/rules`) }] : []),
-    ...(p.kind !== 'smart' ? [{ label: 'Изменить порядок', icon: IconOrder, run: () => go(`/playlist/${p.id}/order`) }] : []),
-    ...(p.kind === 'mix' ? [{ label: 'Редактор стыков', icon: IconMix, run: () => go(`/mix/${p.id}`) }] : []),
+    ...(p.kind !== 'smart' ? [{ label: $t('Добавить треки'), icon: IconAdd, run: () => go(`/playlist/${p.id}/add`) }] : []),
+    ...(p.kind === 'smart' ? [{ label: $t('Условия'), icon: IconRules, run: () => go(`/playlist/${p.id}/rules`) }] : []),
+    ...(p.kind !== 'smart' ? [{ label: $t('Изменить порядок'), icon: IconOrder, run: () => go(`/playlist/${p.id}/order`) }] : []),
+    ...(p.kind === 'mix' ? [{ label: $t('Редактор стыков'), icon: IconMix, run: () => go(`/mix/${p.id}`) }] : []),
     // Стыки хранятся у треков и не теряются: обратно в микс — и переходы на месте
     ...(p.kind === 'manual'
-      ? [{ label: 'Сделать миксом', icon: IconMix, run: () => convert(p, 'mix') }]
+      ? [{ label: $t('Сделать миксом'), icon: IconMix, run: () => convert(p, 'mix') }]
       : p.kind === 'mix'
-        ? [{ label: 'Сделать обычным плейлистом', icon: IconList, run: () => convert(p, 'manual') }]
+        ? [{ label: $t('Сделать обычным плейлистом'), icon: IconList, run: () => convert(p, 'manual') }]
         : []),
-    { label: p.cover ? 'Другая обложка' : 'Обложка', icon: IconImage, run: () => void chooseCover(p) },
-    ...(p.cover ? [{ label: 'Убрать обложку', icon: IconImageOff, run: () => void setCover(p, null) }] : []),
+    { label: p.cover ? $t('Другая обложка') : $t('Обложка'), icon: IconImage, run: () => void chooseCover(p) },
+    ...(p.cover ? [{ label: $t('Убрать обложку'), icon: IconImageOff, run: () => void setCover(p, null) }] : []),
     {
-      label: p.pinPos != null ? 'Открепить' : 'Закрепить наверху',
+      label: p.pinPos != null ? $t('Открепить') : $t('Закрепить наверху'),
       icon: IconPin,
       run: () => {
         ui.closeSheet()
         void playlists.pin(p, p.pinPos == null)
       },
     },
-    { label: 'В группу…', icon: IconFolder, run: () => ui.openSheet(GroupPickSheet, { playlist: p }) },
+    { label: $t('В группу…'), icon: IconFolder, run: () => ui.openSheet(GroupPickSheet, { playlist: p }) },
     // На компьютере порядок меняют перетаскиванием в меню слева, на телефоне — этими пунктами
-    ...(!isDesktop && nudge(playlists.tree, p, -1) ? [{ label: 'Поднять в списке', icon: IconUp, run: () => move(p, -1) }] : []),
-    ...(!isDesktop && nudge(playlists.tree, p, 1) ? [{ label: 'Опустить в списке', icon: IconDown, run: () => move(p, 1) }] : []),
+    ...(!isDesktop && nudge(playlists.tree, p, -1)
+      ? [{ label: $t('Поднять в списке'), icon: IconUp, run: () => move(p, -1) }]
+      : []),
+    ...(!isDesktop && nudge(playlists.tree, p, 1)
+      ? [{ label: $t('Опустить в списке'), icon: IconDown, run: () => move(p, 1) }]
+      : []),
   ]
   ui.openSheet(PlaylistMenuSheet, {
     name: p.name,
     actions,
     onRename: () =>
       ui.openSheet(NameSheet, {
-        title: 'Переименовать',
+        title: $t('Переименовать'),
         initial: p.name,
-        confirm: 'Сохранить',
+        confirm: $t('Сохранить'),
         onDone: (v: string) => playlists.rename(p.id, v),
       }),
     onDelete: async () => {
       await playlists.remove(p.id)
-      ui.toast(`«${p.name}» удалён`)
+      ui.toast($t('«{0}» удалён', p.name))
       onDeleted?.()
     },
   })
@@ -86,7 +91,9 @@ export function openPlaylistMenu(p: PlaylistRow, router: Router, onDeleted?: () 
     ui.closeSheet()
     await playlists.setKind(pl.id, kind)
     ui.toast(
-      kind === 'mix' ? `«${pl.name}» теперь микс: стыки настраиваются в редакторе` : `«${pl.name}» теперь обычный плейлист`,
+      kind === 'mix'
+        ? $t('«{0}» теперь микс: стыки настраиваются в редакторе', pl.name)
+        : $t('«{0}» теперь обычный плейлист', pl.name),
     )
   }
 
@@ -98,7 +105,7 @@ export function openPlaylistMenu(p: PlaylistRow, router: Router, onDeleted?: () 
       const { art } = await MusicCore.saveCover({ data: img.base64 })
       await setCover(pl, art)
     } catch (e) {
-      ui.toast(`Не получилось: ${e instanceof Error ? e.message : String(e)}`)
+      ui.toast($t('Не получилось: {0}', e instanceof Error ? e.message : String(e)))
     } finally {
       URL.revokeObjectURL(img.url)
     }
@@ -107,7 +114,7 @@ export function openPlaylistMenu(p: PlaylistRow, router: Router, onDeleted?: () 
   async function setCover(pl: PlaylistRow, art: string | null) {
     ui.closeSheet()
     await playlists.setCover(pl.id, art)
-    ui.toast(art ? 'Обложка плейлиста обновлена' : 'Обложка убрана')
+    ui.toast(art ? $t('Обложка плейлиста обновлена') : $t('Обложка убрана'))
   }
 }
 
@@ -118,10 +125,10 @@ export function openGroupMenu(g: PlaylistGroupRow, router: Router): void {
   const collapsed = playlists.isCollapsed(g.createdAt)
   ui.openSheet(PlaylistMenuSheet, {
     name: g.name,
-    deleteNote: 'Плейлисты из неё останутся.',
+    deleteNote: $t('Плейлисты из неё останутся.'),
     actions: [
       {
-        label: collapsed ? 'Развернуть' : 'Свернуть',
+        label: collapsed ? $t('Развернуть') : $t('Свернуть'),
         icon: IconFold,
         run: () => {
           ui.closeSheet()
@@ -129,13 +136,13 @@ export function openGroupMenu(g: PlaylistGroupRow, router: Router): void {
         },
       },
       {
-        label: 'Новый плейлист в группе',
+        label: $t('Новый плейлист в группе'),
         icon: IconAdd2,
         run: () =>
           ui.openSheet(NameSheet, {
-            title: 'Новый плейлист',
+            title: $t('Новый плейлист'),
             initial: '',
-            confirm: 'Создать',
+            confirm: $t('Создать'),
             onDone: async (name: string) => {
               const id = await playlists.create(name, [])
               const p = playlists.list.find((x) => x.id === id)
@@ -148,14 +155,14 @@ export function openGroupMenu(g: PlaylistGroupRow, router: Router): void {
     ],
     onRename: () =>
       ui.openSheet(NameSheet, {
-        title: 'Переименовать группу',
+        title: $t('Переименовать группу'),
         initial: g.name,
-        confirm: 'Сохранить',
+        confirm: $t('Сохранить'),
         onDone: (v: string) => playlists.renameGroupTo(g.createdAt, v),
       }),
     onDelete: async () => {
       await playlists.removeGroup(g.createdAt)
-      ui.toast(`Группа «${g.name}» удалена, плейлисты на месте`)
+      ui.toast($t('Группа «{0}» удалена, плейлисты на месте', g.name))
     },
   })
 }
@@ -165,10 +172,10 @@ export function createGroupDialog(): void {
   const ui = useUi()
   const playlists = usePlaylists()
   ui.openSheet(NameSheet, {
-    title: 'Новая группа',
+    title: $t('Новая группа'),
     initial: '',
-    confirm: 'Создать',
-    placeholder: 'Например, «Для бега»',
+    confirm: $t('Создать'),
+    placeholder: $t('Например, «Для бега»'),
     onDone: (name: string) => playlists.addGroup(name),
   })
 }

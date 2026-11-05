@@ -6,6 +6,7 @@ import HeadSpace from '@/components/HeadSpace.vue'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { countLabel } from '@/domain/format'
+import { $t, $tp } from '@/i18n'
 
 const library = useLibrary()
 const ui = useUi()
@@ -31,12 +32,12 @@ watch(
       >
         <span class="ic"><IconTag /></span>
         <span class="t ellipsis">{{ g.name }}</span>
-        <span class="n muted num">{{ countLabel(g.tracks.length, ['трек', 'трека', 'треков']) }}</span>
+        <span class="n muted num">{{ countLabel(g.tracks.length, $tp('трек|трека|треков')) }}</span>
       </button>
     </div>
     <div v-if="library.loaded && !library.genres.length" class="empty">
-      <h3>Жанров нет</h3>
-      <p>В файлах не заполнен жанр. Скоро здесь появятся твои теги вроде #драйв или #осень.</p>
+      <h3>{{ $t('Жанров нет') }}</h3>
+      <p>{{ $t('В файлах не заполнен жанр. Скоро здесь появятся твои теги вроде #драйв или #осень.') }}</p>
     </div>
     <div class="bottom-space" />
   </div>

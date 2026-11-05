@@ -18,6 +18,7 @@ import { useSync } from '@/stores/sync'
 import { useFileSync } from '@/stores/filesync'
 import { formatDate } from '@/domain/format'
 import type { DbRecovery } from '@/native/types'
+import { LOCALE, $t, lang } from '@/i18n'
 
 /**
  * Запуск приложения:
@@ -34,12 +35,12 @@ export async function boot(): Promise<void> {
   await settings.load()
   applyAppearance(settings.s)
   watch(
-    () => [settings.s.theme, settings.s.glass, settings.s.motion],
+    () => [settings.s.theme, settings.s.accent, settings.s.backdrop, settings.s.glass, settings.s.motion],
     () => applyAppearance(settings.s),
   )
   if (info.dbRecovery) useUi().toast(recoveryText(info.dbRecovery), undefined, 15_000)
 
-  await MusicCore.configure({ counting: settings.s.counting })
+  await MusicCore.configure({ counting: settings.s.counting, lang })
   watch(
     () => settings.s.counting,
     (counting) => void MusicCore.configure({ counting }),
@@ -97,12 +98,20 @@ export async function boot(): Promise<void> {
 
 /** База оказалась повреждена и движок её восстановил (web-db.ts, Database.kt): сказать, что произошло */
 function recoveryText(r: DbRecovery): string {
-  const kept = r.brokenFile ? ` Повреждённый файл сохранён как ${r.brokenFile}.` : ''
+  const kept = r.brokenFile ? $t(' Повреждённый файл сохранён как {0}.', r.brokenFile) : ''
   if (r.restoredFrom != null) {
-    const time = new Date(r.restoredFrom).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-    return `База была повреждена (например, питание пропало посреди записи). Восстановлена копия от ${formatDate(r.restoredFrom)}, ${time}.${kept}`
+    const time = new Date(r.restoredFrom).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })
+    return $t(
+      'База была повреждена (например, питание пропало посреди записи). Восстановлена копия от {0}, {1}.{2}',
+      formatDate(r.restoredFrom),
+      time,
+      kept,
+    )
   }
-  return `База была повреждена, а целой копии не нашлось — начата новая. Историю можно вернуть: Настройки → Данные → Импорт из JSON или синхронизация.${kept}`
+  return $t(
+    'База была повреждена, а целой копии не нашлось — начата новая. Историю можно вернуть: Настройки → Данные → Импорт из JSON или синхронизация.{0}',
+    kept,
+  )
 }
 
 function setupBackButton() {

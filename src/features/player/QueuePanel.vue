@@ -22,6 +22,7 @@ import { useUi } from '@/stores/ui'
 import { sourceLabel } from '@/domain/sources'
 import { formatDuration } from '@/domain/format'
 import { haptic } from '@/native/haptics'
+import { LOCALE, $t } from '@/i18n'
 
 /**
  * Очередь. Сверху то, что играет, ниже «добавлено вручную», дальше — из источника.
@@ -36,19 +37,21 @@ const ROW_H = 60
 const showHistory = ref(false)
 const history = computed(() => player.history)
 const shuffleLabel = computed(() =>
-  player.shuffleMode === 'off' ? 'Перемешать' : (SHUFFLE_KINDS.find((k) => k.id === player.shuffleMode)?.label ?? 'Перемешано'),
+  player.shuffleMode === 'off'
+    ? $t('Перемешать')
+    : (SHUFFLE_KINDS.find((k) => k.id === player.shuffleMode)?.label ?? $t('Перемешано')),
 )
 
 function saveAsPlaylist() {
   const keys = player.queueKeys('all')
   if (!keys.length) return
   ui.openSheet(NameSheet, {
-    title: 'Сохранить очередь',
-    initial: `Очередь ${new Date().toLocaleDateString('ru-RU')}`,
-    confirm: 'Сохранить',
+    title: $t('Сохранить очередь'),
+    initial: $t('Очередь {0}', new Date().toLocaleDateString(LOCALE)),
+    confirm: $t('Сохранить'),
     onDone: async (name: string) => {
       await playlists.create(name, keys)
-      ui.toast(`Плейлист «${name}»: ${keys.length} треков`)
+      ui.toast($t('Плейлист «{0}»: {1} треков', name, keys.length))
     },
   })
 }
@@ -61,7 +64,7 @@ const manualCount = computed(() => {
 })
 const restLabel = computed(() => {
   const first = upcoming.value[manualCount.value]
-  return first ? `Далее из «${sourceLabel(first.source)}»` : ''
+  return first ? sourceLabel(first.source) : ''
 })
 const totalLeft = computed(() => upcoming.value.reduce((s, q) => s + q.durationMs, 0))
 
@@ -163,18 +166,20 @@ function remove(i: number) {
 }
 function clear() {
   void player.clearUpcoming()
-  ui.toast('Очередь очищена')
+  ui.toast($t('Очередь очищена'))
 }
 </script>
 
 <template>
   <Transition name="queue">
-    <div v-if="ui.queueOpen" class="queue" role="dialog" aria-label="Очередь">
+    <div v-if="ui.queueOpen" class="queue" role="dialog" :aria-label="$t('Очередь')">
       <div ref="scrollEl" class="scroll body">
         <div ref="headEl" class="head">
           <div class="bar">
-            <h2 class="display">Очередь</h2>
-            <button type="button" class="icon-btn" aria-label="Закрыть" @click="ui.queueOpen = false"><IconClose /></button>
+            <h2 class="display">{{ $t('Очередь') }}</h2>
+            <button type="button" class="icon-btn" :aria-label="$t('Закрыть')" @click="ui.queueOpen = false">
+              <IconClose />
+            </button>
           </div>
           <div class="tools">
             <button type="button" class="tool" :class="{ on: player.shuffleMode !== 'off' }" @click="ui.openSheet(ShuffleSheet)">
@@ -184,19 +189,19 @@ function clear() {
               type="button"
               class="tool"
               :disabled="!player.queue.length"
-              aria-label="Сохранить как плейлист"
+              :aria-label="$t('Сохранить как плейлист')"
               @click="saveAsPlaylist"
             >
               <IconSave />
             </button>
-            <button type="button" class="tool" :disabled="!upcoming.length" aria-label="Очистить" @click="clear">
+            <button type="button" class="tool" :disabled="!upcoming.length" :aria-label="$t('Очистить')" @click="clear">
               <IconClear />
             </button>
             <span class="left num">{{ upcoming.length }} · {{ formatDuration(totalLeft) }}</span>
           </div>
           <template v-if="history.length">
             <button type="button" class="label hist-toggle" @click="showHistory = !showHistory">
-              <IconHistory />Уже звучало · {{ history.length }}<IconDown class="chev" :class="{ open: showHistory }" />
+              <IconHistory />{{ $t('Уже звучало · {0}', history.length) }}<IconDown class="chev" :class="{ open: showHistory }" />
             </button>
             <div v-if="showHistory" class="hist">
               <button
@@ -215,7 +220,7 @@ function clear() {
             </div>
           </template>
           <template v-if="current">
-            <div class="label">Сейчас играет</div>
+            <div class="label">{{ $t('Сейчас играет') }}</div>
             <div class="now">
               <CoverArt
                 :art="library.byKey.get(current.key)?.art"
@@ -232,9 +237,11 @@ function clear() {
             </div>
           </template>
           <div v-if="upcoming.length" class="label">
-            Далее<template v-if="restLabel"> · {{ restLabel.replace('Далее из ', 'из ') }}</template>
+            {{ $t('Далее') }}<template v-if="restLabel"> · {{ $t('из «{0}»', restLabel) }}</template>
           </div>
-          <div v-if="!upcoming.length" class="empty-q">Дальше ничего нет. Добавь треки свайпом вправо в любом списке.</div>
+          <div v-if="!upcoming.length" class="empty-q">
+            {{ $t('Дальше ничего нет. Добавь треки свайпом вправо в любом списке.') }}
+          </div>
         </div>
 
         <div class="rows" :style="{ height: `${virt.getTotalSize()}px` }">
@@ -259,13 +266,16 @@ function clear() {
               <div class="text">
                 <div class="t ellipsis">{{ upcoming[r.index]!.title }}</div>
                 <div class="s ellipsis">
-                  <b v-if="upcoming[r.index]!.manual" class="tag">вручную</b>{{ upcoming[r.index]!.artist }}
+                  <b v-if="upcoming[r.index]!.manual" class="tag">{{ $t('вручную') }}</b
+                  >{{ upcoming[r.index]!.artist }}
                 </div>
               </div>
-              <button type="button" class="mini-btn" aria-label="Убрать" @click.stop="remove(r.index)"><IconRemove /></button>
+              <button type="button" class="mini-btn" :aria-label="$t('Убрать')" @click.stop="remove(r.index)">
+                <IconRemove />
+              </button>
               <span
                 class="handle"
-                aria-label="Перетащить"
+                :aria-label="$t('Перетащить')"
                 @click.stop
                 @pointerdown.stop="dragStart($event, r.index)"
                 @pointermove="dragMove"
@@ -433,8 +443,11 @@ function clear() {
 .row .cv {
   width: 42px;
 }
+/* Название над исполнителем: в «Уже звучало» это строчные span — без колонки они слипались в одну строку */
 .text {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .t {
   font: 500 14.5px/1.25 var(--f-body);

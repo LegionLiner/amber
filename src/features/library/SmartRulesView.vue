@@ -11,6 +11,7 @@ import { renamePlaylist, saveRules } from '@/data/repos/playlists'
 import { applyRules, DEFAULT_RULES, FIELD_LABEL, parseRules, type Condition, type SmartRules } from '@/domain/smart'
 import { TRACK_SORTS } from '@/domain/sort'
 import { countLabel } from '@/domain/format'
+import { $t, $tp } from '@/i18n'
 
 /**
  * Условия умного плейлиста. Сверху — сколько треков подходит прямо сейчас,
@@ -89,38 +90,38 @@ function ops(c: Condition): { id: string; label: string }[] {
   switch (kindOf(c.field)) {
     case 'text':
       return [
-        { id: 'contains', label: 'содержит' },
-        { id: 'is', label: 'равно' },
-        { id: 'not', label: 'не содержит' },
+        { id: 'contains', label: $t('содержит') },
+        { id: 'is', label: $t('равно') },
+        { id: 'not', label: $t('не содержит') },
       ]
     case 'rating':
       return [
-        { id: 'gte', label: 'от' },
-        { id: 'lte', label: 'до' },
-        { id: 'eq', label: 'ровно' },
-        { id: 'unrated', label: 'без оценки' },
+        { id: 'gte', label: $t('от') },
+        { id: 'lte', label: $t('до') },
+        { id: 'eq', label: $t('ровно') },
+        { id: 'unrated', label: $t('без оценки') },
       ]
     case 'favorite':
       return [
-        { id: 'is', label: 'в избранном' },
-        { id: 'not', label: 'не в избранном' },
+        { id: 'is', label: $t('в избранном') },
+        { id: 'not', label: $t('не в избранном') },
       ]
     case 'date':
       return c.field === 'lastPlayed'
         ? [
-            { id: 'within', label: 'за последние' },
-            { id: 'notWithin', label: 'давно, больше' },
-            { id: 'never', label: 'никогда' },
+            { id: 'within', label: $t('за последние') },
+            { id: 'notWithin', label: $t('давно, больше') },
+            { id: 'never', label: $t('никогда') },
           ]
         : [
-            { id: 'within', label: 'за последние' },
-            { id: 'notWithin', label: 'раньше, чем' },
+            { id: 'within', label: $t('за последние') },
+            { id: 'notWithin', label: $t('раньше, чем') },
           ]
     default:
       return [
-        { id: 'gte', label: 'от' },
-        { id: 'lte', label: 'до' },
-        { id: 'eq', label: 'ровно' },
+        { id: 'gte', label: $t('от') },
+        { id: 'lte', label: $t('до') },
+        { id: 'eq', label: $t('ровно') },
       ]
   }
 }
@@ -138,7 +139,7 @@ async function save() {
     await saveRules(id.value, JSON.stringify(rules))
     if (name.value.trim()) await renamePlaylist(id.value, name.value.trim())
     await playlists.refresh()
-    ui.toast(`Сохранено: ${countLabel(preview.value.length, ['трек', 'трека', 'треков'])}`)
+    ui.toast($t('Сохранено: {0}', countLabel(preview.value.length, $tp('трек|трека|треков'))))
     router.back()
   } finally {
     busy.value = false
@@ -149,15 +150,17 @@ async function save() {
 <template>
   <div class="scroll screen form">
     <ScreenHeader
-      title="Условия"
-      :subtitle="`Подходит сейчас: ${countLabel(preview.length, ['трек', 'трека', 'треков'])}`"
+      :title="$t('Условия')"
+      :subtitle="$t('Подходит сейчас: {0}', countLabel(preview.length, $tp('трек|трека|треков')))"
       back
     />
     <section class="group">
-      <input id="smart-name" v-model="name" class="field" placeholder="Название" />
+      <input id="smart-name" v-model="name" class="field" :placeholder="$t('Название')" />
       <div class="seg">
-        <button type="button" :class="{ on: rules.match === 'all' }" @click="rules.match = 'all'">Все условия</button>
-        <button type="button" :class="{ on: rules.match === 'any' }" @click="rules.match = 'any'">Любое из них</button>
+        <button type="button" :class="{ on: rules.match === 'all' }" @click="rules.match = 'all'">{{ $t('Все условия') }}</button>
+        <button type="button" :class="{ on: rules.match === 'any' }" @click="rules.match = 'any'">
+          {{ $t('Любое из них') }}
+        </button>
       </div>
     </section>
 
@@ -171,7 +174,7 @@ async function save() {
         >
           <option v-for="f in FIELDS" :key="f.id" :value="f.id">{{ FIELD_LABEL[f.id] }}</option>
         </select>
-        <button type="button" class="icon-btn" aria-label="Убрать условие" @click="remove(i)"><IconTrash /></button>
+        <button type="button" class="icon-btn" :aria-label="$t('Убрать условие')" @click="remove(i)"><IconTrash /></button>
       </div>
       <div class="line">
         <select :id="`co-${i}`" class="select wide" :value="c.op" @change="setOp(i, ($event.target as HTMLSelectElement).value)">
@@ -181,19 +184,29 @@ async function save() {
           <select v-if="c.field === 'rating'" :id="`cv-${i}`" v-model.number="c.value" class="select">
             <option v-for="r in 10" :key="r" :value="r">{{ r % 2 ? `${Math.floor(r / 2)}½★` : `${r / 2}★` }}</option>
           </select>
-          <input v-else-if="typeof c.value === 'string'" :id="`cv-${i}`" v-model="c.value" class="field" placeholder="текст" />
+          <input
+            v-else-if="typeof c.value === 'string'"
+            :id="`cv-${i}`"
+            v-model="c.value"
+            class="field"
+            :placeholder="$t('текст')"
+          />
           <input v-else :id="`cv-${i}`" v-model.number="c.value" class="field num-in" inputmode="decimal" />
         </template>
         <template v-else-if="'days' in c">
-          <input :id="`cd-${i}`" v-model.number="c.days" class="field num-in" inputmode="numeric" /><span class="unit">дн.</span>
+          <input :id="`cd-${i}`" v-model.number="c.days" class="field num-in" inputmode="numeric" /><span class="unit">{{
+            $t('дн.')
+          }}</span>
         </template>
       </div>
     </section>
 
     <section class="group">
-      <button type="button" class="btn block" @click="add">Добавить условие</button>
+      <button type="button" class="btn block" @click="add">{{ $t('Добавить условие') }}</button>
       <label class="row">
-        <span><b>Сортировка</b></span>
+        <span
+          ><b>{{ $t('Сортировка') }}</b></span
+        >
         <select
           id="smart-sort"
           class="select"
@@ -209,13 +222,16 @@ async function save() {
         </select>
       </label>
       <label class="row">
-        <span><b>Не больше</b><small>Пусто — без ограничения</small></span>
+        <span
+          ><b>{{ $t('Не больше') }}</b
+          ><small>{{ $t('Пусто — без ограничения') }}</small></span
+        >
         <select id="smart-limit" v-model="rules.limit" class="select">
-          <option :value="null">все</option>
+          <option :value="null">{{ $t('все') }}</option>
           <option v-for="n in [25, 50, 100, 200, 500]" :key="n" :value="n">{{ n }}</option>
         </select>
       </label>
-      <button type="button" class="btn primary block" :disabled="busy" @click="save">Сохранить</button>
+      <button type="button" class="btn primary block" :disabled="busy" @click="save">{{ $t('Сохранить') }}</button>
     </section>
     <div class="bottom-space" />
   </div>

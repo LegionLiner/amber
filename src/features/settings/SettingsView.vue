@@ -26,6 +26,9 @@ import SpotifySection from './SpotifySection.vue'
 import { useSync } from '@/stores/sync'
 import { APP_VERSION } from '@/app/version'
 import { listMics, voice } from '@/app/voice'
+import { ACCENTS, accentOf, BACKDROPS, baseOf, type Shade } from '@/domain/themes'
+import PlayerToolsEditor from './PlayerToolsEditor.vue'
+import { $t, $tp, isEn, lang, setLang, type Lang } from '@/i18n'
 
 const settings = useSettings()
 const library = useLibrary()
@@ -48,27 +51,44 @@ if (isDesktop) {
   navigator.mediaDevices?.addEventListener('devicechange', () => void refreshMics())
 }
 
-const THEMES: { id: ThemeMode; label: string }[] = [
-  { id: 'dark', label: 'Тёмная' },
-  { id: 'light', label: 'Светлая' },
-  { id: 'amoled', label: 'AMOLED' },
-  { id: 'system', label: 'Как в системе' },
+/** Названия языков — каждое на своём языке, чтобы найти нужный, не понимая текущий */
+const LANGS: { id: Lang; label: string }[] = [
+  { id: 'ru', label: 'Русский' },
+  { id: 'en', label: 'English' },
 ]
+const THEMES: { id: ThemeMode; label: string }[] = [
+  { id: 'dark', label: $t('Тёмная') },
+  { id: 'light', label: $t('Светлая') },
+  { id: 'system', label: $t('Как в системе') },
+]
+
+/* ---------------- акцент и фон: превью — в той теме, что сейчас на экране ---------------- */
+const systemLight = window.matchMedia('(prefers-color-scheme: light)').matches
+const shade = computed<Shade>(() => (s.theme === 'light' || (s.theme === 'system' && systemLight) ? 'light' : 'dark'))
+const backdrops = computed(() =>
+  BACKDROPS.map((b) => ({
+    ...b,
+    off: shade.value === 'light' && !b.light,
+    base: baseOf(shade.value, b.id, s.accent),
+  })),
+)
+// Светлая тема без чёрного фона: выбранный «Чёрный» там показывается тёплым
+const backdropShown = computed(() => (shade.value === 'light' && s.backdrop === 'black' ? 'warm' : s.backdrop))
 
 /* ---------------- правило прослушивания ---------------- */
 
 const RULES: { id: string; label: string; hint: string; rule: CountingRule }[] = [
-  { id: 'lastfm', label: 'Половина или 4 минуты', hint: 'Как у Last.fm', rule: DEFAULT_COUNTING },
+  { id: 'lastfm', label: $t('Половина или 4 минуты'), hint: $t('Как у Last.fm'), rule: DEFAULT_COUNTING },
   {
     id: 'short',
-    label: 'От 30 секунд',
-    hint: 'Засчитывается почти любое',
+    label: $t('От 30 секунд'),
+    hint: $t('Засчитывается почти любое'),
     rule: { minTrackMs: 30_000, minFraction: 0, minListenMs: 30_000 },
   },
   {
     id: 'full',
-    label: 'Почти до конца',
-    hint: 'Нужно дослушать 90%',
+    label: $t('Почти до конца'),
+    hint: $t('Нужно дослушать 90%'),
     rule: { minTrackMs: 30_000, minFraction: 0.9, minListenMs: 3_600_000 },
   },
 ]
@@ -94,11 +114,13 @@ async function setRule(rule: CountingRule) {
   custom.value = { ...rule }
   await recountAll(rule)
   await library.load()
-  ui.toast('История пересчитана по новому правилу')
+  ui.toast($t('История пересчитана по новому правилу'))
 }
 
 const secs = (ms: number) =>
-  ms >= 60_000 ? `${Math.floor(ms / 60_000)} мин${ms % 60_000 ? ` ${(ms % 60_000) / 1000} с` : ''}` : `${ms / 1000} с`
+  ms >= 60_000
+    ? $t('{0} мин{1}', Math.floor(ms / 60_000), ms % 60_000 ? $t(' {0} с', (ms % 60_000) / 1000) : '')
+    : $t('{0} с', ms / 1000)
 
 /* ---------------- библиотека ---------------- */
 
@@ -116,13 +138,13 @@ function removeFolder(p: string) {
 
 async function rescan(full: boolean) {
   const r = await library.scan(full)
-  if (r) ui.toast(`Готово: ${r.total} треков, новых ${r.added}`)
+  if (r) ui.toast($t('Готово: {0} треков, новых {1}', r.total, r.added))
 }
 
 async function unhide() {
   const n = await unhideAll()
   await library.load()
-  ui.toast(n ? `Вернулось в библиотеку: ${n}` : 'Скрытых треков нет')
+  ui.toast(n ? $t('Вернулось в библиотеку: {0}', n) : $t('Скрытых треков нет'))
 }
 
 /* ---------------- своя папка в браузере ---------------- */
@@ -134,17 +156,17 @@ async function loadWeb() {
 async function pickWebFolder() {
   try {
     const r = await MusicCoreWeb.pickFolder()
-    ui.toast(`Нашлось файлов: ${r.count}. Читаю теги…`)
+    ui.toast($t('Нашлось файлов: {0}. Читаю теги…', r.count))
     await rescan(true)
   } catch (e) {
-    if (!/abort|cancel/i.test(String(e))) ui.toast(`Не получилось: ${e instanceof Error ? e.message : String(e)}`)
+    if (!/abort|cancel/i.test(String(e))) ui.toast($t('Не получилось: {0}', e instanceof Error ? e.message : String(e)))
   }
   await loadWeb()
 }
 async function restoreWebFolder() {
   const r = await MusicCoreWeb.restoreFolder()
   if (r.count) await rescan(false)
-  else ui.toast('Браузер не дал доступ к папке')
+  else ui.toast($t('Браузер не дал доступ к папке'))
   await loadWeb()
 }
 async function useDemo() {
@@ -163,7 +185,7 @@ async function addDesktopFolder() {
     await loadWeb()
     await rescan(false)
   } catch (e) {
-    if (!/cancel/i.test(String(e))) ui.toast(`Не получилось: ${e instanceof Error ? e.message : String(e)}`)
+    if (!/cancel/i.test(String(e))) ui.toast($t('Не получилось: {0}', e instanceof Error ? e.message : String(e)))
   }
 }
 async function removeDesktopFolder(p: string) {
@@ -195,9 +217,9 @@ async function exportData() {
   try {
     const data = await buildBackup()
     const res = await MusicCore.exportFile({ name: backupFileName(), data: JSON.stringify(data) })
-    if (res.uri) ui.toast('Бэкап сохранён')
+    if (res.uri) ui.toast($t('Бэкап сохранён'))
   } catch (e) {
-    ui.toast(`Не получилось: ${e instanceof Error ? e.message : String(e)}`)
+    ui.toast($t('Не получилось: {0}', e instanceof Error ? e.message : String(e)))
   } finally {
     busy.value = false
   }
@@ -211,7 +233,12 @@ async function importData() {
     const data = parseBackup(file.data)
     const report = await importBackup(data, importMode.value)
     ui.toast(
-      `Загружено: ${report.plays} прослушиваний, ${report.userRows} треков с данными. Не найдено файлов: ${report.unmatched}`,
+      $t(
+        'Загружено: {0} прослушиваний, {1} треков с данными. Не найдено файлов: {2}',
+        report.plays,
+        report.userRows,
+        report.unmatched,
+      ),
       undefined,
       6000,
     )
@@ -219,7 +246,7 @@ async function importData() {
     setTimeout(() => location.reload(), 1500)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if (!/cancel|отмен/i.test(msg)) ui.toast(`Импорт не удался: ${msg}`)
+    if (!/cancel|отмен/i.test(msg)) ui.toast($t('Импорт не удался: {0}', msg))
   } finally {
     busy.value = false
   }
@@ -231,19 +258,19 @@ async function chooseBackupFolder() {
     s.backup.folderUri = r.uri
     s.backup.enabled = true
     const uri = await runAutoBackup(true)
-    if (uri) ui.toast('Первая копия сохранена. Дальше — раз в день при запуске')
+    if (uri) ui.toast($t('Первая копия сохранена. Дальше — раз в день при запуске'))
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if (!/cancel|отмен/i.test(msg)) ui.toast(`Не получилось: ${msg}`)
+    if (!/cancel|отмен/i.test(msg)) ui.toast($t('Не получилось: {0}', msg))
   }
 }
 async function backupNow() {
   busy.value = true
   try {
     await runAutoBackup(true)
-    ui.toast('Копия сохранена')
+    ui.toast($t('Копия сохранена'))
   } catch (e) {
-    ui.toast(`Не получилось: ${e instanceof Error ? e.message : String(e)}`)
+    ui.toast($t('Не получилось: {0}', e instanceof Error ? e.message : String(e)))
   } finally {
     busy.value = false
   }
@@ -252,23 +279,86 @@ async function backupNow() {
 
 <template>
   <div class="scroll screen form">
-    <ScreenHeader title="Настройки" back />
+    <ScreenHeader :title="$t('Настройки')" back />
     <DamagedFilesCard />
 
     <!-- .groups: на широком окне компьютера разделы расходятся по двум колонкам (design/desktop.css) -->
     <div class="groups">
       <section class="group">
-        <h2 class="gtitle">Внешний вид</h2>
-        <div class="seg">
+        <h2 class="gtitle">{{ $t('Внешний вид') }}</h2>
+        <div class="pick-title">
+          <b>Язык · Language</b><small v-if="isDesktop && isEn">{{ $t('Голосовые команды — только на русском') }}</small>
+        </div>
+        <div class="seg lang-seg" role="radiogroup" aria-label="Язык · Language">
+          <button
+            v-for="l in LANGS"
+            :key="l.id"
+            type="button"
+            role="radio"
+            :aria-checked="lang === l.id"
+            :class="{ on: lang === l.id }"
+            :lang="l.id"
+            @click="l.id !== lang && setLang(l.id)"
+          >
+            {{ l.label }}
+          </button>
+        </div>
+        <div class="seg three">
           <button v-for="t in THEMES" :key="t.id" type="button" :class="{ on: s.theme === t.id }" @click="s.theme = t.id">
             {{ t.label }}
           </button>
         </div>
+        <div class="pick-title">
+          <b>{{ $t('Акцент') }}</b
+          ><small>{{ accentOf(s.accent).label }}</small>
+        </div>
+        <div class="accents" role="radiogroup" :aria-label="$t('Акцентный цвет')">
+          <button
+            v-for="a in ACCENTS"
+            :key="a.id"
+            type="button"
+            role="radio"
+            class="acc"
+            :class="{ on: s.accent === a.id }"
+            :aria-checked="s.accent === a.id"
+            :aria-label="a.label"
+            :title="a.label"
+            :style="{ '--a1': a[shade].amber, '--a2': a[shade].ember }"
+            @click="s.accent = a.id"
+          />
+        </div>
+        <div class="pick-title">
+          <b>{{ $t('Фон') }}</b
+          ><small>{{ backdrops.find((b) => b.id === backdropShown)?.hint }}</small>
+        </div>
+        <div class="backdrops" role="radiogroup" :aria-label="$t('Фон')">
+          <button
+            v-for="b in backdrops"
+            :key="b.id"
+            type="button"
+            role="radio"
+            class="bd"
+            :class="{ on: backdropShown === b.id }"
+            :aria-checked="backdropShown === b.id"
+            :disabled="b.off"
+            :title="b.off ? $t('Только в тёмной теме') : b.hint"
+            @click="s.backdrop = b.id"
+          >
+            <span class="pv" :style="{ background: b.base.bg }">
+              <i class="pv-card" :style="{ background: b.base.surface }"
+                ><i class="pv-dot" :style="{ background: accentOf(s.accent)[shade].amber }" /><i
+                  class="pv-line"
+                  :style="{ background: b.base.ink2 }"
+              /></i>
+            </span>
+            <small>{{ b.label }}</small>
+          </button>
+        </div>
         <label class="row">
           <span
-            ><b>Стекло</b
+            ><b>{{ $t('Стекло') }}</b
             ><small>{{
-              isDesktop ? 'Размытие панелей окна, плеера и шторок' : 'Размытие под мини-плеером и навигацией'
+              isDesktop ? $t('Размытие панелей окна, плеера и шторок') : $t('Размытие под мини-плеером и навигацией')
             }}</small></span
           >
           <input
@@ -280,7 +370,10 @@ async function backupNow() {
           />
         </label>
         <label class="row">
-          <span><b>Анимации</b><small>Живой фон плеера и переходы</small></span>
+          <span
+            ><b>{{ $t('Анимации') }}</b
+            ><small>{{ $t('Живой фон плеера и переходы') }}</small></span
+          >
           <input
             id="opt-motion"
             type="checkbox"
@@ -291,14 +384,25 @@ async function backupNow() {
         </label>
       </section>
 
+      <section v-if="!isDesktop" class="group">
+        <h2 class="gtitle">{{ $t('Кнопки плеера') }}</h2>
+        <p class="note">
+          {{ $t('Быстрые кнопки внизу экрана плеера: какие и в каком порядке. Остальное — в меню «⋯» плеера.') }}
+        </p>
+        <PlayerToolsEditor />
+      </section>
+
       <section class="group">
         <button type="button" class="row link" @click="router.push('/settings/audio')">
-          <span><b>Звук</b><small>Переходы, одинаковая громкость, эквалайзер, профили наушников</small></span>
+          <span
+            ><b>{{ $t('Звук') }}</b
+            ><small>{{ $t('Переходы, одинаковая громкость, эквалайзер, профили наушников') }}</small></span
+          >
         </button>
       </section>
 
       <section class="group">
-        <h2 class="gtitle">Что считать прослушиванием</h2>
+        <h2 class="gtitle">{{ $t('Что считать прослушиванием') }}</h2>
         <button
           v-for="r in RULES"
           :key="r.id"
@@ -315,44 +419,58 @@ async function backupNow() {
         </button>
         <button type="button" class="choice" :class="{ on: ruleId === 'custom' }" @click="customOpen = !customOpen">
           <span
-            ><b>Своё правило</b><small>{{ ruleId === 'custom' ? 'Действует сейчас' : 'Задать пороги самому' }}</small></span
+            ><b>{{ $t('Своё правило') }}</b
+            ><small>{{ ruleId === 'custom' ? $t('Действует сейчас') : $t('Задать пороги самому') }}</small></span
           >
           <i class="dot" />
         </button>
         <div v-if="customOpen" class="custom">
           <div class="slider-row">
             <header>
-              <span>Доля трека</span><output>{{ Math.round(custom.minFraction * 100) }}%</output>
+              <span>{{ $t('Доля трека') }}</span
+              ><output>{{ Math.round(custom.minFraction * 100) }}%</output>
             </header>
             <RangeSlider v-model="custom.minFraction" :min="0" :max="1" :step="0.05" />
           </div>
           <div class="slider-row">
             <header>
-              <span>…или столько времени</span><output>{{ secs(custom.minListenMs) }}</output>
+              <span>{{ $t('…или столько времени') }}</span
+              ><output>{{ secs(custom.minListenMs) }}</output>
             </header>
             <RangeSlider v-model="custom.minListenMs" :min="10000" :max="600000" :step="10000" />
           </div>
           <div class="slider-row">
             <header>
-              <span>Треки короче не считаются</span><output>{{ secs(custom.minTrackMs) }}</output>
+              <span>{{ $t('Треки короче не считаются') }}</span
+              ><output>{{ secs(custom.minTrackMs) }}</output>
             </header>
             <RangeSlider v-model="custom.minTrackMs" :min="0" :max="120000" :step="5000" />
           </div>
           <p class="note">
-            Засчитается, когда прослушано {{ Math.round(custom.minFraction * 100) }}% трека или {{ secs(custom.minListenMs) }} —
-            что наступит раньше.
+            {{
+              $t(
+                'Засчитается, когда прослушано {0}% трека или {1} — что наступит раньше.',
+                Math.round(custom.minFraction * 100),
+                secs(custom.minListenMs),
+              )
+            }}
           </p>
           <button type="button" class="btn primary block" :disabled="!customDirty" @click="setRule(custom)">
-            Применить и пересчитать
+            {{ $t('Применить и пересчитать') }}
           </button>
         </div>
         <p class="note">
-          Сырые события хранятся все, поэтому новое правило сразу применяется ко всей истории. Записано событий: {{ events }}.
+          {{
+            $t(
+              'Сырые события хранятся все, поэтому новое правило сразу применяется ко всей истории. Записано событий: {0}.',
+              events,
+            )
+          }}
         </p>
       </section>
 
       <section class="group">
-        <h2 class="gtitle">Перемешивание</h2>
+        <h2 class="gtitle">{{ $t('Перемешивание') }}</h2>
         <button
           v-for="k in SHUFFLE_KINDS"
           :key="k.id"
@@ -370,33 +488,36 @@ async function backupNow() {
       </section>
 
       <section class="group">
-        <h2 class="gtitle">Радио</h2>
+        <h2 class="gtitle">{{ $t('Радио') }}</h2>
         <p class="note">
-          Бесконечная очередь из твоей музыки по похожести: что слушаешь рядом, исполнители, жанр, темп и энергия.
+          {{ $t('Бесконечная очередь из твоей музыки по похожести: что слушаешь рядом, исполнители, жанр, темп и энергия.') }}
         </p>
         <div class="slider-row">
           <header>
-            <span>Смелость</span
+            <span>{{ $t('Смелость') }}</span
             ><output>{{
-              s.radio.adventure < 0.3 ? 'только похожее' : s.radio.adventure < 0.7 ? 'иногда в сторону' : 'неожиданно'
+              s.radio.adventure < 0.3 ? $t('только похожее') : s.radio.adventure < 0.7 ? $t('иногда в сторону') : $t('неожиданно')
             }}</output>
           </header>
           <RangeSlider v-model="s.radio.adventure" :min="0" :max="1" :step="0.05" />
         </div>
         <div class="slider-row">
           <header>
-            <span>Свежесть</span
-            ><output>{{ s.radio.freshness < 0.3 ? 'любимое' : s.radio.freshness < 0.7 ? 'поровну' : 'забытое' }}</output>
+            <span>{{ $t('Свежесть') }}</span
+            ><output>{{
+              s.radio.freshness < 0.3 ? $t('любимое') : s.radio.freshness < 0.7 ? $t('поровну') : $t('забытое')
+            }}</output>
           </header>
           <RangeSlider v-model="s.radio.freshness" :min="0" :max="1" :step="0.05" />
         </div>
       </section>
 
       <section class="group">
-        <h2 class="gtitle">Библиотека</h2>
+        <h2 class="gtitle">{{ $t('Библиотека') }}</h2>
         <p class="note">
-          {{ countLabel(library.tracks.length, ['трек', 'трека', 'треков'])
-          }}<template v-if="library.lastScan">, последнее сканирование {{ library.lastScan.tookMs }} мс</template>.
+          {{ countLabel(library.tracks.length, $tp('трек|трека|треков'))
+          }}<template v-if="library.lastScan">{{ $t(', последнее сканирование {0} мс', library.lastScan.tookMs) }}</template
+          >.
         </p>
         <template v-if="isDesktop">
           <div class="dfolders">
@@ -406,101 +527,127 @@ async function backupNow() {
               <button
                 type="button"
                 class="icon-btn"
-                :aria-label="`Убрать папку ${p}`"
-                title="Убрать из библиотеки"
+                :aria-label="$t('Убрать папку {0}', p)"
+                :title="$t('Убрать из библиотеки')"
                 @click="removeDesktopFolder(p)"
               >
                 <IconRemove />
               </button>
             </div>
-            <p v-if="!folders.length" class="note">Папок с музыкой пока нет.</p>
+            <p v-if="!folders.length" class="note">{{ $t('Папок с музыкой пока нет.') }}</p>
           </div>
-          <p class="note">Изменения в папках приложение замечает само: новые файлы появятся в медиатеке через пару секунд.</p>
+          <p class="note">
+            {{ $t('Изменения в папках приложение замечает само: новые файлы появятся в медиатеке через пару секунд.') }}
+          </p>
           <div class="btns">
-            <button type="button" class="btn primary" @click="addDesktopFolder">Добавить папку</button>
+            <button type="button" class="btn primary" @click="addDesktopFolder">{{ $t('Добавить папку') }}</button>
           </div>
         </template>
         <template v-else-if="web">
           <p class="note">
-            <template v-if="web.source === 'demo'"
-              >Сейчас демо-библиотека. Можно открыть папку со своими mp3 — файлы не покидают компьютер.</template
-            >
-            <template v-else-if="web.needsAccess"
-              >Папка «{{ web.savedName }}» выбрана раньше: браузер просит подтвердить доступ.</template
-            >
-            <template v-else>Своя папка{{ web.savedName ? ` «${web.savedName}»` : '' }}: {{ web.loaded }} файлов.</template>
+            <template v-if="web.source === 'demo'">{{
+              $t('Сейчас демо-библиотека. Можно открыть папку со своими mp3 — файлы не покидают компьютер.')
+            }}</template>
+            <template v-else-if="web.needsAccess">{{
+              $t('Папка «{0}» выбрана раньше: браузер просит подтвердить доступ.', web.savedName)
+            }}</template>
+            <template v-else>{{
+              $t('Своя папка{0}: {1} файлов.', web.savedName ? ` «${web.savedName}»` : '', web.loaded)
+            }}</template>
           </p>
           <div class="btns">
-            <button v-if="web.needsAccess" type="button" class="btn primary" @click="restoreWebFolder">Вернуть доступ</button>
-            <button type="button" class="btn" @click="pickWebFolder">
-              {{ web.source === 'folder' ? 'Другая папка' : 'Открыть папку' }}
+            <button v-if="web.needsAccess" type="button" class="btn primary" @click="restoreWebFolder">
+              {{ $t('Вернуть доступ') }}
             </button>
-            <button v-if="web.source === 'folder'" type="button" class="btn" @click="useDemo">Демо</button>
+            <button type="button" class="btn" @click="pickWebFolder">
+              {{ web.source === 'folder' ? $t('Другая папка') : $t('Открыть папку') }}
+            </button>
+            <button v-if="web.source === 'folder'" type="button" class="btn" @click="useDemo">{{ $t('Демо') }}</button>
           </div>
         </template>
         <div class="btns">
-          <button type="button" class="btn" :disabled="library.scanning" @click="rescan(false)">Найти новое</button>
-          <button type="button" class="btn" :disabled="library.scanning" @click="rescan(true)">Перечитать теги</button>
+          <button type="button" class="btn" :disabled="library.scanning" @click="rescan(false)">{{ $t('Найти новое') }}</button>
+          <button type="button" class="btn" :disabled="library.scanning" @click="rescan(true)">
+            {{ $t('Перечитать теги') }}
+          </button>
         </div>
         <label class="row">
-          <span><b>Правки тегов — в файлы</b><small>Название, исполнитель и альбом записываются в сам mp3</small></span>
+          <span
+            ><b>{{ $t('Правки тегов — в файлы') }}</b
+            ><small>{{ $t('Название, исполнитель и альбом записываются в сам mp3') }}</small></span
+          >
           <input id="opt-write-tags" v-model="s.writeTagsToFiles" type="checkbox" class="switch" />
         </label>
         <button type="button" class="row link" @click="router.push('/settings/cleanup')">
-          <span><b>Уборка тегов</b><small>Мусор сайтов, капслок, номера в названиях, пустые теги</small></span>
+          <span
+            ><b>{{ $t('Уборка тегов') }}</b
+            ><small>{{ $t('Мусор сайтов, капслок, номера в названиях, пустые теги') }}</small></span
+          >
         </button>
         <button type="button" class="row link" @click="router.push('/settings/duplicates')">
-          <span><b>Дубли</b><small>Один трек в нескольких файлах</small></span>
+          <span
+            ><b>{{ $t('Дубли') }}</b
+            ><small>{{ $t('Один трек в нескольких файлах') }}</small></span
+          >
         </button>
         <label class="row">
           <span
-            ><b>Тексты песен из LRCLIB</b
-            ><small>Если в файле текста нет, он подставится из открытой базы lrclib.net (нужна сеть)</small></span
+            ><b>{{ $t('Тексты песен из LRCLIB') }}</b
+            ><small>{{ $t('Если в файле текста нет, он подставится из открытой базы lrclib.net (нужна сеть)') }}</small></span
           >
           <input id="opt-lrclib" v-model="s.lrclib" type="checkbox" class="switch" />
         </label>
         <label class="row">
-          <span><b>Папка вместо альбома</b><small>Если у трека пустой тег альбома</small></span>
+          <span
+            ><b>{{ $t('Папка вместо альбома') }}</b
+            ><small>{{ $t('Если у трека пустой тег альбома') }}</small></span
+          >
           <input id="opt-album-folder" v-model="s.albumFromFolder" type="checkbox" class="switch" @change="library.load()" />
         </label>
         <label class="row">
-          <span><b>Короче, чем</b><small>Такие файлы не попадут в библиотеку</small></span>
+          <span
+            ><b>{{ $t('Короче, чем') }}</b
+            ><small>{{ $t('Такие файлы не попадут в библиотеку') }}</small></span
+          >
           <select id="opt-min-dur" v-model.number="s.scan.minDurationMs" class="select">
-            <option :value="0">без ограничений</option>
-            <option :value="15000">15 секунд</option>
-            <option :value="30000">30 секунд</option>
-            <option :value="60000">1 минута</option>
+            <option :value="0">{{ $t('без ограничений') }}</option>
+            <option :value="15000">{{ $t('15 секунд') }}</option>
+            <option :value="30000">{{ $t('30 секунд') }}</option>
+            <option :value="60000">{{ $t('1 минута') }}</option>
           </select>
         </label>
         <div class="folders">
-          <b>Не сканировать папки</b>
+          <b>{{ $t('Не сканировать папки') }}</b>
           <div v-for="p in s.scan.excludeFolders" :key="p" class="folder">
             <span class="ellipsis">{{ p }}</span>
-            <button type="button" class="x" aria-label="Убрать" @click="removeFolder(p)">×</button>
+            <button type="button" class="x" :aria-label="$t('Убрать')" @click="removeFolder(p)">×</button>
           </div>
           <div class="add">
             <input
               id="opt-exclude"
               v-model="newFolder"
               class="field"
-              placeholder="Например, Podcasts/"
+              :placeholder="$t('Например, Podcasts/')"
               @keydown.enter="addFolder"
             />
-            <button type="button" class="btn" @click="addFolder">Добавить</button>
+            <button type="button" class="btn" @click="addFolder">{{ $t('Добавить') }}</button>
           </div>
         </div>
-        <button type="button" class="btn block" @click="unhide">Вернуть скрытые треки</button>
+        <button type="button" class="btn block" @click="unhide">{{ $t('Вернуть скрытые треки') }}</button>
       </section>
 
       <section class="group">
-        <h2 class="gtitle">Оценки</h2>
+        <h2 class="gtitle">{{ $t('Оценки') }}</h2>
         <label class="row">
-          <span><b>Просить оценить</b><small>Когда трек без оценки прозвучал столько раз</small></span>
+          <span
+            ><b>{{ $t('Просить оценить') }}</b
+            ><small>{{ $t('Когда трек без оценки прозвучал столько раз') }}</small></span
+          >
           <select id="opt-ask" v-model.number="s.askRatingAfterPlays" class="select">
-            <option :value="0">не просить</option>
-            <option :value="3">3 раза</option>
-            <option :value="5">5 раз</option>
-            <option :value="10">10 раз</option>
+            <option :value="0">{{ $t('не просить') }}</option>
+            <option :value="3">{{ $t('3 раза') }}</option>
+            <option :value="5">{{ $t('5 раз') }}</option>
+            <option :value="10">{{ $t('10 раз') }}</option>
           </select>
         </label>
       </section>
@@ -511,29 +658,41 @@ async function backupNow() {
       <FileSyncSection v-if="isDesktop || isNative" />
 
       <section class="group">
-        <h2 class="gtitle">Данные</h2>
+        <h2 class="gtitle">{{ $t('Данные') }}</h2>
         <p class="note">
-          {{ sync.signedIn ? 'Данные синхронизируются с сервером, а копия' : 'Все оценки, история и настройки живут только' }} на
-          этом {{ isDesktop ? 'компьютере' : 'телефоне' }}. Бэкап — один JSON со всем сразу{{
-            isDesktop ? ': так же можно перенести историю с телефона' : ''
-          }}.
+          {{
+            $t(
+              '{0} на этом {1}. Бэкап — один JSON со всем сразу{2}.',
+              sync.signedIn
+                ? $t('Данные синхронизируются с сервером, а копия')
+                : $t('Все оценки, история и настройки живут только'),
+              isDesktop ? $t('компьютере') : $t('телефоне'),
+              isDesktop ? $t(': так же можно перенести историю с телефона') : '',
+            )
+          }}
         </p>
-        <button type="button" class="btn primary block" :disabled="busy" @click="exportData">Экспорт в JSON</button>
+        <button type="button" class="btn primary block" :disabled="busy" @click="exportData">{{ $t('Экспорт в JSON') }}</button>
         <div class="seg">
-          <button type="button" :class="{ on: importMode === 'merge' }" @click="importMode = 'merge'">Объединить</button>
-          <button type="button" :class="{ on: importMode === 'replace' }" @click="importMode = 'replace'">Заменить всё</button>
+          <button type="button" :class="{ on: importMode === 'merge' }" @click="importMode = 'merge'">
+            {{ $t('Объединить') }}
+          </button>
+          <button type="button" :class="{ on: importMode === 'replace' }" @click="importMode = 'replace'">
+            {{ $t('Заменить всё') }}
+          </button>
         </div>
-        <button type="button" class="btn block" :disabled="busy" @click="importData">Импорт из JSON</button>
-        <p class="note">Перед импортом приложение само сохраняет снимок текущих данных.</p>
+        <button type="button" class="btn block" :disabled="busy" @click="importData">{{ $t('Импорт из JSON') }}</button>
+        <p class="note">{{ $t('Перед импортом приложение само сохраняет снимок текущих данных.') }}</p>
 
         <label class="row">
           <span>
-            <b>Автобэкап раз в день</b>
-            <small v-if="s.backup.folderUri && (isNative || isDesktop)"
-              >Последний: {{ s.backup.lastAt ? formatDate(s.backup.lastAt) : 'ещё не было' }}, хранится {{ s.backup.keep }}</small
-            >
-            <small v-else-if="!isNative && !isDesktop">В браузере копия скачивается файлом при первом открытии за день</small>
-            <small v-else>Выбери папку, например в «Документах» или синхронизируемую с облаком</small>
+            <b>{{ $t('Автобэкап раз в день') }}</b>
+            <small v-if="s.backup.folderUri && (isNative || isDesktop)">{{
+              $t('Последний: {0}, хранится {1}', s.backup.lastAt ? formatDate(s.backup.lastAt) : $t('ещё не было'), s.backup.keep)
+            }}</small>
+            <small v-else-if="!isNative && !isDesktop">{{
+              $t('В браузере копия скачивается файлом при первом открытии за день')
+            }}</small>
+            <small v-else>{{ $t('Выбери папку, например в «Документах» или синхронизируемую с облаком') }}</small>
           </span>
           <input
             id="opt-backup"
@@ -545,7 +704,9 @@ async function backupNow() {
         </label>
         <template v-if="s.backup.enabled && s.backup.folderUri">
           <label class="row">
-            <span><b>Сколько копий хранить</b></span>
+            <span
+              ><b>{{ $t('Сколько копий хранить') }}</b></span
+            >
             <select id="opt-keep" v-model.number="s.backup.keep" class="select">
               <option :value="7">7</option>
               <option :value="14">14</option>
@@ -554,18 +715,20 @@ async function backupNow() {
             </select>
           </label>
           <div class="btns">
-            <button v-if="isNative || isDesktop" type="button" class="btn" @click="chooseBackupFolder">Другая папка</button>
-            <button type="button" class="btn" :disabled="busy" @click="backupNow">Сделать сейчас</button>
+            <button v-if="isNative || isDesktop" type="button" class="btn" @click="chooseBackupFolder">
+              {{ $t('Другая папка') }}
+            </button>
+            <button type="button" class="btn" :disabled="busy" @click="backupNow">{{ $t('Сделать сейчас') }}</button>
           </div>
         </template>
       </section>
 
       <section v-if="isDesktop" class="group">
-        <h2 class="gtitle">Окно</h2>
+        <h2 class="gtitle">{{ $t('Окно') }}</h2>
         <label class="row">
           <span
-            ><b>Крестик сворачивает в трей</b
-            ><small>Музыка играет дальше, значок Amber — рядом с часами. Выйти — из его меню или Ctrl+Q</small></span
+            ><b>{{ $t('Крестик сворачивает в трей') }}</b
+            ><small>{{ $t('Музыка играет дальше, значок Amber — рядом с часами. Выйти — из его меню или Ctrl+Q') }}</small></span
           >
           <input
             id="opt-tray"
@@ -577,19 +740,19 @@ async function backupNow() {
         </label>
         <label class="row">
           <span
-            ><b>Подсветка в такт музыке</b
-            ><small>Фон в цветах обложки и свечение снизу дышат по басам. Выключи, если отвлекает</small></span
+            ><b>{{ $t('Подсветка в такт музыке') }}</b
+            ><small>{{ $t('Фон в цветах обложки и свечение снизу дышат по басам. Выключи, если отвлекает') }}</small></span
           >
           <input id="opt-pulse" v-model="s.desktopPulse" type="checkbox" class="switch" />
         </label>
         <label class="row">
           <span
-            ><b>Голосовые команды</b
-            ><small
-              >«Эмбер, стоп», «Эмбер, продолжи», «Эмбер, следующий», «Эмбер, назад», «Эмбер, тише», «Эмбер, громче», «Эмбер,
-              лайк». Можно и отдельно: «Эмбер» — музыка притихнет — «следующий». Распознаётся на компьютере, без интернета; в
-              первый раз скачается модель речи (45 МБ)</small
-            ></span
+            ><b>{{ $t('Голосовые команды') }}</b
+            ><small>{{
+              $t(
+                '«Эмбер, стоп», «Эмбер, продолжи», «Эмбер, следующий», «Эмбер, назад», «Эмбер, тише», «Эмбер, громче», «Эмбер, лайк». Можно и отдельно: «Эмбер» — музыка притихнет — «следующий». Распознаётся на компьютере, без интернета; в первый раз скачается модель речи (45 МБ)',
+              )
+            }}</small></span
           >
           <input id="opt-voice" v-model="s.voice" type="checkbox" class="switch" />
         </label>
@@ -599,53 +762,172 @@ async function backupNow() {
             }}<template v-if="voice.progress != null"> · {{ Math.round(voice.progress * 100) }}%</template>…</template
           >
           <template v-else-if="voice.state === 'listening'"
-            >Слушаю<template v-if="voice.mic"> через «{{ voice.mic }}»</template
-            ><template v-if="voice.micMissing"> — выбранный микрофон не подключён, перейду на него, когда появится</template
-            ><template v-if="voice.last">. Последняя команда: {{ voice.last }}</template></template
+            >{{ $t('Слушаю') }}<template v-if="voice.mic"> {{ $t('через «{0}»', voice.mic) }}</template
+            ><template v-if="voice.micMissing">
+              {{ $t('— выбранный микрофон не подключён, перейду на него, когда появится') }}</template
+            ><template v-if="voice.last">{{ $t('. Последняя команда: {0}', voice.last) }}</template></template
           >
           <template v-else-if="voice.state === 'error'">{{ voice.error }}</template>
         </p>
         <label v-if="s.voice" class="row">
           <span
-            ><b>Микрофон для команд</b
-            ><small
-              >Например, всегда наушники — даже если подключён другой микрофон. Музыка играет туда же, куда и раньше</small
-            ></span
+            ><b>{{ $t('Микрофон для команд') }}</b
+            ><small>{{
+              $t('Например, всегда наушники — даже если подключён другой микрофон. Музыка играет туда же, куда и раньше')
+            }}</small></span
           >
           <select id="opt-voice-mic" class="select" :value="s.voiceMic?.id ?? ''" @focus="refreshMics" @change="pickMic">
-            <option value="">Основной в Windows</option>
+            <option value="">{{ $t('Основной в Windows') }}</option>
             <option v-for="m in mics" :key="m.id" :value="m.id">{{ m.label }}</option>
             <option v-if="s.voiceMic && !mics.some((m) => m.id === s.voiceMic!.id)" :value="s.voiceMic.id">
-              {{ s.voiceMic.label }} (не подключён)
+              {{ $t('{0} (не подключён)', s.voiceMic.label) }}
             </option>
           </select>
         </label>
         <p class="note">
-          Клавиши: пробел — пауза, Ctrl+→ и Ctrl+← — следующий и предыдущий, Shift+→ и Shift+← — перемотка на 10 секунд, Ctrl+↑ и
-          Ctrl+↓ — громкость, Ctrl+F — поиск, Ctrl+L — в избранное, Esc — закрыть шторку или плеер, F11 — «Сцена» (только обложка
-          на весь экран). Клавиши мультимедиа на клавиатуре и наушниках тоже работают.
+          {{
+            $t(
+              'Клавиши: пробел — пауза, Ctrl+→ и Ctrl+← — следующий и предыдущий, Shift+→ и Shift+← — перемотка на 10 секунд, Ctrl+↑ и Ctrl+↓ — громкость, Ctrl+F — поиск, Ctrl+L — в избранное, Esc — закрыть шторку или плеер, F11 — «Сцена» (только обложка на весь экран). Клавиши мультимедиа на клавиатуре и наушниках тоже работают.',
+            )
+          }}
         </p>
       </section>
 
       <section v-if="isNative" class="group">
-        <h2 class="gtitle">Работа в фоне</h2>
+        <h2 class="gtitle">{{ $t('Работа в фоне') }}</h2>
         <p class="note">
-          Некоторые оболочки останавливают фоновые приложения. Если музыка обрывается при выключенном экране, разреши Amber
-          работать без ограничений.
+          {{
+            $t(
+              'Некоторые оболочки останавливают фоновые приложения. Если музыка обрывается при выключенном экране, разреши Amber работать без ограничений.',
+            )
+          }}
         </p>
-        <button type="button" class="btn block" @click="MusicCore.openBatterySettings()">Настройки батареи</button>
+        <button type="button" class="btn block" @click="MusicCore.openBatterySettings()">{{ $t('Настройки батареи') }}</button>
       </section>
     </div>
 
     <p class="about muted">
       Amber {{ APP_VERSION }} ·
-      {{ sync.signedIn ? `синхронизация: ${sync.email}` : 'работает без сети, синхронизация — по желанию' }}
+      {{ sync.signedIn ? $t('синхронизация: {0}', sync.email) : $t('работает без сети, синхронизация — по желанию') }}
+    </p>
+    <!-- Нужна для Google Play: ссылка на политику и в самом приложении. Откроется в браузере -->
+    <p class="about">
+      <a href="https://amber.legionliner.ru/privacy/" target="_blank" rel="noopener" class="privacy">{{
+        $t('Политика конфиденциальности')
+      }}</a>
     </p>
     <div class="bottom-space" />
   </div>
 </template>
 
 <style scoped>
+.privacy {
+  color: var(--amber-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* ---- акцент и фон ---- */
+.lang-seg {
+  margin-bottom: 10px;
+}
+.pick-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+.pick-title b {
+  font: 600 15px/1.2 var(--f-body);
+}
+.pick-title small {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.accents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.acc {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--a1), var(--a2));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  transition: transform var(--t-fast) var(--ease);
+}
+.acc.on {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--a1);
+}
+.acc:active {
+  transform: scale(0.92);
+}
+.backdrops {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.bd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bd small {
+  max-width: 100%;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  text-align: center;
+  line-height: 1.2;
+}
+.bd.on small {
+  color: var(--ink);
+  font-weight: 600;
+}
+.bd:disabled {
+  opacity: 0.35;
+}
+.pv {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 0.8;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  overflow: hidden;
+}
+.bd.on .pv {
+  box-shadow: 0 0 0 2px var(--amber);
+}
+.pv-card {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 18%;
+  height: 36%;
+  border-radius: 7px;
+}
+.pv-dot {
+  position: absolute;
+  left: 18%;
+  top: 22%;
+  width: 22%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+.pv-line {
+  position: absolute;
+  left: 48%;
+  right: 16%;
+  top: 36%;
+  height: 12%;
+  border-radius: 3px;
+  opacity: 0.6;
+}
+
 .voice-state.listening {
   color: var(--amber-ink);
 }

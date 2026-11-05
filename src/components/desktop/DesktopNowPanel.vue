@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 import IconHeart from '~icons/solar/heart-linear'
 import IconHeartOn from '~icons/solar/heart-bold'
 import IconExpand from '~icons/solar/maximize-square-minimalistic-linear'
@@ -13,15 +12,15 @@ import { useLibrary } from '@/stores/library'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { useCoverGlow } from '@/app/cover-colors'
-import { artistIdOf, albumIdOf } from '@/domain/groups'
+import TrackLinks from '@/components/TrackLinks.vue'
 import { countLabel, relativeDay } from '@/domain/format'
+import { $t, $tp } from '@/i18n'
 
 /**
  * Панель «Сейчас играет» справа — то, ради чего на широком окне раньше открывали большой плеер:
  * обложка, оценка и избранное под рукой, текущие строки текста (если он синхронный) и что будет дальше.
  * Стоит в сетке окна отдельной стеклянной панелью и сворачивается кнопкой в строке заголовка.
  */
-const router = useRouter()
 const player = usePlayer()
 const library = useLibrary()
 const settings = useSettings()
@@ -40,8 +39,8 @@ const stats = computed(() => {
   const t = track.value
   if (!t) return ''
   const parts: string[] = []
-  if (t.plays) parts.push(countLabel(t.plays, ['прослушивание', 'прослушивания', 'прослушиваний']))
-  if (t.lastPlayedAt) parts.push(`последний раз ${relativeDay(t.lastPlayedAt)}`)
+  if (t.plays) parts.push(countLabel(t.plays, $tp('прослушивание|прослушивания|прослушиваний')))
+  if (t.lastPlayedAt) parts.push($t('последний раз {0}', relativeDay(t.lastPlayedAt)))
   return parts.join(' · ')
 })
 
@@ -51,32 +50,25 @@ function favorite() {
 function rate(v: number | null) {
   if (track.value) void library.setRating(track.value.key, v)
 }
-function toArtist() {
-  const name = track.value?.artists[0] ?? item.value?.artist
-  if (name) void router.push(`/artist/${encodeURIComponent(artistIdOf(name))}`)
-}
-function toAlbum() {
-  if (track.value?.album) void router.push(`/album/${encodeURIComponent(albumIdOf(track.value))}`)
-}
 </script>
 
 <template>
-  <aside v-if="item" class="nowp" aria-label="Сейчас играет" :style="{ '--c1': colors[0], '--c2': colors[1] }">
+  <aside v-if="item" class="nowp" :aria-label="$t('Сейчас играет')" :style="{ '--c1': colors[0], '--c2': colors[1] }">
     <div class="scroll body">
       <header class="head">
-        <span class="label">Сейчас играет</span>
+        <span class="label">{{ $t('Сейчас играет') }}</span>
         <button
           type="button"
           class="hbtn"
-          aria-label="Свернуть панель"
-          title="Свернуть панель"
+          :aria-label="$t('Свернуть панель')"
+          :title="$t('Свернуть панель')"
           @click="settings.s.nowPanel = false"
         >
           <IconClose />
         </button>
       </header>
 
-      <button type="button" class="art" aria-label="Открыть плеер" @click="ui.fullPlayer = true">
+      <button type="button" class="art" :aria-label="$t('Открыть плеер')" @click="ui.fullPlayer = true">
         <Transition name="np-art" mode="out-in">
           <CoverArt :key="item.qid" :art="track?.art" :seed="item.title" :label="item.title" size="l" radius="18px" />
         </Transition>
@@ -86,12 +78,8 @@ function toAlbum() {
       <Transition name="np-text" mode="out-in">
         <div :key="item.qid" class="names">
           <h2 class="display title">{{ item.title }}</h2>
-          <p class="by">
-            <button type="button" class="link" @click="toArtist">{{ item.artist }}</button>
-            <template v-if="track?.album"
-              ><span class="dot">·</span><button type="button" class="link" @click="toAlbum">{{ track.album }}</button></template
-            >
-          </p>
+          <!-- Ссылки строчные (TrackLinks): у каждого исполнителя своя, при переносе ничего не отрывается -->
+          <p class="by"><TrackLinks :track="track" :fallback="item.artist" album /></p>
         </div>
       </Transition>
 
@@ -101,7 +89,7 @@ function toAlbum() {
           type="button"
           class="hbtn heart"
           :class="{ on: track?.favoriteAt }"
-          :aria-label="track?.favoriteAt ? 'Убрать из избранного' : 'В избранное'"
+          :aria-label="track?.favoriteAt ? $t('Убрать из избранного') : $t('В избранное')"
           @click="favorite"
         >
           <IconHeartOn v-if="track?.favoriteAt" /><IconHeart v-else />
@@ -248,19 +236,6 @@ function toAlbum() {
   font-size: 13.5px;
   line-height: 1.35;
   color: var(--ink-2);
-}
-.link {
-  color: inherit;
-  text-align: left;
-}
-.link:hover {
-  color: var(--ink);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.dot {
-  margin: 0 6px;
-  color: var(--ink-3);
 }
 .rate {
   display: flex;

@@ -1,6 +1,7 @@
 import { inject, onActivated, onDeactivated, watch, type InjectionKey, type Ref } from 'vue'
 import type { RouteLocationNormalizedLoaded, RouteLocationRaw } from 'vue-router'
 import { dataRev } from './data-rev'
+import { $t } from '@/i18n'
 
 /**
  * Лента главных экранов: главная → разделы медиатеки → поиск → вкладки топа → вкладки хроники.
@@ -13,24 +14,28 @@ export const CHRON_TABS = ['overview', 'diary', 'eras', 'contexts', 'recap'] as 
 /** Разделы с подвкладками: заголовок и чипсы у них общие и стоят на месте, листаются экраны под ними */
 export const TABBED = ['library', 'top', 'chronicle'] as const
 export type TabbedSection = (typeof TABBED)[number]
-export const SECTION_TITLES: Record<TabbedSection, string> = { library: 'Медиатека', top: 'Топ', chronicle: 'Хроника' }
+export const SECTION_TITLES: Record<TabbedSection, string> = {
+  library: $t('Медиатека'),
+  top: $t('Топ'),
+  chronicle: $t('Хроника'),
+}
 export const TAB_LABELS: Record<string, string> = {
-  tracks: 'Треки',
-  playlists: 'Плейлисты',
-  albums: 'Альбомы',
-  artists: 'Исполнители',
-  folders: 'Папки',
-  genres: 'Жанры',
-  favorites: 'Избранное',
-  rank: 'Мой рейтинг',
-  duels: 'Дуэли',
-  charts: 'Чарты',
-  rate: 'Оценить',
-  overview: 'Обзор',
-  diary: 'Дневник',
-  eras: 'Эпохи',
-  contexts: 'Контексты',
-  recap: 'Итоги',
+  tracks: $t('Треки'),
+  playlists: $t('Плейлисты'),
+  albums: $t('Альбомы'),
+  artists: $t('Исполнители'),
+  folders: $t('Папки'),
+  genres: $t('Жанры'),
+  favorites: $t('Избранное'),
+  rank: $t('Мой рейтинг'),
+  duels: $t('Дуэли'),
+  charts: $t('Чарты'),
+  rate: $t('Оценить'),
+  overview: $t('Обзор'),
+  diary: $t('Дневник'),
+  eras: $t('Эпохи'),
+  contexts: $t('Контексты'),
+  recap: $t('Итоги'),
 }
 export const SECTION_TABS: Record<TabbedSection, readonly string[]> = {
   library: LIB_SECTIONS,

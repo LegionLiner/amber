@@ -4,6 +4,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { thumbIcons } from './icons'
+import { setMainLang, tr } from './lang'
 import { setYoutubeDataDir, youtubeDownload, youtubeInfo } from './youtube'
 import { voiceModelPath } from './voice'
 import { DbFile } from './db-file'
@@ -37,6 +38,8 @@ protocol.registerSchemesAsPrivileged([
 interface DesktopConfig {
   folders: string[]
   closeToTray: boolean
+  /** Язык интерфейса: его сообщает окно, а трей и диалоги берут отсюда ещё до загрузки окна */
+  lang?: 'ru' | 'en'
   /** Папка с музыкой по Wi-Fi для телефона (filesync.ts) */
   fileSync?: FileSyncConfig
   bounds?: { x: number; y: number; width: number; height: number; maximized: boolean }
@@ -264,13 +267,13 @@ function updateTray() {
   tray.setToolTip(label.length > 120 ? `${label.slice(0, 117)}…` : label)
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Открыть Amber', click: showWindow },
+      { label: tr('Открыть Amber', 'Open Amber'), click: showWindow },
       { type: 'separator' },
-      { label: nowPlaying.playing ? 'Пауза' : 'Играть', click: () => send('toggle') },
-      { label: 'Следующий', click: () => send('next') },
-      { label: 'Предыдущий', click: () => send('prev') },
+      { label: nowPlaying.playing ? tr('Пауза', 'Pause') : tr('Играть', 'Play'), click: () => send('toggle') },
+      { label: tr('Следующий', 'Next'), click: () => send('next') },
+      { label: tr('Предыдущий', 'Previous'), click: () => send('prev') },
       { type: 'separator' },
-      { label: 'Выйти', click: () => app.quit() },
+      { label: tr('Выйти', 'Quit'), click: () => app.quit() },
     ]),
   )
 }
@@ -280,13 +283,13 @@ function updateThumbar() {
   if (!win || process.platform !== 'win32') return
   const icons = thumbIcons()
   win.setThumbarButtons([
-    { tooltip: 'Предыдущий', icon: icons.prev, click: () => send('prev') },
+    { tooltip: tr('Предыдущий', 'Previous'), icon: icons.prev, click: () => send('prev') },
     {
-      tooltip: nowPlaying.playing ? 'Пауза' : 'Играть',
+      tooltip: nowPlaying.playing ? tr('Пауза', 'Pause') : tr('Играть', 'Play'),
       icon: nowPlaying.playing ? icons.pause : icons.play,
       click: () => send('toggle'),
     },
-    { tooltip: 'Следующий', icon: icons.next, click: () => send('next') },
+    { tooltip: tr('Следующий', 'Next'), icon: icons.next, click: () => send('next') },
   ])
 }
 
@@ -437,7 +440,7 @@ function setupIpc() {
   ipcMain.handle('folders:list', () => config.folders)
   ipcMain.handle('folders:add', async () => {
     const r = await dialog.showOpenDialog(win!, {
-      title: 'Папка с музыкой',
+      title: tr('Папка с музыкой', 'Music folder'),
       properties: ['openDirectory', 'multiSelections'],
       defaultPath: app.getPath('music'),
     })
@@ -469,7 +472,7 @@ function setupIpc() {
   ipcMain.handle('folders:walk', async () => (await Promise.all(config.folders.map(walk))).flat())
 
   ipcMain.handle('file:read', async (_e, p: string, start: number, end: number) => {
-    if (!allowed(p)) throw new Error('Файл вне папок с музыкой')
+    if (!allowed(p)) throw new Error(tr('Файл вне папок с музыкой', 'The file is outside the music folders'))
     const fh = await fsp.open(p, 'r')
     try {
       const len = Math.max(0, Math.min(end, (await fh.stat()).size) - start)
@@ -481,7 +484,7 @@ function setupIpc() {
     }
   })
   ipcMain.handle('file:write', async (_e, p: string, data: Uint8Array) => {
-    if (!allowed(p)) throw new Error('Файл вне папок с музыкой')
+    if (!allowed(p)) throw new Error(tr('Файл вне папок с музыкой', 'The file is outside the music folders'))
     // Сначала рядом, потом подмена: если запись прервётся, исходный файл цел
     const tmp = `${p}.amber-tmp`
     await fsp.writeFile(tmp, data)
@@ -496,7 +499,7 @@ function setupIpc() {
     return { size: st.size, mtime: Math.round(st.mtimeMs) }
   })
   ipcMain.handle('file:trash', async (_e, p: string) => {
-    if (!allowed(p)) throw new Error('Файл вне папок с музыкой')
+    if (!allowed(p)) throw new Error(tr('Файл вне папок с музыкой', 'The file is outside the music folders'))
     await shell.trashItem(p)
   })
   ipcMain.handle('file:reveal', (_e, p: string) => {
@@ -521,7 +524,7 @@ function setupIpc() {
   ipcMain.handle('dialog:open', async (_e, extensions: string[]) => {
     const r = await dialog.showOpenDialog(win!, {
       properties: ['openFile'],
-      filters: [{ name: 'Файлы', extensions }],
+      filters: [{ name: tr('Файлы', 'Files'), extensions }],
     })
     const p = r.filePaths[0]
     if (r.canceled || !p) return null
@@ -556,6 +559,14 @@ function setupIpc() {
     updateTray()
     if (changed) updateThumbar()
     win?.setTitle(s.title ? `${s.title} — Amber` : 'Amber')
+  })
+  ipcMain.on('app:lang', (_e, l: 'ru' | 'en') => {
+    setMainLang(l)
+    if (config.lang === l) return
+    config.lang = l
+    saveConfig()
+    updateTray()
+    updateThumbar()
   })
   ipcMain.on('app:quit', () => app.quit())
 
@@ -592,6 +603,7 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     loadConfig()
+    setMainLang(config.lang ?? (app.getLocale().toLowerCase().startsWith('ru') ? 'ru' : 'en'))
     setYoutubeDataDir(userData())
     Menu.setApplicationMenu(null)
     protocol.handle('app', (req) => {

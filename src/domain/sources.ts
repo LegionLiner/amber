@@ -1,20 +1,21 @@
 import type { PlaySource, SourceType } from '@/native/types'
+import { $t } from '@/i18n'
 
 const TYPE_LABEL: Record<SourceType, string> = {
-  library: 'Медиатека',
-  album: 'Альбом',
-  artist: 'Исполнитель',
-  folder: 'Папка',
-  genre: 'Жанр',
-  playlist: 'Плейлист',
-  smart: 'Подборка',
-  favorites: 'Избранное',
-  top: 'Рейтинг',
-  search: 'Поиск',
-  radio: 'Радио',
-  era: 'Эпоха',
-  context: 'Контекст',
-  track: 'Трек',
+  library: $t('Медиатека'),
+  album: $t('Альбом'),
+  artist: $t('Исполнитель'),
+  folder: $t('Папка'),
+  genre: $t('Жанр'),
+  playlist: $t('Плейлист'),
+  smart: $t('Подборка'),
+  favorites: $t('Избранное'),
+  top: $t('Рейтинг'),
+  search: $t('Поиск'),
+  radio: $t('Радио'),
+  era: $t('Эпоха'),
+  context: $t('Контекст'),
+  track: $t('Трек'),
 }
 
 export function sourceLabel(s: PlaySource): string {

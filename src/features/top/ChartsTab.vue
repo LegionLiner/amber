@@ -9,6 +9,7 @@ import { archivedWeek, archivedWeeks, chartHistory, liveWeekChart, type ChartEnt
 import { prevWeek, weekKey, weekLabel } from '@/domain/weeks'
 import { displayArtist, type Track } from '@/domain/track'
 import { onPageShown } from '@/app/paging'
+import { $t } from '@/i18n'
 
 /**
  * Чарты по прослушиваниям. Неделя — топ-20 с понедельника; закрытые недели хранятся в архиве,
@@ -57,7 +58,7 @@ function move(key: string, pos: number): number | 'new' | 're' | null {
 }
 function sub(t: Track): string {
   const h = history.value.get(t.key)
-  return h ? `${displayArtist(t)} · пик ${h.peak}, ${h.weeks} нед.` : displayArtist(t)
+  return h ? $t('{0} · пик {1}, {2} нед.', displayArtist(t), h.peak, h.weeks) : displayArtist(t)
 }
 
 const allTime = computed(() =>
@@ -71,14 +72,20 @@ const allTime = computed(() =>
 <template>
   <section>
     <div class="weekbar">
-      <button type="button" class="icon-btn" :disabled="idx >= weeks.length - 1" aria-label="Неделя раньше" @click="step(1)">
+      <button
+        type="button"
+        class="icon-btn"
+        :disabled="idx >= weeks.length - 1"
+        :aria-label="$t('Неделя раньше')"
+        @click="step(1)"
+      >
         <IconLeft />
       </button>
       <div class="wk">
-        <b>{{ week === current ? 'Эта неделя' : weekLabel(week) }}</b>
-        <small class="muted">{{ week === current ? `${weekLabel(week)}, идёт сейчас` : week }}</small>
+        <b>{{ week === current ? $t('Эта неделя') : weekLabel(week) }}</b>
+        <small class="muted">{{ week === current ? $t('{0}, идёт сейчас', weekLabel(week)) : week }}</small>
       </div>
-      <button type="button" class="icon-btn" :disabled="idx <= 0" aria-label="Неделя позже" @click="step(-1)">
+      <button type="button" class="icon-btn" :disabled="idx <= 0" :aria-label="$t('Неделя позже')" @click="step(-1)">
         <IconRight />
       </button>
     </div>
@@ -96,14 +103,17 @@ const allTime = computed(() =>
         player.playTracks(
           entries.map((x) => x.track),
           i,
-          { type: 'top', id: `week-${week}`, title: `Чарт недели` },
+          { type: 'top', id: `week-${week}`, title: $t('Чарт недели') },
           { shuffle: false },
         )
       "
     />
-    <p v-if="!entries.length" class="lead muted">За эту неделю ещё ничего не засчитано.</p>
+    <p v-if="!entries.length" class="lead muted">{{ $t('За эту неделю ещё ничего не засчитано.') }}</p>
 
-    <div class="section-title"><span>Вечный чарт</span><span class="muted small">за всё время</span></div>
+    <div class="section-title">
+      <span>{{ $t('Вечный чарт') }}</span
+      ><span class="muted small">{{ $t('за всё время') }}</span>
+    </div>
     <RankRow
       v-for="(t, i) in allTime"
       :key="t.key"
@@ -111,9 +121,9 @@ const allTime = computed(() =>
       :track="t"
       :right="`${t.plays}×`"
       :now="player.current?.key === t.key"
-      @tap="player.playTracks(allTime, i, { type: 'top', id: 'all', title: 'Вечный чарт' }, { shuffle: false })"
+      @tap="player.playTracks(allTime, i, { type: 'top', id: 'all', title: $t('Вечный чарт') }, { shuffle: false })"
     />
-    <p v-if="!allTime.length" class="lead muted">Послушай что-нибудь, и здесь появится твой вечный чарт.</p>
+    <p v-if="!allTime.length" class="lead muted">{{ $t('Послушай что-нибудь, и здесь появится твой вечный чарт.') }}</p>
   </section>
 </template>
 

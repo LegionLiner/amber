@@ -1,3 +1,4 @@
+import { $t } from '@/i18n'
 /** Календарные сезоны: зима — декабрь…февраль и носит двойной год («Зима 2025/26») */
 
 export interface Season {
@@ -21,14 +22,14 @@ export function seasonOf(d: Date): Season {
     const sy = m === 11 ? y : y - 1
     return {
       id: `${sy}-winter`,
-      title: `Зима ${sy}/${pad((sy + 1) % 100)}`,
+      title: $t('Зима {0}/{1}', sy, pad((sy + 1) % 100)),
       startDay: `${sy}-12-01`,
       endDay: lastDayOfFeb(sy + 1),
     }
   }
-  if (m <= 4) return { id: `${y}-spring`, title: `Весна ${y}`, startDay: `${y}-03-01`, endDay: `${y}-05-31` }
-  if (m <= 7) return { id: `${y}-summer`, title: `Лето ${y}`, startDay: `${y}-06-01`, endDay: `${y}-08-31` }
-  return { id: `${y}-autumn`, title: `Осень ${y}`, startDay: `${y}-09-01`, endDay: `${y}-11-30` }
+  if (m <= 4) return { id: `${y}-spring`, title: $t('Весна {0}', y), startDay: `${y}-03-01`, endDay: `${y}-05-31` }
+  if (m <= 7) return { id: `${y}-summer`, title: $t('Лето {0}', y), startDay: `${y}-06-01`, endDay: `${y}-08-31` }
+  return { id: `${y}-autumn`, title: $t('Осень {0}', y), startDay: `${y}-09-01`, endDay: `${y}-11-30` }
 }
 
 /** Все сезоны, которые задевает промежуток дат, от старых к новым */

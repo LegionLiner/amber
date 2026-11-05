@@ -15,6 +15,7 @@ import type { ExecResult, QueryResult as BridgeResult, SqlStatement, SqlValue } 
 import type { DB } from './schema'
 import { MIGRATIONS } from './migrations'
 import { localRev } from '@/app/data-rev'
+import { $t } from '@/i18n'
 
 /**
  * Кто-то записал в базу из интерфейса: синхронизация по этому сигналу сразу смотрит журнал изменений.
@@ -67,7 +68,7 @@ class BridgeConnection implements DatabaseConnection {
   }
 
   async *streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
-    throw new Error('Потоковые запросы через мост не поддерживаются')
+    throw new Error($t('Потоковые запросы через мост не поддерживаются'))
   }
 }
 
@@ -80,7 +81,7 @@ class BridgeDriver implements Driver {
   async beginTransaction(): Promise<void> {
     // Транзакция через мост = несколько вызовов подряд, а между ними может писать движок.
     // Поэтому атомарные группы запросов отправляем одним вызовом: см. batch() ниже.
-    throw new Error('Для атомарных изменений используй batch()')
+    throw new Error($t('Для атомарных изменений используй batch()'))
   }
   async commitTransaction() {}
   async rollbackTransaction() {}

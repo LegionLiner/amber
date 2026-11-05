@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amber — политика конфиденциальности</title>
+<meta name="description" content="Как музыкальный плеер Amber обрабатывает данные пользователя">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f4f0;
+    --card: #ffffff;
+    --ink: #1a1714;
+    --ink-2: #5f584f;
+    --line: rgba(30, 20, 10, 0.1);
+    --accent: #9e5300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0d0c;
+      --card: #191714;
+      --ink: #f5f1ea;
+      --ink-2: #a89f92;
+      --line: rgba(255, 240, 220, 0.1);
+      --accent: #ffb23e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+  header { margin-bottom: 28px; }
+  .brand { color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
+  h1 { font-size: clamp(26px, 6vw, 36px); line-height: 1.15; margin: 6px 0 10px; }
+  h2 { font-size: 20px; margin: 34px 0 10px; }
+  h3 { font-size: 16.5px; margin: 22px 0 6px; }
+  p, li { color: var(--ink); }
+  .muted { color: var(--ink-2); }
+  ul { padding-left: 22px; }
+  li { margin: 6px 0; }
+  a { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; margin: 14px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink-2); font-weight: 600; }
+  .lang { display: flex; gap: 14px; font-size: 14.5px; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 56px 0 8px; }
+  @media (max-width: 560px) {
+    table, thead, tbody, tr, th, td { display: block; }
+    thead { display: none; }
+    tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+    td { border: 0; padding: 3px 0; }
+    td:first-child { font-weight: 600; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">Amber</div>
+    <h1>Политика конфиденциальности</h1>
+    <p class="muted">Действует с 5 ноября 2026 года · <a href="#en">English version</a></p>
+  </header>
+
+  <div class="card">
+    <p><b>Коротко.</b> Amber — музыкальный плеер для ваших собственных файлов. Он работает на устройстве и не требует
+    учётной записи. Ваша медиатека, история прослушиваний, оценки и заметки хранятся только на вашем устройстве.
+    Мы не собираем аналитику, не показываем рекламу, не продаём и не передаём ваши данные третьим лицам.
+    Сеть используется только для двух функций, которые вы можете выключить: поиска текстов песен и синхронизации папки
+    с вашим компьютером по Wi-Fi.</p>
+  </div>
+
+  <h2>1. О чём эта политика</h2>
+  <p>Политика описывает, как приложение Amber для Android (далее — «приложение») обращается с данными пользователя,
+  а также как оно взаимодействует с программой Amber для компьютера, если вы связали их для синхронизации музыки
+  по Wi-Fi. Разработчик приложения — Дмитрий Королев (далее — «мы»).</p>
+
+  <h2>2. Какие данные обрабатывает приложение</h2>
+  <p>Все перечисленные данные создаются и хранятся <b>только на вашем устройстве</b>, во внутренней памяти приложения.
+  Мы не получаем к ним доступа.</p>
+  <table>
+    <thead><tr><th>Данные</th><th>Зачем</th></tr></thead>
+    <tbody>
+      <tr><td>Аудиофайлы на устройстве: названия файлов, папки, теги (название, исполнитель, альбом, жанр, год), обложки, длительность</td>
+        <td>Чтобы показать медиатеку и воспроизводить музыку. Сами файлы не копируются и никуда не отправляются.</td></tr>
+      <tr><td>История прослушиваний: какой трек, когда и сколько звучал, был ли пропущен</td>
+        <td>Статистика, хроника, итоги месяца и года, рекомендации внутри приложения.</td></tr>
+      <tr><td>Ваши действия: оценки, избранное, плейлисты, метки в треках, правки тегов, заметки и настроение в дневнике, эпохи и контексты</td>
+        <td>Работа соответствующих функций приложения.</td></tr>
+      <tr><td>Анализ звука треков: громкость, тишина в начале и в конце, волна, темп</td>
+        <td>Выравнивание громкости, плавные переходы между треками, отображение волны.</td></tr>
+      <tr><td>Названия устройств вывода звука (например, Bluetooth-наушников)</td>
+        <td>Отдельные настройки звука для каждых наушников и контексты, которые включаются при подключении устройства.</td></tr>
+      <tr><td>Настройки приложения</td>
+        <td>Чтобы приложение работало так, как вы его настроили.</td></tr>
+      <tr><td>История Spotify — только если вы сами её импортировали из файлов выгрузки Spotify</td>
+        <td>Чтобы учесть её в статистике. Файлы читаются на устройстве; приложение не подключается к Spotify.</td></tr>
+    </tbody>
+  </table>
+  <p>Приложение <b>не собирает</b>: имя, адрес электронной почты, номер телефона, контакты, местоположение,
+  рекламный идентификатор, сведения о других установленных приложениях. В приложении нет сторонних библиотек
+  аналитики, рекламы или отслеживания.</p>
+
+  <h2>3. Разрешения и зачем они нужны</h2>
+  <ul>
+    <li><b>Доступ к аудиофайлам</b> (READ_MEDIA_AUDIO, на старых версиях Android — чтение памяти) — найти и воспроизвести вашу музыку.</li>
+    <li><b>Доступ ко всем файлам</b> (MANAGE_EXTERNAL_STORAGE) — запрашивается, только если вы включаете синхронизацию папки
+      с компьютером по Wi-Fi: приложению нужно добавлять, обновлять и убирать файлы в выбранной вами папке с музыкой.
+      Без этой функции разрешение не требуется. Приложение работает только с папкой, которую вы выбрали.</li>
+    <li><b>Уведомления и фоновое воспроизведение</b> (POST_NOTIFICATIONS, FOREGROUND_SERVICE, WAKE_LOCK) — чтобы музыка играла
+      при выключенном экране, а в уведомлении и на экране блокировки были кнопки управления.</li>
+    <li><b>Интернет</b> — для поиска текстов песен (раздел 4).</li>
+    <li><b>Состояние Wi-Fi и мультикаст</b> (ACCESS_WIFI_STATE, CHANGE_WIFI_MULTICAST_STATE) — чтобы найти ваш компьютер с Amber
+      в локальной сети для синхронизации папки.</li>
+  </ul>
+
+  <h2>4. Что может покинуть устройство</h2>
+
+  <h3>4.1. Поиск текстов песен (LRCLIB)</h3>
+  <p>Если в файле нет текста песни, приложение может найти его в открытой бесплатной базе
+  <a href="https://lrclib.net" rel="noopener">LRCLIB</a> (lrclib.net), стороннем сервисе. Для этого на сервер LRCLIB
+  отправляются <b>исполнитель, название, альбом и длительность трека</b>. Как и при открытии любого сайта, сервер видит
+  IP-адрес вашего устройства. Никакие другие данные не передаются, учётная запись не нужна.
+  Функцию можно выключить: <i>Настройки → «Тексты песен из LRCLIB»</i>.</p>
+
+  <h3>4.2. Синхронизация папки с вашим компьютером по Wi-Fi</h3>
+  <p>Если вы сами свяжете телефон с программой Amber на своём компьютере (по коду сопряжения, который показывает
+  компьютер), приложение будет обмениваться с ним музыкальными файлами выбранной папки и их списками.</p>
+  <ul>
+    <li>Обмен идёт <b>напрямую между вашими устройствами в локальной сети</b>, без интернета и без наших серверов.</li>
+    <li>Доступ есть только у устройств, которые вы связали кодом. Связь можно разорвать в любой момент:
+      <i>Настройки → «Папка по Wi-Fi» → «Отключить компьютер»</i>.</li>
+    <li>Данные внутри локальной сети передаются без шифрования, поэтому пользуйтесь синхронизацией в доверенной сети
+      (например, дома), а не в общественной.</li>
+    <li>Файлы, удалённые или заменённые при синхронизации, не стираются сразу: они перемещаются в корзину внутри
+      выбранной папки и удаляются оттуда через 30 дней.</li>
+  </ul>
+
+  <h3>4.3. Резервные копии</h3>
+  <p>Вы можете сохранить резервную копию данных приложения (историю, оценки, плейлисты, настройки) в файл или включить
+  автоматическое резервное копирование. Копия сохраняется <b>только в папку, которую вы выбрали</b>. Если эта папка
+  синхронизируется облачным сервисом (например, Google Диском), дальше к копии применяются правила этого сервиса.</p>
+
+  <h3>4.4. Системные функции Android</h3>
+  <p>Во время воспроизведения приложение передаёт системе Android название трека, исполнителя и обложку, чтобы
+  показать их в уведомлении, на экране блокировки, на подключённых часах, в автомобиле или наушниках. Это стандартный
+  механизм управления воспроизведением Android; приложение не передаёт эти сведения куда-либо ещё.</p>
+
+  <h3>4.5. Чего приложение не делает</h3>
+  <ul>
+    <li>не продаёт и не передаёт ваши данные третьим лицам, рекламным и аналитическим сервисам;</li>
+    <li>не отправляет нам вашу медиатеку, историю прослушиваний или другие данные;</li>
+    <li>не загружает ваши аудиофайлы в интернет.</li>
+  </ul>
+
+  <h2>5. Программа Amber для компьютера</h2>
+  <p>Компьютерная версия так же хранит всё на компьютере и так же может искать тексты песен в LRCLIB.
+  В ней есть необязательные голосовые команды («Эмбер, следующий»): речь распознаётся прямо на компьютере,
+  звук с микрофона не сохраняется и никуда не отправляется. При первом включении голосовых команд модель распознавания
+  речи один раз скачивается с сайта <a href="https://alphacephei.com/vosk/" rel="noopener">alphacephei.com</a>
+  (проект Vosk); при этом сайт видит только IP-адрес компьютера.</p>
+
+  <h2>6. Хранение и удаление данных</h2>
+  <p>Данные хранятся на устройстве, пока установлено приложение. Отдельные записи (плейлисты, оценки, метки, заметки,
+  эпохи, контексты) можно удалить в самом приложении. Чтобы удалить все данные приложения, очистите его данные
+  в настройках Android (<i>Настройки → Приложения → Amber → Хранилище → Очистить данные</i>) или удалите приложение.
+  Ваши аудиофайлы при этом остаются на месте. Резервные копии, которые вы сохранили в свои папки, удаляются вами вручную.
+  Поскольку мы не получаем ваших данных, у нас нечего удалять на своей стороне.</p>
+
+  <h2>7. Безопасность</h2>
+  <p>Данные хранятся во внутренней памяти приложения, недоступной другим приложениям. Запросы к LRCLIB идут по
+  защищённому соединению HTTPS. Обмен с компьютером по Wi-Fi возможен только после сопряжения кодом.</p>
+
+  <h2>8. Дети</h2>
+  <p>Приложение не предназначено специально для детей и не собирает персональные данные детей.</p>
+
+  <h2>9. Изменения политики</h2>
+  <p>Если приложение начнёт обрабатывать данные иначе, мы обновим эту страницу и дату вверху. О существенных
+  изменениях сообщим в описании обновления приложения.</p>
+
+  <h2>10. Связь</h2>
+  <p>Вопросы о конфиденциальности можно задать разработчику через страницу Amber в Google Play
+  (раздел «Связаться с разработчиком»).</p>
+
+  <hr id="en">
+
+  <h1>Privacy Policy</h1>
+  <p class="muted">Effective November 5, 2026 · English translation. The Russian version above takes precedence.</p>
+
+  <div class="card">
+    <p><b>In short.</b> Amber is a music player for your own audio files. It runs on your device and needs no account.
+    Your library, listening history, ratings and notes are stored only on your device. We do not collect analytics,
+    show ads, sell or share your data with third parties. The network is used only for two features you can turn off:
+    lyrics lookup and syncing a music folder with your own computer over Wi-Fi.</p>
+  </div>
+
+  <h2>1. Scope</h2>
+  <p>This policy describes how the Amber app for Android ("the app") handles user data, and how it interacts with the
+  Amber desktop program if you pair them to sync music over Wi-Fi. The app is developed by Dmitry Korolev ("we").</p>
+
+  <h2>2. Data the app processes</h2>
+  <p>All of the following is created and stored <b>only on your device</b>, in the app's private storage. We have no access to it.</p>
+  <ul>
+    <li><b>Audio files on the device</b>: file names, folders, tags (title, artist, album, genre, year), cover art, duration — to show your library and play music. Files are not copied or uploaded anywhere.</li>
+    <li><b>Listening history</b>: which track, when and how long it played, whether it was skipped — for statistics, the chronicle, monthly and yearly recaps and in-app recommendations.</li>
+    <li><b>Your actions</b>: ratings, favorites, playlists, bookmarks in tracks, tag edits, diary notes and moods, eras and contexts — to provide these features.</li>
+    <li><b>Audio analysis</b>: loudness, leading and trailing silence, waveform, tempo — for volume leveling, smooth transitions and the waveform display.</li>
+    <li><b>Names of audio output devices</b> (e.g. Bluetooth headphones) — for per-headphone sound settings and contexts that start when a device connects.</li>
+    <li><b>App settings</b>.</li>
+    <li><b>Spotify history</b> — only if you import it yourself from Spotify data export files; the files are read on the device and the app never connects to Spotify.</li>
+  </ul>
+  <p>The app does <b>not</b> collect your name, email, phone number, contacts, location, advertising ID or information
+  about other installed apps. It contains no third-party analytics, advertising or tracking libraries.</p>
+
+  <h2>3. Permissions</h2>
+  <ul>
+    <li><b>Audio files</b> (READ_MEDIA_AUDIO; storage read on older Android) — to find and play your music.</li>
+    <li><b>All files access</b> (MANAGE_EXTERNAL_STORAGE) — requested only if you turn on Wi-Fi folder sync with your computer: the app needs to add, update and remove files in the music folder you choose. It is not needed otherwise, and the app works only with the folder you chose.</li>
+    <li><b>Notifications and background playback</b> (POST_NOTIFICATIONS, FOREGROUND_SERVICE, WAKE_LOCK) — to keep playing with the screen off and show playback controls.</li>
+    <li><b>Internet</b> — for lyrics lookup (section 4).</li>
+    <li><b>Wi-Fi state and multicast</b> (ACCESS_WIFI_STATE, CHANGE_WIFI_MULTICAST_STATE) — to find your computer running Amber on the local network.</li>
+  </ul>
+
+  <h2>4. What may leave the device</h2>
+  <h3>4.1. Lyrics lookup (LRCLIB)</h3>
+  <p>If a file has no lyrics, the app can look them up in <a href="https://lrclib.net" rel="noopener">LRCLIB</a>, a free open
+  third-party lyrics database. The <b>artist, title, album and duration</b> of the track are sent to LRCLIB; like any website,
+  its server sees your device's IP address. Nothing else is sent and no account is needed.
+  You can turn this off: <i>Settings → “Lyrics from LRCLIB”</i>.</p>
+  <h3>4.2. Folder sync with your computer over Wi-Fi</h3>
+  <p>If you pair the phone with the Amber program on your own computer (using a code shown on the computer), the app
+  exchanges the music files of the chosen folder and their lists with it. The exchange happens <b>directly between your
+  devices on the local network</b>, without the internet and without our servers. Only devices you paired with a code have
+  access; you can unpair at any time. Data on the local network is transferred unencrypted, so use sync on a trusted network
+  (e.g. at home). Files removed or replaced during sync are not erased right away: they are moved to a trash folder inside the chosen folder and deleted from there after 30 days.</p>
+  <h3>4.3. Backups</h3>
+  <p>You can save a backup of the app's data (history, ratings, playlists, settings) to a file or turn on automatic backups.
+  The backup is saved <b>only to a folder you choose</b>. If that folder is synced by a cloud service, that service's terms apply.</p>
+  <h3>4.4. Android system features</h3>
+  <p>During playback the app passes the track title, artist and cover art to Android to show them in the notification, on the
+  lock screen and on connected watches, cars or headphones. This is Android's standard media control mechanism.</p>
+  <h3>4.5. What the app does not do</h3>
+  <p>It does not sell or share your data with third parties, advertising or analytics services; does not send us your library,
+  listening history or other data; and does not upload your audio files.</p>
+
+  <h2>5. Amber for desktop</h2>
+  <p>The desktop version also keeps everything on the computer and can also look up lyrics in LRCLIB. It has optional voice
+  commands: speech is recognized locally on the computer, and microphone audio is neither stored nor sent anywhere. The first time
+  voice commands are turned on, the speech model is downloaded once from <a href="https://alphacephei.com/vosk/" rel="noopener">alphacephei.com</a>
+  (the Vosk project), which sees only the computer's IP address.</p>
+
+  <h2>6. Retention and deletion</h2>
+  <p>Data is kept on the device while the app is installed. Individual records can be deleted in the app. To delete all app data,
+  clear the app's storage in Android settings or uninstall the app; your audio files remain untouched. Backups you saved to your
+  own folders are removed by you. Since we receive no data, there is nothing to delete on our side.</p>
+
+  <h2>7. Security</h2>
+  <p>Data is kept in the app's private storage, inaccessible to other apps. Requests to LRCLIB use HTTPS. Exchange with a computer
+  over Wi-Fi is possible only after pairing with a code.</p>
+
+  <h2>8. Children</h2>
+  <p>The app is not specifically directed at children and does not collect children's personal data.</p>
+
+  <h2>9. Changes</h2>
+  <p>If the app starts handling data differently, we will update this page and the date above, and mention significant changes
+  in the app's release notes.</p>
+
+  <h2>10. Contact</h2>
+  <p>Privacy questions can be sent to the developer through Amber's page on Google Play (“Contact developer”).</p>
+</main>
+</body>
+</html>

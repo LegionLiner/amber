@@ -7,6 +7,7 @@ import { clearOverrides, restoreTagFiles, saveTags, tagBackupKeys, type TagEdit 
 import { pickImage, type PickedImage } from '@/app/pick-image'
 import CoverArt from './CoverArt.vue'
 import type { Track } from '@/domain/track'
+import { $t } from '@/i18n'
 
 /**
  * Правка тегов одного трека или сразу нескольких (альбом целиком).
@@ -61,11 +62,11 @@ async function restoreFiles() {
   try {
     const n = await restoreTagFiles(restorable.value)
     await library.scan(false)
-    ui.toast(n ? 'Файл возвращён как был до правки' : 'Не получилось вернуть файл')
+    ui.toast(n ? $t('Файл возвращён как был до правки') : $t('Не получилось вернуть файл'))
     emit('close')
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if (!/cancel|отмен|разреш/i.test(msg)) ui.toast(`Не получилось: ${msg}`)
+    if (!/cancel|отмен|разреш/i.test(msg)) ui.toast($t('Не получилось: {0}', msg))
   } finally {
     busy.value = false
   }
@@ -91,11 +92,12 @@ async function save() {
     settings.s.writeTagsToFiles = toFiles.value
     const r = await saveTags(tracks.value, edits, toFiles.value)
     await library.load()
-    if (r.written && !r.failed.length) ui.toast(r.written === 1 ? 'Теги записаны в файл' : `Теги записаны в ${r.written} файлов`)
-    else if (r.written) ui.toast(`Записано в файлы: ${r.written}, остальное сохранено в приложении`, undefined, 5000)
+    if (r.written && !r.failed.length)
+      ui.toast(r.written === 1 ? $t('Теги записаны в файл') : $t('Теги записаны в {0} файлов', r.written))
+    else if (r.written) ui.toast($t('Записано в файлы: {0}, остальное сохранено в приложении', r.written), undefined, 5000)
     else if (toFiles.value && r.failed.length)
-      ui.toast(`В файл не записалось: ${r.failed[0]!.reason}. Правка сохранена в приложении`, undefined, 6000)
-    else ui.toast('Сохранено в приложении')
+      ui.toast($t('В файл не записалось: {0}. Правка сохранена в приложении', r.failed[0]!.reason), undefined, 6000)
+    else ui.toast($t('Сохранено в приложении'))
     emit('close')
   } finally {
     busy.value = false
@@ -105,42 +107,56 @@ async function save() {
 async function reset() {
   await clearOverrides(tracks.value.map((t) => t.key))
   await library.load()
-  ui.toast('Показываются теги из файлов')
+  ui.toast($t('Показываются теги из файлов'))
   emit('close')
 }
 </script>
 
 <template>
   <div class="sheet-body form">
-    <h3 class="sheet-head">{{ single ? 'Теги трека' : `Теги: ${tracks.length} треков` }}</h3>
+    <h3 class="sheet-head">{{ single ? $t('Теги трека') : $t('Теги: {0} треков', tracks.length) }}</h3>
     <p v-if="single && first" class="note ellipsis">{{ first.fileName }}</p>
     <div class="cover-row">
       <img v-if="picture" :src="picture.url" alt="" class="cover-pick" />
       <CoverArt v-else-if="first" :art="first.art" :seed="first.title" :label="first.title" size="m" class="cover-pick" />
       <div class="cover-text">
-        <b>Обложка</b>
+        <b>{{ $t('Обложка') }}</b>
         <small>{{
-          picture ? 'Запишется в файл вместе с тегами' : single ? 'Своя картинка для этого трека' : 'Одна картинка на все треки'
+          picture
+            ? $t('Запишется в файл вместе с тегами')
+            : single
+              ? $t('Своя картинка для этого трека')
+              : $t('Одна картинка на все треки')
         }}</small>
         <button type="button" class="btn small-btn" @click="choosePicture">
-          {{ picture ? 'Другая картинка' : 'Выбрать картинку' }}
+          {{ picture ? $t('Другая картинка') : $t('Выбрать картинку') }}
         </button>
       </div>
     </div>
-    <label v-if="single" class="fl"><span>Название</span><input id="tag-title" v-model="form.title" class="field" /></label>
+    <label v-if="single" class="fl"
+      ><span>{{ $t('Название') }}</span
+      ><input id="tag-title" v-model="form.title" class="field"
+    /></label>
     <label class="fl"
-      ><span>Исполнитель</span
+      ><span>{{ $t('Исполнитель') }}</span
       ><input
         id="tag-artist"
         v-model="form.artist"
         class="field"
-        :placeholder="single ? '' : 'разные — оставь пустым, чтобы не менять'"
+        :placeholder="single ? '' : $t('разные — оставь пустым, чтобы не менять')"
     /></label>
-    <label class="fl"><span>Альбом</span><input id="tag-album" v-model="form.album" class="field" /></label>
+    <label class="fl"
+      ><span>{{ $t('Альбом') }}</span
+      ><input id="tag-album" v-model="form.album" class="field"
+    /></label>
     <div class="two">
-      <label class="fl"><span>Жанр</span><input id="tag-genre" v-model="form.genre" class="field" /></label>
       <label class="fl"
-        ><span>Год</span><input id="tag-year" v-model.number="form.year" class="field" inputmode="numeric"
+        ><span>{{ $t('Жанр') }}</span
+        ><input id="tag-genre" v-model="form.genre" class="field"
+      /></label>
+      <label class="fl"
+        ><span>{{ $t('Год') }}</span
+        ><input id="tag-year" v-model.number="form.year" class="field" inputmode="numeric"
       /></label>
       <label v-if="single" class="fl"
         ><span>№</span><input id="tag-no" v-model.number="form.trackNo" class="field" inputmode="numeric"
@@ -148,15 +164,19 @@ async function reset() {
     </div>
     <label class="row">
       <span
-        ><b>Записать в файлы</b
-        ><small>mp3 и m4a (AAC), формат определяется по содержимому. Android спросит разрешение</small></span
+        ><b>{{ $t('Записать в файлы') }}</b
+        ><small>{{ $t('mp3 и m4a (AAC), формат определяется по содержимому. Android спросит разрешение') }}</small></span
       >
       <input id="tag-to-files" v-model="toFiles" type="checkbox" class="switch" />
     </label>
     <div class="btns">
-      <button v-if="hasOverrides" type="button" class="btn" :disabled="busy" @click="reset">Как в файле</button>
-      <button v-if="restorable.length" type="button" class="btn" :disabled="busy" @click="restoreFiles">Вернуть файл</button>
-      <button type="button" class="btn primary" :disabled="busy" @click="save">{{ busy ? 'Сохраняю…' : 'Сохранить' }}</button>
+      <button v-if="hasOverrides" type="button" class="btn" :disabled="busy" @click="reset">{{ $t('Как в файле') }}</button>
+      <button v-if="restorable.length" type="button" class="btn" :disabled="busy" @click="restoreFiles">
+        {{ $t('Вернуть файл') }}
+      </button>
+      <button type="button" class="btn primary" :disabled="busy" @click="save">
+        {{ busy ? $t('Сохраняю…') : $t('Сохранить') }}
+      </button>
     </div>
   </div>
 </template>

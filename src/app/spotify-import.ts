@@ -1,5 +1,6 @@
 import { isHistoryFile, parseStreamingHistory, type SpotifyStream } from '@/domain/spotify'
 import { listZip, readZipEntry } from '@/domain/zip'
+import { $t } from '@/i18n'
 
 /**
  * Читает выбранные файлы выгрузки Spotify: сам архив my_spotify_data.zip или JSON-файлы из него.
@@ -25,6 +26,6 @@ export async function readSpotifyFiles(files: File[]): Promise<{ streams: Spotif
       take(f.name, await f.text())
     }
   }
-  if (!used) throw new Error('В файлах нет истории прослушиваний Spotify (Streaming_History_Audio_*.json)')
+  if (!used) throw new Error($t('В файлах нет истории прослушиваний Spotify (Streaming_History_Audio_*.json)'))
   return { streams, files: used }
 }

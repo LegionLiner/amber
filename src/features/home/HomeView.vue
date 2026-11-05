@@ -33,6 +33,7 @@ import { stampedLoad } from '@/app/data-rev'
 import { isDesktop } from '@/native/desktop/bridge'
 import { useCoverGlow } from '@/app/cover-colors'
 import { displayArtist } from '@/domain/track'
+import { $t, $tp } from '@/i18n'
 
 const library = useLibrary()
 const player = usePlayer()
@@ -100,21 +101,19 @@ const favoritesOrBest = computed(() => {
 })
 const subtitle = computed(() => {
   const season = seasonOf(new Date())
-  return library.tracks.length
-    ? `${season.title} · ${countLabel(library.tracks.length, ['трек', 'трека', 'треков'])}`
-    : season.title
+  return library.tracks.length ? `${season.title} · ${countLabel(library.tracks.length, $tp('трек|трека|треков'))}` : season.title
 })
 
 function play(list: Track[], i: number, source: PlaySource, shuffle = false) {
   void player.playTracks(list, shuffle ? -1 : i, source, { shuffle })
 }
 
-const smartMix = () => play(library.tracks, -1, { type: 'library', title: 'Умный микс' }, true)
-const favMix = () => play(favoritesOrBest.value, -1, { type: 'favorites', title: 'Любимое' }, true)
-const forgottenMix = () => play(forgotten.value, -1, { type: 'smart', title: 'Давно не слушал' }, true)
+const smartMix = () => play(library.tracks, -1, { type: 'library', title: $t('Умный микс') }, true)
+const favMix = () => play(favoritesOrBest.value, -1, { type: 'favorites', title: $t('Любимое') }, true)
+const forgottenMix = () => play(forgotten.value, -1, { type: 'smart', title: $t('Давно не слушал') }, true)
 
-const weekSource: PlaySource = { type: 'top', id: 'week', title: 'Топ недели' }
-const freshSource: PlaySource = { type: 'smart', title: 'Недавно добавленные' }
+const weekSource: PlaySource = { type: 'top', id: 'week', title: $t('Топ недели') }
+const freshSource: PlaySource = { type: 'smart', title: $t('Недавно добавленные') }
 
 /* Окно компьютера: главная — асимметричной сеткой, а первая плитка светится цветом того, что играет */
 const glow = useCoverGlow(() => ({
@@ -123,7 +122,7 @@ const glow = useCoverGlow(() => ({
   color1: player.currentTrack?.color1,
   color2: player.currentTrack?.color2,
 }))
-const tracksLabel = (n: number) => countLabel(n, ['трек', 'трека', 'треков'])
+const tracksLabel = (n: number) => countLabel(n, $tp('трек|трека|треков'))
 
 /* ---- контекст «сейчас»: запущенный вручную или подходящий по правилам ---- */
 const ctxNow = computed(() => activeContext(contexts.value, new Date(), player.output))
@@ -144,17 +143,19 @@ async function myRadio() {
     <header v-if="!isDesktop || !library.tracks.length" class="hdr">
       <div class="top">
         <span class="brand display">Amber</span>
-        <button type="button" class="icon-btn" aria-label="Настройки" @click="router.push('/settings')"><IconSettings /></button>
+        <button type="button" class="icon-btn" :aria-label="$t('Настройки')" @click="router.push('/settings')">
+          <IconSettings />
+        </button>
       </div>
       <h1 class="display hello">{{ hello }}</h1>
       <p class="muted sub">{{ subtitle }}</p>
     </header>
 
     <div v-if="library.loaded && !library.tracks.length" class="empty">
-      <h3>Музыки пока нет</h3>
-      <p>Найдём mp3 на телефоне. Это займёт минуту, дальше сканирование только по изменениям.</p>
+      <h3>{{ $t('Музыки пока нет') }}</h3>
+      <p>{{ $t('Найдём mp3 на телефоне. Это займёт минуту, дальше сканирование только по изменениям.') }}</p>
       <button type="button" class="btn primary" :disabled="library.scanning" @click="library.scan(true)">
-        <IconRefresh />{{ library.scanning ? 'Ищу…' : 'Найти музыку' }}
+        <IconRefresh />{{ library.scanning ? $t('Ищу…') : $t('Найти музыку') }}
       </button>
     </div>
 
@@ -169,8 +170,8 @@ async function myRadio() {
             <button
               type="button"
               class="icon-btn"
-              aria-label="Настройки"
-              title="Настройки (Ctrl+,)"
+              :aria-label="$t('Настройки')"
+              :title="$t('Настройки (Ctrl+,)')"
               @click="router.push('/settings')"
             >
               <IconSettings />
@@ -178,7 +179,7 @@ async function myRadio() {
           </div>
           <h1 class="display hello">{{ hello }}</h1>
           <div v-if="player.current" class="resume">
-            <button type="button" class="rcover" aria-label="Открыть плеер" @click="ui.fullPlayer = true">
+            <button type="button" class="rcover" :aria-label="$t('Открыть плеер')" @click="ui.fullPlayer = true">
               <CoverArt
                 :art="player.currentTrack?.art"
                 :seed="player.current.title"
@@ -188,49 +189,66 @@ async function myRadio() {
               />
             </button>
             <span class="rtext">
-              <small>{{ player.playing ? 'Сейчас играет' : 'Продолжить' }}</small>
+              <small>{{ player.playing ? $t('Сейчас играет') : $t('Продолжить') }}</small>
               <b class="ellipsis">{{ player.current.title }}</b>
               <span class="ellipsis">{{ player.current.artist }}</span>
             </span>
-            <button type="button" class="rplay" :aria-label="player.playing ? 'Пауза' : 'Играть'" @click="player.toggle()">
+            <button
+              type="button"
+              class="rplay"
+              :aria-label="player.playing ? $t('Пауза') : $t('Играть')"
+              @click="player.toggle()"
+            >
               <IconPause v-if="player.playing" /><IconPlay v-else />
             </button>
           </div>
-          <button v-else type="button" class="btn primary start" @click="smartMix"><IconShuffle />Включить умный микс</button>
+          <button v-else type="button" class="btn primary start" @click="smartMix">
+            <IconShuffle />{{ $t('Включить умный микс') }}
+          </button>
         </section>
         <div class="tiles">
           <button type="button" class="tile big" @click="smartMix">
             <span class="tic"><IconShuffle /></span>
-            <span class="tt"><b>Умный микс</b><small>Любимое, забытое и новое вперемешку</small></span>
+            <span class="tt"
+              ><b>{{ $t('Умный микс') }}</b
+              ><small>{{ $t('Любимое, забытое и новое вперемешку') }}</small></span
+            >
           </button>
           <button type="button" class="tile" :disabled="!favoritesOrBest.length" @click="favMix">
             <span class="tic"><IconHeart /></span>
             <span class="tt"
-              ><b>Любимое</b><small>{{ tracksLabel(favoritesOrBest.length) }}</small></span
+              ><b>{{ $t('Любимое') }}</b
+              ><small>{{ tracksLabel(favoritesOrBest.length) }}</small></span
             >
           </button>
           <button type="button" class="tile" :disabled="!forgotten.length" @click="forgottenMix">
             <span class="tic"><IconHistory /></span>
             <span class="tt"
-              ><b>Давно не слушал</b><small>{{ tracksLabel(forgotten.length) }}</small></span
+              ><b>{{ $t('Давно не слушал') }}</b
+              ><small>{{ tracksLabel(forgotten.length) }}</small></span
             >
           </button>
           <button type="button" class="tile big" :disabled="!library.tracks.length || radio.busy" @click="myRadio">
             <span class="tic"><IconRadio /></span>
-            <span class="tt"><b>Моё радио</b><small>Бесконечно, по похожести на то, что нравится</small></span>
+            <span class="tt"
+              ><b>{{ $t('Моё радио') }}</b
+              ><small>{{ $t('Бесконечно, по похожести на то, что нравится') }}</small></span
+            >
           </button>
         </div>
       </div>
       <div v-else class="quick">
-        <button type="button" class="q" @click="smartMix"><IconShuffle /><span>Умный микс</span></button>
+        <button type="button" class="q" @click="smartMix">
+          <IconShuffle /><span>{{ $t('Умный микс') }}</span>
+        </button>
         <button type="button" class="q" :disabled="!favoritesOrBest.length" @click="favMix">
-          <IconHeart /><span>Любимое</span>
+          <IconHeart /><span>{{ $t('Любимое') }}</span>
         </button>
         <button type="button" class="q" :disabled="!forgotten.length" @click="forgottenMix">
-          <IconHistory /><span>Давно не слушал</span>
+          <IconHistory /><span>{{ $t('Давно не слушал') }}</span>
         </button>
         <button type="button" class="q" :disabled="!library.tracks.length || radio.busy" @click="myRadio">
-          <IconRadio /><span>Моё радио</span>
+          <IconRadio /><span>{{ $t('Моё радио') }}</span>
         </button>
       </div>
 
@@ -245,8 +263,8 @@ async function myRadio() {
           @click="ctxNow?.id === c.id ? router.push(`/context/${c.id}`) : toggleCtx(c)"
         >
           <component :is="contextIcon(c.icon)" />
-          <span>{{ ctxNow?.id === c.id ? `Сейчас: ${c.title}` : c.title }}</span>
-          <small v-if="ctxNow?.id === c.id && c.running != null" class="stop" @click.stop="toggleCtx(c)">стоп</small>
+          <span>{{ ctxNow?.id === c.id ? $t('Сейчас: {0}', c.title) : c.title }}</span>
+          <small v-if="ctxNow?.id === c.id && c.running != null" class="stop" @click.stop="toggleCtx(c)">{{ $t('стоп') }}</small>
         </button>
       </div>
 
@@ -259,7 +277,7 @@ async function myRadio() {
           class="cv"
         />
         <span class="ct">
-          <b>Продолжить</b>
+          <b>{{ $t('Продолжить') }}</b>
           <span class="ellipsis">{{ player.current.title }} · {{ player.current.artist }}</span>
         </span>
         <span class="go"><IconPlay /></span>
@@ -268,19 +286,23 @@ async function myRadio() {
       <button v-if="unratedHeavy" type="button" class="rate-card" @click="router.push('/top?tab=rate')">
         <IconStar />
         <span>
-          <b>{{ countLabel(unratedHeavy, ['трек', 'трека', 'треков']) }} без оценки</b>
-          <span>Ты слушаешь их часто. Оценишь?</span>
+          <b>{{ $t('{0} без оценки', countLabel(unratedHeavy, $tp('трек|трека|треков'))) }}</b>
+          <span>{{ $t('Ты слушаешь их часто. Оценишь?') }}</span>
         </span>
       </button>
 
-      <Shelf title="Недавно играло" :tracks="recent" @play="(i) => play(recent, i, { type: 'smart', title: 'Недавно играло' })" />
+      <Shelf
+        :title="$t('Недавно играло')"
+        :tracks="recent"
+        @play="(i) => play(recent, i, { type: 'smart', title: $t('Недавно играло') })"
+      />
 
       <!-- .duo на телефоне «прозрачная»; на компьютере — две колонки: топ недели и новинки сеткой обложек -->
       <div class="duo">
         <section v-if="week.length" class="week">
           <div class="section-title">
-            <span>Топ недели</span>
-            <button type="button" class="more-link" @click="router.push('/chronicle')">вся статистика</button>
+            <span>{{ $t('Топ недели') }}</span>
+            <button type="button" class="more-link" @click="router.push('/chronicle')">{{ $t('вся статистика') }}</button>
           </div>
           <div v-for="(w, i) in week" :key="w.track.key" class="wrow">
             <TrackRow
@@ -301,7 +323,9 @@ async function myRadio() {
           </div>
         </section>
         <section v-if="isDesktop && recentlyAdded.length" class="fresh">
-          <div class="section-title"><span>Недавно добавленные</span></div>
+          <div class="section-title">
+            <span>{{ $t('Недавно добавленные') }}</span>
+          </div>
           <div class="fresh-grid">
             <button
               v-for="(t, i) in recentlyAdded.slice(0, 6)"
@@ -320,14 +344,14 @@ async function myRadio() {
 
       <Shelf
         v-if="!isDesktop"
-        title="Недавно добавленные"
+        :title="$t('Недавно добавленные')"
         :tracks="recentlyAdded"
-        @play="(i) => play(recentlyAdded, i, { type: 'smart', title: 'Недавно добавленные' })"
+        @play="(i) => play(recentlyAdded, i, { type: 'smart', title: $t('Недавно добавленные') })"
       />
       <Shelf
-        title="Давно не слушал"
+        :title="$t('Давно не слушал')"
         :tracks="forgotten"
-        @play="(i) => play(forgotten, i, { type: 'smart', title: 'Давно не слушал' })"
+        @play="(i) => play(forgotten, i, { type: 'smart', title: $t('Давно не слушал') })"
       />
     </template>
     <div class="bottom-space" />

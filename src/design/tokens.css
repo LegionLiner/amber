@@ -1,7 +1,8 @@
 /*
  * Дизайн-токены Amber.
- * Тема задаётся атрибутом data-theme на <html>: dark (основная), light, amoled.
- * Компоненты берут цвета только отсюда, чтобы все три темы работали одинаково.
+ * Тема задаётся атрибутом data-theme на <html>: dark (основная) или light. Здесь — значения по умолчанию
+ * (янтарь на тёплом фоне); акцент и фон, выбранные в настройках, кладутся поверх переменными на <html>
+ * (domain/themes.ts, app/theme.ts). Компоненты берут цвета только из переменных — темы работают везде одинаково.
  */
 :root {
   --f-display: 'Unbounded Variable', 'Unbounded', system-ui, sans-serif;
@@ -54,14 +55,6 @@
   --shadow-cover: 0 18px 40px -14px rgba(0, 0, 0, 0.7);
   --shadow-sheet: 0 -12px 40px rgba(0, 0, 0, 0.45);
   --scrim: rgba(0, 0, 0, 0.55);
-}
-
-[data-theme='amoled'] {
-  --bg: #000000;
-  --surface: #100f0d;
-  --surface-2: #1a1815;
-  --surface-3: #24211c;
-  --glass: rgba(8, 7, 6, 0.72);
 }
 
 [data-theme='light'] {

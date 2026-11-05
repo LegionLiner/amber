@@ -1,3 +1,4 @@
+import { $t } from '@/i18n'
 /**
  * Минимальное чтение ZIP: список файлов и распаковка нужных. Без библиотек — сжатие deflate
  * разжимает встроенный DecompressionStream (есть в WebView, Chrome, Electron и Node 18+).
@@ -26,14 +27,15 @@ export function listZip(buf: ArrayBuffer): ZipEntry[] {
       break
     }
   }
-  if (eocd < 0) throw new Error('Это не ZIP-архив')
+  if (eocd < 0) throw new Error($t('Это не ZIP-архив'))
   const count = v.getUint16(eocd + 10, true)
   let p = v.getUint32(eocd + 16, true)
-  if (p === 0xffffffff || count === 0xffff) throw new Error('Архив слишком большой (ZIP64) — распакуй его и выбери JSON-файлы')
+  if (p === 0xffffffff || count === 0xffff)
+    throw new Error($t('Архив слишком большой (ZIP64) — распакуй его и выбери JSON-файлы'))
   const utf8 = new TextDecoder()
   const out: ZipEntry[] = []
   for (let i = 0; i < count; i++) {
-    if (v.getUint32(p, true) !== CENTRAL) throw new Error('Архив повреждён')
+    if (v.getUint32(p, true) !== CENTRAL) throw new Error($t('Архив повреждён'))
     const nameLen = v.getUint16(p + 28, true)
     const extraLen = v.getUint16(p + 30, true)
     const commentLen = v.getUint16(p + 32, true)
@@ -51,11 +53,11 @@ export function listZip(buf: ArrayBuffer): ZipEntry[] {
 
 export async function readZipEntry(buf: ArrayBuffer, e: ZipEntry): Promise<Uint8Array> {
   const v = new DataView(buf)
-  if (v.getUint32(e.localOffset, true) !== LOCAL) throw new Error('Архив повреждён')
+  if (v.getUint32(e.localOffset, true) !== LOCAL) throw new Error($t('Архив повреждён'))
   const start = e.localOffset + 30 + v.getUint16(e.localOffset + 26, true) + v.getUint16(e.localOffset + 28, true)
   const data = new Uint8Array(buf, start, e.compressedSize)
   if (e.method === 0) return data
-  if (e.method !== 8) throw new Error(`Неизвестное сжатие в архиве: ${e.method}`)
+  if (e.method !== 8) throw new Error($t('Неизвестное сжатие в архиве: {0}', e.method))
   const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
   return new Uint8Array(await new Response(stream).arrayBuffer())
 }

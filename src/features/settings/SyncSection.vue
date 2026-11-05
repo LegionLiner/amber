@@ -6,6 +6,7 @@ import IconSync from '~icons/solar/refresh-linear'
 import { useSync } from '@/stores/sync'
 import { useUi } from '@/stores/ui'
 import { countLabel } from '@/domain/format'
+import { LOCALE, $t, $tp } from '@/i18n'
 
 /**
  * Настройки → Синхронизация. Вход на свой сервер Amber и состояние: когда синхронизировалось,
@@ -35,29 +36,29 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(tick))
 
 function ago(ts: number | null): string {
-  if (!ts) return 'ещё не было'
+  if (!ts) return $t('ещё не было')
   const m = Math.round((now.value - ts) / 60000)
-  if (m < 1) return 'только что'
-  if (m < 60) return `${m} мин назад`
+  if (m < 1) return $t('только что')
+  if (m < 60) return $t('{0} мин назад', m)
   const h = Math.round(m / 60)
-  if (h < 24) return `${h} ч назад`
-  return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+  if (h < 24) return $t('{0} ч назад', h)
+  return new Date(ts).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' })
 }
 
 const statusText = computed(() => {
   switch (sync.status) {
     case 'syncing':
-      return 'Синхронизирую…'
+      return $t('Синхронизирую…')
     case 'offline':
-      return 'Нет связи с сервером. Изменения отправятся, когда появится сеть'
+      return $t('Нет связи с сервером. Изменения отправятся, когда появится сеть')
     case 'error':
-      return `Не получилось: ${sync.error}`
+      return $t('Не получилось: {0}', sync.error)
     case 'auth':
-      return 'Вход устарел — войди снова'
+      return $t('Вход устарел — войди снова')
     default:
       return sync.pending > 0
-        ? `Ждёт отправки: ${countLabel(sync.pending, ['запись', 'записи', 'записей'])}`
-        : `Всё синхронизировано · ${sync.live ? 'на связи, изменения приходят сразу' : ago(sync.lastAt)}`
+        ? $t('Ждёт отправки: {0}', countLabel(sync.pending, $tp('запись|записи|записей')))
+        : $t('Всё синхронизировано · {0}', sync.live ? $t('на связи, изменения приходят сразу') : ago(sync.lastAt))
   }
 })
 
@@ -67,7 +68,7 @@ async function submit() {
   try {
     await sync.signIn(url.value, email.value, password.value, mode.value === 'register', code.value.trim() || undefined)
     password.value = ''
-    ui.toast(mode.value === 'register' ? 'Аккаунт создан, данные отправляются на сервер' : 'Вход выполнен, синхронизирую')
+    ui.toast(mode.value === 'register' ? $t('Аккаунт создан, данные отправляются на сервер') : $t('Вход выполнен, синхронизирую'))
     void sync.loadMe()
   } catch (e) {
     formError.value = e instanceof Error ? e.message : String(e)
@@ -78,7 +79,7 @@ async function submit() {
 
 async function signOut() {
   await sync.signOut()
-  ui.toast('Синхронизация выключена. Данные на устройстве остались')
+  ui.toast($t('Синхронизация выключена. Данные на устройстве остались'))
 }
 
 async function removeAccount() {
@@ -87,7 +88,7 @@ async function removeAccount() {
     await sync.deleteAccount(deletePassword.value)
     deleting.value = false
     deletePassword.value = ''
-    ui.toast('Аккаунт и данные на сервере удалены')
+    ui.toast($t('Аккаунт и данные на сервере удалены'))
   } catch (e) {
     formError.value = e instanceof Error ? e.message : String(e)
   }
@@ -96,7 +97,7 @@ async function removeAccount() {
 
 <template>
   <section class="group sync">
-    <h2 class="gtitle">Синхронизация</h2>
+    <h2 class="gtitle">{{ $t('Синхронизация') }}</h2>
 
     <template v-if="sync.signedIn && sync.status !== 'auth'">
       <div class="state" :class="sync.status">
@@ -110,49 +111,55 @@ async function removeAccount() {
           type="button"
           class="icon-btn"
           :class="{ spin: sync.status === 'syncing' }"
-          aria-label="Синхронизировать сейчас"
-          title="Синхронизировать сейчас"
+          :aria-label="$t('Синхронизировать сейчас')"
+          :title="$t('Синхронизировать сейчас')"
           @click="sync.syncNow()"
         >
           <IconSync />
         </button>
       </div>
       <p class="note">
-        Сервер {{ sync.url.replace(/^https?:\/\//, '') }}. Оценки, история, плейлисты, эпохи, контексты, дневник и общие настройки
-        синхронизируются сами, треки остаются на устройствах.
+        {{
+          $t(
+            'Сервер {0}. Оценки, история, плейлисты, эпохи, контексты, дневник и общие настройки синхронизируются сами, треки остаются на устройствах.',
+            sync.url.replace(/^https?:\/\//, ''),
+          )
+        }}
       </p>
       <p v-if="sync.liveUnsupported" class="note">
-        Сервер старой версии: изменения приходят раз в несколько минут. Обнови сервер — и они будут приходить сразу.
+        {{ $t('Сервер старой версии: изменения приходят раз в несколько минут. Обнови сервер — и они будут приходить сразу.') }}
       </p>
       <div class="btns">
         <button type="button" class="btn" @click="showDevices = !showDevices">
-          Устройства{{ sync.me ? ` · ${sync.me.devices.length}` : '' }}
+          {{ $t('Устройства{0}', sync.me ? ` · ${sync.me.devices.length}` : '') }}
         </button>
-        <button type="button" class="btn" @click="signOut">Выйти</button>
+        <button type="button" class="btn" @click="signOut">{{ $t('Выйти') }}</button>
       </div>
       <div v-if="showDevices && sync.me" class="devices">
         <div v-for="d in sync.me.devices" :key="d.id" class="device">
           <span>
-            <b>{{ d.name }}{{ d.current ? ' · это устройство' : '' }}</b>
+            <b>{{ d.name }}{{ d.current ? $t(' · это устройство') : '' }}</b>
             <small>{{ ago(new Date(d.lastSeenAt).getTime()) }}</small>
           </span>
-          <button v-if="!d.current" type="button" class="link" @click="sync.forgetDevice(d.id)">Отключить</button>
+          <button v-if="!d.current" type="button" class="link" @click="sync.forgetDevice(d.id)">{{ $t('Отключить') }}</button>
         </div>
-        <p class="note">На сервере {{ countLabel(sync.me.items, ['запись', 'записи', 'записей']) }}.</p>
-        <button v-if="!deleting" type="button" class="link danger" @click="deleting = true">Удалить аккаунт…</button>
+        <p class="note">{{ $t('На сервере {0}.', countLabel(sync.me.items, $tp('запись|записи|записей'))) }}</p>
+        <button v-if="!deleting" type="button" class="link danger" @click="deleting = true">{{ $t('Удалить аккаунт…') }}</button>
         <div v-else class="del">
-          <p class="note">Аккаунт и все данные на сервере удалятся. На устройствах всё останется.</p>
+          <p class="note">{{ $t('Аккаунт и все данные на сервере удалятся. На устройствах всё останется.') }}</p>
           <input
             id="sync-del-pass"
             v-model="deletePassword"
             class="field"
             type="password"
-            placeholder="Пароль"
+            :placeholder="$t('Пароль')"
             autocomplete="current-password"
           />
           <div class="btns">
-            <button type="button" class="btn" @click="deleting = false">Отмена</button>
-            <button type="button" class="btn danger" :disabled="!deletePassword" @click="removeAccount">Удалить</button>
+            <button type="button" class="btn" @click="deleting = false">{{ $t('Отмена') }}</button>
+            <button type="button" class="btn danger" :disabled="!deletePassword" @click="removeAccount">
+              {{ $t('Удалить') }}
+            </button>
           </div>
         </div>
       </div>
@@ -162,16 +169,18 @@ async function removeAccount() {
       <p class="note">
         {{
           sync.status === 'auth'
-            ? 'Вход на сервер устарел: войди снова, синхронизация продолжится с того же места.'
-            : 'Свой сервер Amber связывает телефон и компьютер: оценки, история и плейлисты — общие. Музыка на сервер не загружается, без сети всё работает как раньше.'
+            ? $t('Вход на сервер устарел: войди снова, синхронизация продолжится с того же места.')
+            : $t(
+                'Свой сервер Amber связывает телефон и компьютер: оценки, история и плейлисты — общие. Музыка на сервер не загружается, без сети всё работает как раньше.',
+              )
         }}
       </p>
       <div v-if="sync.status !== 'auth'" class="seg">
-        <button type="button" :class="{ on: mode === 'login' }" @click="mode = 'login'">Войти</button>
-        <button type="button" :class="{ on: mode === 'register' }" @click="mode = 'register'">Создать аккаунт</button>
+        <button type="button" :class="{ on: mode === 'login' }" @click="mode = 'login'">{{ $t('Войти') }}</button>
+        <button type="button" :class="{ on: mode === 'register' }" @click="mode = 'register'">{{ $t('Создать аккаунт') }}</button>
       </div>
       <label class="fl">
-        <span>Адрес сервера</span>
+        <span>{{ $t('Адрес сервера') }}</span>
         <input
           id="sync-url"
           v-model="url"
@@ -183,11 +192,11 @@ async function removeAccount() {
         />
       </label>
       <label class="fl">
-        <span>Почта</span>
+        <span>{{ $t('Почта') }}</span>
         <input id="sync-email" v-model="email" class="field" type="email" inputmode="email" autocomplete="username" />
       </label>
       <label class="fl">
-        <span>Пароль</span>
+        <span>{{ $t('Пароль') }}</span>
         <input
           id="sync-password"
           v-model="password"
@@ -198,12 +207,14 @@ async function removeAccount() {
         />
       </label>
       <label v-if="mode === 'register'" class="fl">
-        <span>Код приглашения <small class="muted">если сервер его просит</small></span>
+        <span
+          >{{ $t('Код приглашения') }} <small class="muted">{{ $t('если сервер его просит') }}</small></span
+        >
         <input id="sync-code" v-model="code" class="field" autocomplete="off" />
       </label>
       <p v-if="formError" class="err">{{ formError }}</p>
       <button type="button" class="btn primary block" :disabled="busy || !url || !email || !password" @click="submit">
-        {{ busy ? 'Подключаюсь…' : mode === 'register' ? 'Создать аккаунт' : 'Войти' }}
+        {{ busy ? $t('Подключаюсь…') : mode === 'register' ? $t('Создать аккаунт') : $t('Войти') }}
       </button>
     </template>
   </section>

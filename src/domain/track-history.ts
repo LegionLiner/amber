@@ -1,5 +1,5 @@
 import { dayKey, dayLabel } from './weeks'
-import { MONTHS } from './format'
+import { MONTHS_SHORT, monthYear } from './format'
 
 /**
  * График прослушиваний одного трека в карточке: вся история по месяцам — от месяца первого прослушивания
@@ -20,8 +20,6 @@ export interface HistoryBar {
   future: boolean
 }
 
-const SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
-
 /** Номер месяца от начала эпохи: удобно считать разницу между месяцами */
 const monthIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth()
 
@@ -36,9 +34,9 @@ export function monthBars(times: readonly number[], now = new Date()): HistoryBa
     bars.push({
       start: d.getTime(),
       n: 0,
-      tick: SHORT[d.getMonth()]!,
+      tick: MONTHS_SHORT[d.getMonth()]!,
       sub: m === first || d.getMonth() === 0 ? String(d.getFullYear()) : '',
-      tip: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
+      tip: monthYear(d),
       future: false,
     })
   }

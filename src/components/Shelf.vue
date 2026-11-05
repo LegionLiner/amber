@@ -7,6 +7,7 @@ import CoverArt from './CoverArt.vue'
 import type { Track } from '@/domain/track'
 import { displayArtist } from '@/domain/track'
 import { isDesktop } from '@/native/desktop/bridge'
+import { $t } from '@/i18n'
 
 /**
  * Горизонтальная полка обложек. Тап играет всю полку с этого трека.
@@ -57,8 +58,8 @@ watch(
           <span class="s ellipsis">{{ displayArtist(t) }}</span>
         </button>
       </div>
-      <button v-if="canPrev" type="button" class="nav prev" aria-label="Назад" @click="page(-1)"><IconPrev /></button>
-      <button v-if="canNext" type="button" class="nav next" aria-label="Дальше" @click="page(1)"><IconNext /></button>
+      <button v-if="canPrev" type="button" class="nav prev" :aria-label="$t('Назад')" @click="page(-1)"><IconPrev /></button>
+      <button v-if="canNext" type="button" class="nav next" :aria-label="$t('Дальше')" @click="page(1)"><IconNext /></button>
     </div>
   </section>
 </template>
@@ -93,6 +94,11 @@ watch(
 .card :deep(.cover) {
   width: 128px;
   margin-bottom: 4px;
+}
+/* Подписи — по ширине карточки: иначе длинное имя выходило за неё и наезжало на соседнюю */
+.t,
+.s {
+  max-width: 100%;
 }
 .t {
   font: 500 13.5px/1.25 var(--f-body);

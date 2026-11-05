@@ -24,6 +24,7 @@ import {
   type ContextRow,
 } from '@/data/repos/contexts'
 import { outputLabel } from '@/domain/outputs'
+import { $t } from '@/i18n'
 
 /**
  * Контексты: ситуации со своим саундтреком. Запускаешь вручную («Начать») или они включаются
@@ -51,10 +52,10 @@ onMounted(() => void player.refreshOutputs().catch(() => undefined))
 async function toggle(c: ContextRow) {
   if (c.running != null) {
     await stopContexts()
-    ui.toast(`«${c.title}» закончен`)
+    ui.toast($t('«{0}» закончен', c.title))
   } else {
     await startContext(c.id)
-    ui.toast(`Сейчас: «${c.title}». Музыка запишется в этот контекст`)
+    ui.toast($t('Сейчас: «{0}». Музыка запишется в этот контекст', c.title))
   }
   await load()
 }
@@ -65,7 +66,7 @@ function menu(c: ContextRow) {
     title: c.title,
     actions: [
       {
-        label: 'Открыть',
+        label: $t('Открыть'),
         icon: IconOpen,
         run: () => {
           ui.closeSheet()
@@ -73,19 +74,19 @@ function menu(c: ContextRow) {
         },
       },
       {
-        label: c.running != null ? 'Закончить' : 'Начать',
+        label: c.running != null ? $t('Закончить') : $t('Начать'),
         icon: c.running != null ? IconStop : IconPlay,
         run: () => {
           ui.closeSheet()
           void toggle(c)
         },
       },
-      { label: 'Изменить', icon: IconPen, run: () => ui.openSheet(ContextEditSheet, { ctx: c, onSaved: load }) },
+      { label: $t('Изменить'), icon: IconPen, run: () => ui.openSheet(ContextEditSheet, { ctx: c, onSaved: load }) },
     ],
-    deleteNote: 'Прослушивания останутся в истории, но без этой пометки.',
+    deleteNote: $t('Прослушивания останутся в истории, но без этой пометки.'),
     onDelete: async () => {
       await deleteContext(c.id)
-      ui.toast(`Контекст «${c.title}» удалён`)
+      ui.toast($t('Контекст «{0}» удалён', c.title))
       await load()
     },
   })
@@ -98,17 +99,20 @@ function rulesText(c: ContextRow): string {
   const r = c.rules
   const parts: string[] = []
   if (r.hours) parts.push(`${r.hours[0]}:00–${r.hours[1]}:00`)
-  if (r.weekdays?.length) parts.push(r.weekdays.map((d) => ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'][d - 1]).join(', '))
+  if (r.weekdays?.length)
+    parts.push(r.weekdays.map((d) => [$t('пн'), $t('вт'), $t('ср'), $t('чт'), $t('пт'), $t('сб'), $t('вс')][d - 1]).join(', '))
   if (r.outputs?.length) parts.push(r.outputs.map((o) => (o === 'bt:' ? 'Bluetooth' : o.replace(/^bt:/, ''))).join(', '))
-  return parts.join(' · ') || 'вручную'
+  return parts.join(' · ') || $t('вручную')
 }
 </script>
 
 <template>
   <section>
-    <p class="lead muted">Ситуации со своим саундтреком: дорога, работа, тренировка. Что звучало в контексте — видно отдельно.</p>
+    <p class="lead muted">
+      {{ $t('Ситуации со своим саундтреком: дорога, работа, тренировка. Что звучало в контексте — видно отдельно.') }}
+    </p>
     <p class="now-out">
-      Звук сейчас идёт: <b>{{ outputLabel(player.output) }}</b>
+      {{ $t('Звук сейчас идёт:') }} <b>{{ outputLabel(player.output) }}</b>
     </p>
     <div
       v-for="c in list"
@@ -122,15 +126,19 @@ function rulesText(c: ContextRow): string {
         <span class="text">
           <b class="ellipsis">{{ c.title }}</b>
           <small class="ellipsis">{{
-            c.running != null ? 'идёт сейчас, включён вручную' : matching.has(c.id) ? 'подходит сейчас по правилам' : rulesText(c)
+            c.running != null
+              ? $t('идёт сейчас, включён вручную')
+              : matching.has(c.id)
+                ? $t('подходит сейчас по правилам')
+                : rulesText(c)
           }}</small>
         </span>
       </button>
       <button type="button" class="btn small" :class="{ primary: c.running == null }" @click="toggle(c)">
-        {{ c.running != null ? 'Стоп' : 'Начать' }}
+        {{ c.running != null ? $t('Стоп') : $t('Начать') }}
       </button>
     </div>
-    <button type="button" class="add" @click="create"><IconAdd />Новый контекст</button>
+    <button type="button" class="add" @click="create"><IconAdd />{{ $t('Новый контекст') }}</button>
   </section>
 </template>
 

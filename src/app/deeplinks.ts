@@ -4,6 +4,7 @@ import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useRadio } from '@/stores/radio'
 import { useUi } from '@/stores/ui'
+import { $t } from '@/i18n'
 
 /**
  * Ярлыки на значке приложения (долгое нажатие) открывают адреса yantar://action/…:
@@ -18,7 +19,7 @@ export async function runAction(action: string): Promise<void> {
       await player.playTracks(
         library.tracks,
         -1,
-        { type: 'smart', id: 'smartmix', title: 'Умный микс' },
+        { type: 'smart', id: 'smartmix', title: $t('Умный микс') },
         { shuffle: true, kind: 'smart' },
       )
       ui.fullPlayer = true

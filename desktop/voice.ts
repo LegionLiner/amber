@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import { tr } from './lang'
 
 /**
  * Модель распознавания речи для голосовых команд — офлайн, маленькая русская модель Vosk (~45 МБ).
@@ -25,7 +26,11 @@ function tar(args: string[], cwd: string): Promise<void> {
     let err = ''
     p.stderr.on('data', (d: Buffer) => (err += d.toString()))
     p.on('error', reject)
-    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(err.trim() || `tar завершился с кодом ${code}`))))
+    p.on('close', (code) =>
+      code === 0
+        ? resolve()
+        : reject(new Error(err.trim() || tr(`tar завершился с кодом ${code}`, `tar exited with code ${code}`))),
+    )
   })
 }
 
@@ -46,7 +51,8 @@ async function prepare(userData: string, progress: (p: VoiceProgress) => void): 
   const zip = path.join(dir, 'model.zip')
   if (!fs.existsSync(zip)) {
     const res = await fetch(MODEL_URL)
-    if (!res.ok || !res.body) throw new Error(`Не удалось скачать модель речи (${res.status})`)
+    if (!res.ok || !res.body)
+      throw new Error(tr(`Не удалось скачать модель речи (${res.status})`, `Couldn't download the speech model (${res.status})`))
     const total = Number(res.headers.get('content-length') ?? 0)
     const tmp = `${zip}.part`
     const out = fs.createWriteStream(tmp)
@@ -70,7 +76,7 @@ async function prepare(userData: string, progress: (p: VoiceProgress) => void): 
   await fsp.mkdir(work, { recursive: true })
   await tar(['-xf', zip], work)
   const top = (await fsp.readdir(work)).find((n) => n.startsWith('vosk-model'))
-  if (!top) throw new Error('В архиве модели нет папки vosk-model')
+  if (!top) throw new Error(tr('В архиве модели нет папки vosk-model', 'The model archive has no vosk-model folder'))
   await fsp.rename(path.join(work, top), path.join(work, 'model'))
   const tmpTar = `${file}.part`
   await tar(['-czf', tmpTar, 'model'], work)

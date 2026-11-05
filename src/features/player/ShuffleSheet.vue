@@ -2,6 +2,7 @@
 import { SHUFFLE_KINDS, type ShuffleKind } from '@/domain/shuffle'
 import { usePlayer } from '@/stores/player'
 import { useSettings } from '@/stores/settings'
+import { $t } from '@/i18n'
 
 /** Вид перемешивания: выбор сразу перемешивает то, что после текущего трека */
 const emit = defineEmits<{ close: [] }>()
@@ -21,7 +22,7 @@ async function off() {
 
 <template>
   <div class="sheet-body form">
-    <h3 class="sheet-head">Перемешать очередь</h3>
+    <h3 class="sheet-head">{{ $t('Перемешать очередь') }}</h3>
     <button
       v-for="k in SHUFFLE_KINDS"
       :key="k.id"
@@ -36,6 +37,8 @@ async function off() {
       >
       <i class="dot" />
     </button>
-    <button v-if="player.shuffleMode !== 'off'" type="button" class="btn block" @click="off">Вернуть исходный порядок</button>
+    <button v-if="player.shuffleMode !== 'off'" type="button" class="btn block" @click="off">
+      {{ $t('Вернуть исходный порядок') }}
+    </button>
   </div>
 </template>

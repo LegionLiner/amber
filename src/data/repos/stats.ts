@@ -68,6 +68,30 @@ export function artistPlays(since: number, until = Number.MAX_SAFE_INTEGER): Pro
   )
 }
 
+/** Календарь «Каждый день»: сколько звучало по дням с дня since ('YYYY-MM-DD'; null — вся история) */
+export function dailyTime(since: string | null): Promise<{ day: string; listenedMs: number }[]> {
+  return all(`SELECT local_day AS day, SUM(listened_ms) AS listenedMs FROM stat_plays WHERE local_day >= ? GROUP BY local_day`, [
+    since ?? '',
+  ])
+}
+
+/**
+ * Календарь по исполнителям: сколько звучал каждый исполнитель по дням. Строк — дни × исполнители, треки
+ * внутри исполнителя сложены базой: это в разы меньше, чем строки по трекам. who — исполнитель из тегов,
+ * а у трека без него — ключ трека: имя тогда берётся из медиатеки (из имени файла, с правками тегов)
+ */
+export function artistDays(since: string | null): Promise<{ day: string; who: string; ms: number }[]> {
+  return all(
+    `SELECT p.local_day AS day, COALESCE(t.artist, s.artist, p.track_key) AS who, SUM(p.listened_ms) AS ms
+     FROM stat_plays p
+     LEFT JOIN tracks t ON t.key = p.track_key
+     LEFT JOIN spotify_tracks s ON s.uri = p.track_key
+     WHERE p.local_day >= ?
+     GROUP BY p.local_day, who`,
+    [since ?? ''],
+  )
+}
+
 export interface DayRow {
   day: string
   plays: number

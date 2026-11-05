@@ -78,6 +78,8 @@ export interface DesktopBridge {
   setTitleBar(colors: { bg: string; ink: string }): void
   nowPlaying(s: { playing: boolean; title: string; artist: string }): void
   onCommand(cb: (cmd: DesktopCommand) => void): void
+  /** Язык интерфейса — для трея, кнопок на панели задач и системных диалогов */
+  setLang(l: 'ru' | 'en'): void
   quit(): void
 
   // YouTube

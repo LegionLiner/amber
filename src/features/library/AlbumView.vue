@@ -8,6 +8,7 @@ import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { formatListen, countLabel } from '@/domain/format'
 import { tableFor } from './rowMeta'
+import { $t, $tp } from '@/i18n'
 
 const route = useViewRoute()
 const library = useLibrary()
@@ -18,9 +19,9 @@ const album = computed(() => library.albums.find((a) => a.id === id.value))
 const subtitle = computed(() => {
   const a = album.value
   if (!a) return ''
-  const parts = [a.artist || 'Разные исполнители']
+  const parts = [a.artist || $t('Разные исполнители')]
   if (a.year) parts.push(String(a.year))
-  parts.push(countLabel(a.tracks.length, ['трек', 'трека', 'треков']), formatListen(a.durationMs))
+  parts.push(countLabel(a.tracks.length, $tp('трек|трека|треков')), formatListen(a.durationMs))
   return parts.join(' · ')
 })
 
@@ -33,7 +34,7 @@ function editTags() {
 <template>
   <CollectionPage
     v-if="album"
-    kind="Альбом"
+    :kind="$t('Альбом')"
     :title="album.title"
     :subtitle="subtitle"
     :art="album.art"
@@ -45,8 +46,10 @@ function editTags() {
     :extra-label="table?.label"
   >
     <template #actions>
-      <button type="button" class="icon-btn" aria-label="Теги альбома" @click="editTags"><IconTags /></button>
+      <button type="button" class="icon-btn" :aria-label="$t('Теги альбома')" @click="editTags"><IconTags /></button>
     </template>
   </CollectionPage>
-  <div v-else class="empty"><h3>Альбом не найден</h3></div>
+  <div v-else class="empty">
+    <h3>{{ $t('Альбом не найден') }}</h3>
+  </div>
 </template>

@@ -1,5 +1,6 @@
 import type { Track } from './track'
 import { normKey } from './names'
+import { $t } from '@/i18n'
 
 export interface AlbumGroup {
   id: string
@@ -111,7 +112,7 @@ export function groupGenres(tracks: Track[]): GenreGroup[] {
 }
 
 export function buildFolderTree(tracks: Track[]): FolderNode {
-  const root: FolderNode = { path: '', name: 'Все папки', tracks: [], children: [], total: 0 }
+  const root: FolderNode = { path: '', name: $t('Все папки'), tracks: [], children: [], total: 0 }
   const index = new Map<string, FolderNode>([['', root]])
   const ensure = (path: string): FolderNode => {
     const found = index.get(path)

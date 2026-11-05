@@ -11,6 +11,7 @@ import { buildRecap } from '@/data/repos/recap'
 import { MusicCore } from '@/native/music-core'
 import { coverSrc } from '@/native/paths'
 import { buildSlides, renderSlide, type Slide } from './story'
+import { $t } from '@/i18n'
 
 /**
  * Итоги в виде историй: слайды на весь экран, тап справа — дальше, слева — назад,
@@ -83,10 +84,10 @@ async function save() {
     const data = await renderSlide(slide, slide.cover ? coverSrc(slide.cover.art, 'l') : null, props.title)
     const name = `amber-${props.from.slice(0, 7)}-${i.value + 1}.png`
     await MusicCore.exportFile({ name, data, mime: 'image/png', base64: true })
-    ui.toast('Картинка сохранена')
+    ui.toast($t('Картинка сохранена'))
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if (!/cancel|отмен/i.test(msg)) ui.toast(`Не получилось: ${msg}`)
+    if (!/cancel|отмен/i.test(msg)) ui.toast($t('Не получилось: {0}', msg))
   } finally {
     saving.value = false
     paused.value = false
@@ -98,14 +99,14 @@ function playTop() {
     void player.playTracks(
       list,
       0,
-      { type: 'top', id: `recap-${props.from}`, title: `Итоги: ${props.title}` },
+      { type: 'top', id: `recap-${props.from}`, title: $t('Итоги: {0}', props.title) },
       { shuffle: false },
     )
 }
 </script>
 
 <template>
-  <div class="story" role="dialog" aria-label="Итоги">
+  <div class="story" role="dialog" :aria-label="$t('Итоги')">
     <div v-if="s" class="bg" :style="{ background: `linear-gradient(160deg, ${s.colors[0]}, ${s.colors[1]})` }" />
     <div class="sheen" aria-hidden="true" />
     <div class="bars">
@@ -113,7 +114,7 @@ function playTop() {
     </div>
     <div class="top">
       <span class="brand display">Amber · {{ title }}</span>
-      <button type="button" class="icon-btn light" aria-label="Закрыть" @click="emit('close')"><IconClose /></button>
+      <button type="button" class="icon-btn light" :aria-label="$t('Закрыть')" @click="emit('close')"><IconClose /></button>
     </div>
     <div class="stage" @pointerdown="down" @pointerup="up" @pointercancel="paused = false">
       <Transition name="slide" mode="out-in">
@@ -146,10 +147,10 @@ function playTop() {
     </div>
     <div class="actions">
       <button v-if="s?.list?.some((x) => x.track) || s?.cover" type="button" class="btn light" @click="playTop">
-        <IconPlay />Слушать
+        <IconPlay />{{ $t('Слушать') }}
       </button>
       <button type="button" class="btn light" :disabled="saving" @click="save">
-        <IconSave />{{ saving ? 'Рисую…' : 'Картинкой' }}
+        <IconSave />{{ saving ? $t('Рисую…') : $t('Картинкой') }}
       </button>
     </div>
   </div>

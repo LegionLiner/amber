@@ -10,6 +10,7 @@ import EqBars from './EqBars.vue'
 import { useRowGesture } from '@/composables/useRowGesture'
 import { PAGE_SWIPES } from '@/app/paging'
 import { displayArtist, type Track } from '@/domain/track'
+import { $t } from '@/i18n'
 
 export type RowMeta = { kind: 'stars'; rating: number | null } | { kind: 'text'; text: string } | { kind: 'none' }
 
@@ -87,9 +88,11 @@ const starText = computed(() => {
 
 <template>
   <div class="wrap">
-    <div class="under right" :class="{ on: dx > 0 }" aria-hidden="true"><IconNext /><span>Следующим</span></div>
+    <div class="under right" :class="{ on: dx > 0 }" aria-hidden="true">
+      <IconNext /><span>{{ $t('Следующим') }}</span>
+    </div>
     <div class="under left" :class="{ on: dx < 0 }" aria-hidden="true">
-      <span>{{ track.favoriteAt ? 'Убрать' : 'В избранное' }}</span>
+      <span>{{ track.favoriteAt ? $t('Убрать') : $t('В избранное') }}</span>
       <IconHeart />
     </div>
     <div
@@ -137,7 +140,7 @@ const starText = computed(() => {
         </template>
         <template v-else>{{ meta.text }}</template>
       </div>
-      <button class="more" type="button" aria-label="Действия" @pointerdown.stop @click.stop="emit('more')">
+      <button class="more" type="button" :aria-label="$t('Действия')" @pointerdown.stop @click.stop="emit('more')">
         <IconMore />
       </button>
     </div>

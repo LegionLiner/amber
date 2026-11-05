@@ -16,6 +16,7 @@ import { formatDuration } from '@/domain/format'
 import { MusicCore } from '@/native/music-core'
 import type { Track } from '@/domain/track'
 import type { TransitionType } from '@/native/types'
+import { $t } from '@/i18n'
 
 /**
  * Редактор стыков микса. Для каждой пары соседних треков: хвост A и начало B волной,
@@ -95,12 +96,12 @@ async function save(p: { item: PlaylistItemRow }) {
   const t = edits.get(p.item.id)
   await setItemTransition(p.item.id, t ? JSON.stringify(t) : null)
   await playlists.refresh()
-  ui.toast('Стык сохранён')
+  ui.toast($t('Стык сохранён'))
 }
 async function reset(p: { item: PlaylistItemRow; a: Track }) {
   edits.set(p.item.id, defaultFor(p.a))
   await setItemTransition(p.item.id, null)
-  ui.toast('Стык по общим настройкам')
+  ui.toast($t('Стык по общим настройкам'))
 }
 
 async function listen(p: { i: number; item: PlaylistItemRow; a: Track; b: Track }) {
@@ -136,8 +137,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="scroll screen form">
-    <ScreenHeader title="Стыки" :subtitle="info?.name" back />
-    <p v-if="!pairs.length" class="empty">В миксе меньше двух треков.</p>
+    <ScreenHeader :title="$t('Стыки')" :subtitle="info?.name" back />
+    <p v-if="!pairs.length" class="empty">{{ $t('В миксе меньше двух треков.') }}</p>
     <section v-for="p in pairs" :key="p.item.id" class="group junction" :class="{ open: open === p.i }">
       <button type="button" class="jhead" @click="open = open === p.i ? -1 : p.i">
         <span class="n num">{{ p.i }}</span>
@@ -148,7 +149,7 @@ onBeforeUnmount(() => {
         <span class="kind"
           >{{ TRANSITION_LABEL[tx(p).type]
           }}<template v-if="tx(p).type !== 'gapless' && tx(p).type !== 'cut'">
-            · {{ Math.round(tx(p).durationMs / 1000) }} с</template
+            {{ $t('· {0} с', Math.round(tx(p).durationMs / 1000)) }}</template
           ></span
         >
       </button>
@@ -166,7 +167,8 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <div class="lbl">
-          <span>Конец «{{ p.a.title }}»</span><output class="num">переход с {{ formatDuration(outAt(p)) }}</output>
+          <span>{{ $t('Конец «{0}»', p.a.title) }}</span
+          ><output class="num">{{ $t('переход с {0}', formatDuration(outAt(p))) }}</output>
         </div>
         <WaveStrip
           :wave="waves.get(p.a.key) ?? null"
@@ -178,7 +180,8 @@ onBeforeUnmount(() => {
           @pick="(ms) => (tx(p).outAtMs = Math.min(ms, p.a.durationMs - 500))"
         />
         <div class="lbl">
-          <span>Начало «{{ p.b.title }}»</span><output class="num">вход с {{ formatDuration(tx(p).cueMs ?? 0) }}</output>
+          <span>{{ $t('Начало «{0}»', p.b.title) }}</span
+          ><output class="num">{{ $t('вход с {0}', formatDuration(tx(p).cueMs ?? 0)) }}</output>
         </div>
         <WaveStrip
           :wave="waves.get(p.b.key) ?? null"
@@ -191,18 +194,26 @@ onBeforeUnmount(() => {
         />
         <div v-if="tx(p).type !== 'gapless' && tx(p).type !== 'cut'" class="slider-row">
           <header>
-            <span>Длительность</span><output>{{ (tx(p).durationMs / 1000).toFixed(1).replace('.0', '') }} с</output>
+            <span>{{ $t('Длительность') }}</span
+            ><output>{{ $t('{0} с', (tx(p).durationMs / 1000).toFixed(1).replace('.0', '')) }}</output>
           </header>
           <RangeSlider v-model="tx(p).durationMs" :min="1000" :max="20000" :step="500" />
         </div>
         <div v-if="tx(p).type === 'crossfade'" class="seg three">
-          <button type="button" :class="{ on: tx(p).curve === 'equalPower' }" @click="tx(p).curve = 'equalPower'">Плавная</button>
-          <button type="button" :class="{ on: tx(p).curve === 'linear' }" @click="tx(p).curve = 'linear'">Прямая</button>
-          <button type="button" :class="{ on: tx(p).curve === 'sCurve' }" @click="tx(p).curve = 'sCurve'">S-кривая</button>
+          <button type="button" :class="{ on: tx(p).curve === 'equalPower' }" @click="tx(p).curve = 'equalPower'">
+            {{ $t('Плавная') }}
+          </button>
+          <button type="button" :class="{ on: tx(p).curve === 'linear' }" @click="tx(p).curve = 'linear'">
+            {{ $t('Прямая') }}
+          </button>
+          <button type="button" :class="{ on: tx(p).curve === 'sCurve' }" @click="tx(p).curve = 'sCurve'">
+            {{ $t('S-кривая') }}
+          </button>
         </div>
         <div v-if="tx(p).type === 'overlay'" class="slider-row">
           <header>
-            <span>A тише на</span><output>{{ -(tx(p).duckDb ?? -9) }} дБ</output>
+            <span>{{ $t('A тише на') }}</span
+            ><output>{{ $t('{0} дБ', -(tx(p).duckDb ?? -9)) }}</output>
           </header>
           <RangeSlider
             :model-value="tx(p).duckDb ?? -9"
@@ -214,10 +225,10 @@ onBeforeUnmount(() => {
         </div>
         <div class="btns">
           <button type="button" class="btn" @click="listen(p)">
-            <component :is="playing === p.i ? IconStop : IconPlay" />{{ playing === p.i ? 'Стоп' : 'Послушать' }}
+            <component :is="playing === p.i ? IconStop : IconPlay" />{{ playing === p.i ? $t('Стоп') : $t('Послушать') }}
           </button>
-          <button type="button" class="btn" @click="reset(p)">Сбросить</button>
-          <button type="button" class="btn primary" @click="save(p)">Сохранить</button>
+          <button type="button" class="btn" @click="reset(p)">{{ $t('Сбросить') }}</button>
+          <button type="button" class="btn primary" @click="save(p)">{{ $t('Сохранить') }}</button>
         </div>
       </template>
     </section>

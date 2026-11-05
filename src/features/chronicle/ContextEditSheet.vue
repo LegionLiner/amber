@@ -7,6 +7,7 @@ import { usePlayer } from '@/stores/player'
 import { deleteContext, saveContext, type ContextRow } from '@/data/repos/contexts'
 import { outputLabel } from '@/domain/outputs'
 import { CONTEXT_ICONS } from './contextIcons'
+import { $t } from '@/i18n'
 
 /**
  * Контекст: название, значок и (необязательно) правила — когда музыка сама к нему относится.
@@ -17,7 +18,7 @@ const emit = defineEmits<{ close: [] }>()
 const ui = useUi()
 const player = usePlayer()
 
-const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+const WD = [$t('Пн'), $t('Вт'), $t('Ср'), $t('Чт'), $t('Пт'), $t('Сб'), $t('Вс')]
 const form = reactive({
   title: props.ctx?.title ?? '',
   icon: props.ctx?.icon ?? 'run',
@@ -39,7 +40,7 @@ const outputOptions = computed(() => {
   for (const o of form.outputs) set.add(o)
   return [...set]
 })
-const outLabel = (o: string) => (o === 'bt:' ? 'Любой Bluetooth' : outputLabel(o))
+const outLabel = (o: string) => (o === 'bt:' ? $t('Любой Bluetooth') : outputLabel(o))
 
 function toggle<T>(arr: T[], v: T) {
   const i = arr.indexOf(v)
@@ -48,7 +49,7 @@ function toggle<T>(arr: T[], v: T) {
 }
 
 async function save() {
-  if (!form.title.trim()) return ui.toast('Дай контексту название')
+  if (!form.title.trim()) return ui.toast($t('Дай контексту название'))
   await saveContext({
     id: props.ctx?.id,
     title: form.title.trim(),
@@ -73,8 +74,8 @@ async function remove() {
 
 <template>
   <div class="sheet-body form">
-    <h3 class="sheet-head">{{ ctx ? 'Контекст' : 'Новый контекст' }}</h3>
-    <input id="ctx-title" v-model="form.title" class="field" placeholder="Например, «Дорога на работу»" maxlength="40" />
+    <h3 class="sheet-head">{{ ctx ? $t('Контекст') : $t('Новый контекст') }}</h3>
+    <input id="ctx-title" v-model="form.title" class="field" :placeholder="$t('Например, «Дорога на работу»')" maxlength="40" />
     <div class="icons">
       <button
         v-for="(ic, key) in CONTEXT_ICONS"
@@ -90,17 +91,20 @@ async function remove() {
     </div>
     <ColorPicker v-model="form.color" />
 
-    <h4 class="sub">Когда включать самому</h4>
+    <h4 class="sub">{{ $t('Когда включать самому') }}</h4>
     <label class="row">
-      <span><b>По времени</b><small>Музыка в эти часы относится к контексту</small></span>
+      <span
+        ><b>{{ $t('По времени') }}</b
+        ><small>{{ $t('Музыка в эти часы относится к контексту') }}</small></span
+      >
       <input id="ctx-hours" v-model="form.useHours" type="checkbox" class="switch" />
     </label>
     <div v-if="form.useHours" class="hours">
       <select id="ctx-from" v-model.number="form.from" class="select">
-        <option v-for="h in 24" :key="h" :value="h - 1">с {{ h - 1 }}:00</option>
+        <option v-for="h in 24" :key="h" :value="h - 1">{{ $t('с {0}:00', h - 1) }}</option>
       </select>
       <select id="ctx-to" v-model.number="form.to" class="select">
-        <option v-for="h in 24" :key="h" :value="h % 24">до {{ h % 24 }}:00</option>
+        <option v-for="h in 24" :key="h" :value="h % 24">{{ $t('до {0}:00', h % 24) }}</option>
       </select>
     </div>
     <div class="pills">
@@ -127,14 +131,14 @@ async function remove() {
         {{ outLabel(o) }}
       </button>
     </div>
-    <p class="note">Все выбранные условия должны совпасть. Без условий контекст запускается только вручную.</p>
+    <p class="note">{{ $t('Все выбранные условия должны совпасть. Без условий контекст запускается только вручную.') }}</p>
 
     <div class="btns">
       <template v-if="ctx">
-        <button v-if="!confirmDelete" type="button" class="btn" @click="confirmDelete = true">Удалить</button>
-        <button v-else type="button" class="btn danger" @click="remove">Точно удалить</button>
+        <button v-if="!confirmDelete" type="button" class="btn" @click="confirmDelete = true">{{ $t('Удалить') }}</button>
+        <button v-else type="button" class="btn danger" @click="remove">{{ $t('Точно удалить') }}</button>
       </template>
-      <button type="button" class="btn primary" @click="save">Сохранить</button>
+      <button type="button" class="btn primary" @click="save">{{ $t('Сохранить') }}</button>
     </div>
   </div>
 </template>

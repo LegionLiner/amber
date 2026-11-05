@@ -3,6 +3,7 @@ import type { Track } from '@/domain/track'
 import { countLabel, formatListen } from '@/domain/format'
 import { dayLabel } from '@/domain/weeks'
 import { splitArtists } from '@/domain/names'
+import { LOCALE, $t, $tp } from '@/i18n'
 
 /**
  * Слайды итогов. Одна структура и для экрана, и для картинки:
@@ -50,21 +51,21 @@ export function buildSlides(r: Recap, title: string, byKey: Map<string, Track>):
   const g = (i: number) => GRADS[i % GRADS.length]!
   const slides: Slide[] = [
     {
-      kicker: 'Итоги',
+      kicker: $t('Итоги'),
       big: title,
       lines: [
-        `${minutes.toLocaleString('ru-RU')} минут музыки`,
-        `${countLabel(r.plays, ['прослушивание', 'прослушивания', 'прослушиваний'])}`,
+        $t('{0} минут музыки', minutes.toLocaleString(LOCALE)),
+        `${countLabel(r.plays, $tp('прослушивание|прослушивания|прослушиваний'))}`,
       ],
       colors: g(0),
     },
     {
-      kicker: 'Время',
+      kicker: $t('Время'),
       big: formatListen(r.listenedMs),
       lines: [
-        `${countLabel(days, ['день', 'дня', 'дней'])} с музыкой`,
-        days ? `в среднем ${Math.round(minutes / days)} мин в такой день` : '',
-        `${countLabel(r.tracks, ['разный трек', 'разных трека', 'разных треков'])}`,
+        $t('{0} с музыкой', countLabel(days, $tp('день|дня|дней'))),
+        days ? $t('в среднем {0} мин в такой день', Math.round(minutes / days)) : '',
+        `${countLabel(r.tracks, $tp('разный трек|разных трека|разных треков'))}`,
       ].filter(Boolean),
       colors: g(1),
     },
@@ -73,18 +74,18 @@ export function buildSlides(r: Recap, title: string, byKey: Map<string, Track>):
   const best = byTime[0] ?? top[0]
   if (best) {
     slides.push({
-      kicker: 'Трек периода',
+      kicker: $t('Трек периода'),
       big: best.t.title,
       title: best.t.artist,
-      lines: [`${formatListen(best.ms)} · ${countLabel(best.plays, ['раз', 'раза', 'раз'])}`],
+      lines: [`${formatListen(best.ms)} · ${countLabel(best.plays, $tp('раз|раза|раз'))}`],
       cover: best.t,
       colors: g(2),
     })
   }
   if (top.length) {
     slides.push({
-      kicker: 'Топ-10',
-      big: 'Чаще всего',
+      kicker: $t('Топ-10'),
+      big: $t('Чаще всего'),
       lines: [],
       list: top.slice(0, 10).map((x, i) => ({ n: i + 1, title: x.t.title, sub: x.t.artist, right: `${x.plays}×`, track: x.t })),
       colors: g(3),
@@ -92,14 +93,14 @@ export function buildSlides(r: Recap, title: string, byKey: Map<string, Track>):
   }
   if (byTime.length) {
     slides.push({
-      kicker: 'Топ-10 по минутам',
-      big: 'Больше всего',
+      kicker: $t('Топ-10 по минутам'),
+      big: $t('Больше всего'),
       lines: [],
       list: byTime.slice(0, 10).map((x, i) => ({
         n: i + 1,
         title: x.t.title,
         sub: x.t.artist,
-        right: `${Math.max(1, Math.round(x.ms / 60_000)).toLocaleString('ru-RU')} мин`,
+        right: $t('{0} мин', Math.max(1, Math.round(x.ms / 60_000)).toLocaleString(LOCALE)),
         track: x.t,
       })),
       colors: g(1),
@@ -107,7 +108,7 @@ export function buildSlides(r: Recap, title: string, byKey: Map<string, Track>):
   }
   if (topArtists.length) {
     slides.push({
-      kicker: 'Исполнители',
+      kicker: $t('Исполнители'),
       big: topArtists[0]![0],
       lines: [],
       list: topArtists.map(([name, n], i) => ({ n: i + 1, title: name, sub: '', right: `${n}×` })),
@@ -115,21 +116,23 @@ export function buildSlides(r: Recap, title: string, byKey: Map<string, Track>):
     })
   }
   slides.push({
-    kicker: 'Открытия',
-    big: countLabel(disc.length, ['новый трек', 'новых трека', 'новых треков']),
+    kicker: $t('Открытия'),
+    big: countLabel(disc.length, $tp('новый трек|новых трека|новых треков')),
     lines: [
-      bestDisc ? `Главное открытие — «${bestDisc.t.title}»` : 'Новое ещё впереди',
-      r.newFavorites ? `${countLabel(r.newFavorites, ['трек', 'трека', 'треков'])} в избранное` : '',
+      bestDisc ? $t('Главное открытие — «{0}»', bestDisc.t.title) : $t('Новое ещё впереди'),
+      r.newFavorites ? $t('{0} в избранное', countLabel(r.newFavorites, $tp('трек|трека|треков'))) : '',
     ].filter(Boolean),
     cover: bestDisc?.t ?? null,
     colors: g(5),
   })
   slides.push({
-    kicker: 'Когда',
+    kicker: $t('Когда'),
     big: r.peakHour != null ? `${r.peakHour}:00` : '—',
-    title: 'любимый час',
+    title: $t('любимый час'),
     lines: [
-      r.busiestDay ? `Самый музыкальный день — ${dayLabel(r.busiestDay.day)}: ${formatListen(r.busiestDay.listenedMs)}` : '',
+      r.busiestDay
+        ? $t('Самый музыкальный день — {0}: {1}', dayLabel(r.busiestDay.day), formatListen(r.busiestDay.listenedMs))
+        : '',
     ].filter(Boolean),
     colors: g(0),
   })

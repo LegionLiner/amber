@@ -1,4 +1,5 @@
 import type { FadeCurve, QueueItem, Transition, TransitionType } from '@/native/types'
+import { $t } from '@/i18n'
 
 /**
  * Миксы: плейлист, где у каждого стыка свой переход, как у диджея.
@@ -19,11 +20,11 @@ export interface MixTransition {
 export const DEFAULT_MIX_TRANSITION: MixTransition = { type: 'crossfade', durationMs: 8000, curve: 'equalPower' }
 
 export const TRANSITION_LABEL: Record<TransitionType, string> = {
-  gapless: 'Встык',
-  crossfade: 'Кроссфейд',
-  overlay: 'Наложение',
-  fadeOutIn: 'Затухание',
-  cut: 'Резко',
+  gapless: $t('Встык'),
+  crossfade: $t('Кроссфейд'),
+  overlay: $t('Наложение'),
+  fadeOutIn: $t('Затухание'),
+  cut: $t('Резко'),
 }
 
 export function parseTransition(json: string | null): MixTransition | null {

@@ -12,17 +12,15 @@ import IconRepeat from '~icons/solar/repeat-linear'
 import IconRepeatOne from '~icons/solar/repeat-one-linear'
 import IconHeart from '~icons/solar/heart-linear'
 import IconHeartOn from '~icons/solar/heart-bold'
-import IconQueue from '~icons/solar/playlist-linear'
 import IconPhone from '~icons/solar/smartphone-linear'
 import IconSpeaker from '~icons/solar/speaker-minimalistic-linear'
 import IconBt from '~icons/solar/bluetooth-linear'
 import IconHeadphones from '~icons/solar/headphones-round-linear'
-import IconText from '~icons/solar/document-text-linear'
 import IconSleep from '~icons/solar/moon-sleep-linear'
-import IconMarks from '~icons/solar/bookmark-linear'
-import IconAdd from '~icons/solar/add-square-linear'
-import IconTags from '~icons/solar/pen-new-square-linear'
-import IconCard from '~icons/solar/music-note-linear'
+import { useSettings } from '@/stores/settings'
+import { useRadio } from '@/stores/radio'
+import { PLAYER_TOOLS, type PlayerToolId } from '@/domain/player-tools'
+import { PLAYER_TOOL_ICONS } from './playerToolIcons'
 import { useRouter } from 'vue-router'
 import BookmarksSheet from './BookmarksSheet.vue'
 import TagEditorSheet from '@/components/TagEditorSheet.vue'
@@ -61,6 +59,7 @@ import { sourceLabel } from '@/domain/sources'
 import { haptic } from '@/native/haptics'
 import { afterSlide, motionReduced } from '@/app/motion'
 import type { QueueItem } from '@/native/types'
+import { $t } from '@/i18n'
 
 const player = usePlayer()
 const library = useLibrary()
@@ -158,6 +157,51 @@ function close() {
   ui.fullPlayer = false
 }
 const router = useRouter()
+/* ---- быстрые кнопки внизу ---- */
+const settings = useSettings()
+const radio = useRadio()
+/** Компьютер: действия с треком — набор постоянный */
+const DESK_TOOLS: PlayerToolId[] = ['marks', 'playlist', 'tags', 'card']
+const toolLabel = (id: PlayerToolId) => PLAYER_TOOLS.find((t) => t.id === id)?.label ?? id
+function toolOn(id: PlayerToolId): boolean {
+  if (id === 'sound') return soundOn.value
+  if (id === 'lyrics') return lyricsInline.value
+  if (id === 'sleep') return sleepOn.value
+  return false
+}
+async function runTool(id: PlayerToolId) {
+  const q = item.value
+  if (!q) return
+  switch (id) {
+    case 'sound':
+      return ui.openSheet(SpeedSheet)
+    case 'lyrics':
+      return openLyrics()
+    case 'sleep':
+      return ui.openSheet(SleepSheet)
+    case 'queue':
+      ui.queueOpen = true
+      return
+    case 'marks':
+      return ui.openSheet(BookmarksSheet, { trackKey: q.key, title: q.title })
+    case 'playlist':
+      return ui.openSheet(AddToPlaylistSheet, { keys: [q.key] })
+    case 'tags':
+      return ui.openSheet(TagEditorSheet, { keys: [q.key] })
+    case 'card':
+      return openCard()
+    case 'stage':
+      ui.zen = true
+      return
+    case 'radio': {
+      const t = player.currentTrack
+      if (!t) return
+      await radio.start([t])
+      ui.toast($t('Радио по треку: дальше похожее из твоей музыки'))
+    }
+  }
+}
+
 function openCard() {
   if (!item.value) return
   close()
@@ -472,7 +516,7 @@ function togglePlay() {
       :class="{ paused: !player.playing }"
       :style="sheetStyle"
       role="dialog"
-      aria-label="Плеер"
+      :aria-label="$t('Плеер')"
     >
       <!-- Живой фон из красок обложки: пятна, сияние, стеклянные пузыри (PlayerAmbient) -->
       <PlayerAmbient :colors="colors" :art="track?.art" :playing="player.playing" />
@@ -486,9 +530,11 @@ function togglePlay() {
           @pointercancel="up"
           @lostpointercapture.self="up"
         >
-          <button type="button" class="icon-btn" aria-label="Свернуть" @pointerdown.stop @click="close"><IconDown /></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Свернуть')" @pointerdown.stop @click="close">
+            <IconDown />
+          </button>
           <div class="src">
-            <small>Играет из</small>
+            <small>{{ $t('Играет из') }}</small>
             <b class="ellipsis">{{ source }}</b>
           </div>
           <span class="top-r">
@@ -497,7 +543,7 @@ function togglePlay() {
               type="button"
               class="icon-btn"
               :class="{ dev: remote.playingElsewhere.length > 0 }"
-              aria-label="Устройства"
+              :aria-label="$t('Устройства')"
               @pointerdown.stop
               @click="ui.openSheet(DevicesSheet)"
             >
@@ -506,14 +552,16 @@ function togglePlay() {
             <button
               type="button"
               class="icon-btn"
-              aria-label="Сцена: только обложка на весь экран"
-              title="Сцена: только обложка на весь экран"
+              :aria-label="$t('Сцена: только обложка на весь экран')"
+              :title="$t('Сцена: только обложка на весь экран')"
               @pointerdown.stop
               @click="ui.zen = true"
             >
               <IconStage />
             </button>
-            <button type="button" class="icon-btn" aria-label="Действия" @pointerdown.stop @click="more"><IconMore /></button>
+            <button type="button" class="icon-btn" :aria-label="$t('Действия')" @pointerdown.stop @click="more">
+              <IconMore />
+            </button>
           </span>
         </header>
 
@@ -554,7 +602,7 @@ function togglePlay() {
             type="button"
             class="icon-btn heart"
             :class="{ on: track?.favoriteAt }"
-            aria-label="Избранное"
+            :aria-label="$t('Избранное')"
             @click="favorite()"
           >
             <IconHeartOn v-if="track?.favoriteAt" key="on" :class="{ pop: heartPop }" />
@@ -565,7 +613,7 @@ function togglePlay() {
         <div class="rate">
           <!-- key: у нового трека звёзды начинают с чистого листа, без следов жеста на прошлом -->
           <RatingStars :key="item.qid" :model-value="track?.rating ?? null" :size="26" @update:model-value="rate" />
-          <span class="plays num">{{ track?.plays ? `${track.plays} прослуш.` : 'первый раз' }}</span>
+          <span class="plays num">{{ track?.plays ? $t('{0} прослуш.', track.plays) : $t('первый раз') }}</span>
         </div>
 
         <SeekBar
@@ -582,24 +630,28 @@ function togglePlay() {
             type="button"
             class="icon-btn small"
             :class="{ on: player.shuffleMode !== 'off' }"
-            aria-label="Перемешивание"
+            :aria-label="$t('Перемешивание')"
             @click="toggleShuffle"
           >
             <IconShuffle :key="shufflePop" :class="{ pop: shufflePop > 0 }" />
           </button>
-          <button type="button" class="icon-btn big-nav prev" aria-label="Предыдущий" @click="player.prev()"><IconPrev /></button>
-          <button type="button" class="play" :aria-label="player.playing ? 'Пауза' : 'Играть'" @click="togglePlay">
+          <button type="button" class="icon-btn big-nav prev" :aria-label="$t('Предыдущий')" @click="player.prev()">
+            <IconPrev />
+          </button>
+          <button type="button" class="play" :aria-label="player.playing ? $t('Пауза') : $t('Играть')" @click="togglePlay">
             <Transition name="icon-swap">
               <IconPause v-if="player.playing" key="pause" />
               <IconPlay v-else key="play" />
             </Transition>
           </button>
-          <button type="button" class="icon-btn big-nav next" aria-label="Следующий" @click="player.next()"><IconNext /></button>
+          <button type="button" class="icon-btn big-nav next" :aria-label="$t('Следующий')" @click="player.next()">
+            <IconNext />
+          </button>
           <button
             type="button"
             class="icon-btn small"
             :class="{ on: player.repeat !== 'off' }"
-            aria-label="Повтор"
+            :aria-label="$t('Повтор')"
             @click="cycleRepeat"
           >
             <IconRepeatOne v-if="player.repeat === 'one'" key="one" :class="{ 'spin-pop': repeatPop }" />
@@ -622,71 +674,51 @@ function togglePlay() {
             <component :is="outIcon" /><span class="ellipsis">{{ outputLabel(player.output) }}</span>
           </button>
           <span class="tools">
-            <!-- Звук: свои пресеты, скорость, тон, эффекты. Всегда на виду; подсвечена, когда звук изменён -->
-            <button
-              type="button"
-              class="icon-btn"
-              :class="{ on: soundOn }"
-              aria-label="Звук: пресеты, скорость и эффекты"
-              @click="ui.openSheet(SpeedSheet)"
-            >
-              <IconTune />
-            </button>
-            <!-- Телефон: текст и очередь. Компьютер: текст виден в панели справа, очередь — с панели плеера,
-                 а здесь — действия с треком -->
-            <button
-              v-if="!isDesktop"
-              type="button"
-              class="icon-btn"
-              :class="{ on: lyricsInline }"
-              aria-label="Текст песни"
-              :aria-pressed="lyricsInline"
-              @click="openLyrics"
-            >
-              <IconText />
-            </button>
-            <button
-              type="button"
-              class="icon-btn"
-              :class="{ on: sleepOn }"
-              aria-label="Сон-таймер"
-              @click="ui.openSheet(SleepSheet)"
-            >
-              <IconSleep />
-            </button>
-            <button v-if="!isDesktop" type="button" class="icon-btn" aria-label="Очередь" @click="ui.queueOpen = true">
-              <IconQueue />
-            </button>
+            <!-- Телефон: кнопки, выбранные в настройках (по умолчанию — звук, текст, сон-таймер, очередь) -->
+            <template v-if="!isDesktop">
+              <button
+                v-for="id in settings.s.playerTools"
+                :key="id"
+                type="button"
+                class="icon-btn"
+                :class="{ on: toolOn(id) }"
+                :aria-label="toolLabel(id)"
+                :aria-pressed="id === 'lyrics' ? lyricsInline : undefined"
+                @click="runTool(id)"
+              >
+                <component :is="PLAYER_TOOL_ICONS[id]" />
+              </button>
+            </template>
+            <!-- Компьютер: текст виден в панели справа, очередь — с панели плеера, а здесь — действия с треком -->
             <template v-else>
               <button
                 type="button"
                 class="icon-btn"
-                aria-label="Метки и лучшие моменты"
-                title="Метки и лучшие моменты"
-                @click="ui.openSheet(BookmarksSheet, { trackKey: item.key, title: item.title })"
+                :class="{ on: soundOn }"
+                :aria-label="$t('Звук: пресеты, скорость и эффекты')"
+                @click="ui.openSheet(SpeedSheet)"
               >
-                <IconMarks />
+                <IconTune />
               </button>
               <button
                 type="button"
                 class="icon-btn"
-                aria-label="В плейлист"
-                title="В плейлист"
-                @click="ui.openSheet(AddToPlaylistSheet, { keys: [item.key] })"
+                :class="{ on: sleepOn }"
+                :aria-label="$t('Сон-таймер')"
+                @click="ui.openSheet(SleepSheet)"
               >
-                <IconAdd />
+                <IconSleep />
               </button>
               <button
+                v-for="id in DESK_TOOLS"
+                :key="id"
                 type="button"
                 class="icon-btn"
-                aria-label="Изменить теги"
-                title="Изменить теги"
-                @click="ui.openSheet(TagEditorSheet, { keys: [item.key] })"
+                :aria-label="toolLabel(id)"
+                :title="toolLabel(id)"
+                @click="runTool(id)"
               >
-                <IconTags />
-              </button>
-              <button type="button" class="icon-btn" aria-label="Карточка трека" title="Карточка трека" @click="openCard">
-                <IconCard />
+                <component :is="PLAYER_TOOL_ICONS[id]" />
               </button>
             </template>
             <!-- Компьютер: большой плеер закрывает панель с громкостью, поэтому громкость и здесь -->
@@ -694,12 +726,12 @@ function togglePlay() {
               <button
                 type="button"
                 class="icon-btn"
-                :aria-label="volume > 0 ? 'Выключить звук' : 'Включить звук'"
+                :aria-label="volume > 0 ? $t('Выключить звук') : $t('Включить звук')"
                 @click="toggleMute"
               >
                 <IconMute v-if="volume === 0" /><IconVolume v-else />
               </button>
-              <BarSlider class="volbar" :value="volume" label="Громкость" @input="setVolume" @change="setVolume" />
+              <BarSlider class="volbar" :value="volume" :label="$t('Громкость')" @input="setVolume" @change="setVolume" />
             </span>
           </span>
         </div>

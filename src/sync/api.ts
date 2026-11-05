@@ -1,6 +1,7 @@
 import type { SyncItem } from './kinds'
 import type { SyncResponse } from './engine'
 import type { DeviceState, LiveCommand } from './live'
+import { $t } from '@/i18n'
 
 /** Запросы к серверу Amber (server/). Ошибки — с текстом для человека и видом: нет сети, нужно войти, прочее */
 
@@ -60,7 +61,7 @@ export class SyncApi {
         signal: ctl.signal,
       })
     } catch {
-      throw new ApiError('offline', 'Сервер недоступен: нет сети или неверный адрес')
+      throw new ApiError('offline', $t('Сервер недоступен: нет сети или неверный адрес'))
     } finally {
       clearTimeout(timer)
     }
@@ -71,10 +72,10 @@ export class SyncApi {
       /* не JSON — например, страница nginx */
     }
     if (!res.ok) {
-      const msg = (data as { error?: string } | null)?.error ?? `Сервер ответил ${res.status}`
+      const msg = (data as { error?: string } | null)?.error ?? $t('Сервер ответил {0}', res.status)
       throw new ApiError(res.status === 401 ? 'auth' : 'server', msg)
     }
-    if (data == null) throw new ApiError('server', 'По этому адресу не сервер Amber')
+    if (data == null) throw new ApiError('server', $t('По этому адресу не сервер Amber'))
     return data as T
   }
 
@@ -146,11 +147,11 @@ export class SyncApi {
           signal: ctl.signal,
         })
       } catch {
-        throw new ApiError('offline', 'Сервер недоступен: нет сети или неверный адрес')
+        throw new ApiError('offline', $t('Сервер недоступен: нет сети или неверный адрес'))
       }
-      if (res.status === 401) throw new ApiError('auth', 'Вход устарел: войди снова')
+      if (res.status === 401) throw new ApiError('auth', $t('Вход устарел: войди снова'))
       if (!res.ok || !res.body || !(res.headers.get('content-type') ?? '').includes('text/event-stream')) {
-        throw new ApiError('server', 'Сервер не умеет мгновенную доставку: обнови его')
+        throw new ApiError('server', $t('Сервер не умеет мгновенную доставку: обнови его'))
       }
       const reader = res.body.getReader()
       const dec = new TextDecoder()

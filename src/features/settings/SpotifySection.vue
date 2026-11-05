@@ -17,6 +17,7 @@ import {
   type SpotifyTopArtist,
 } from '@/data/repos/spotify'
 import { countLabel, formatDate, formatListen } from '@/domain/format'
+import { LOCALE, $t, $tp } from '@/i18n'
 
 /**
  * Настройки → Spotify. Загрузка выгрузки «Расширенная история прослушиваний» (my_spotify_data.zip)
@@ -52,7 +53,7 @@ async function toggle(v: boolean) {
   on.value = v
   await setSpotifyEnabled(v)
   await refreshStats()
-  ui.toast(v ? 'История Spotify в статистике' : 'Статистика — только Amber')
+  ui.toast(v ? $t('История Spotify в статистике') : $t('Статистика — только Amber'))
 }
 
 function pick() {
@@ -65,14 +66,14 @@ async function onFiles(ev: Event) {
   el.value = ''
   if (!files.length) return
   busy.value = true
-  progress.value = 'Читаю архив…'
+  progress.value = $t('Читаю архив…')
   try {
     const { streams } = await readSpotifyFiles(files)
-    progress.value = `Записываю ${countLabel(streams.length, ['прослушивание', 'прослушивания', 'прослушиваний'])}…`
+    progress.value = $t('Записываю {0}…', countLabel(streams.length, $tp('прослушивание|прослушивания|прослушиваний')))
     const report = await importSpotify(streams, (done, total) => {
-      progress.value = `Записываю… ${Math.round((done / total) * 100)}%`
+      progress.value = $t('Записываю… {0}%', Math.round((done / total) * 100))
     })
-    progress.value = 'Ищу эти треки в медиатеке…'
+    progress.value = $t('Ищу эти треки в медиатеке…')
     await rematchSpotify(library.tracks, settings.s.counting, true)
     // Первая загрузка сразу включает показ: за этим её и загружали
     if (!summary.value) await setSpotifyEnabled(true)
@@ -80,13 +81,13 @@ async function onFiles(ev: Event) {
     await refreshStats()
     ui.toast(
       report.added
-        ? `Добавлено из Spotify: ${countLabel(report.added, ['прослушивание', 'прослушивания', 'прослушиваний'])}`
-        : 'Новых прослушиваний в файле нет — всё уже загружено',
+        ? $t('Добавлено из Spotify: {0}', countLabel(report.added, $tp('прослушивание|прослушивания|прослушиваний')))
+        : $t('Новых прослушиваний в файле нет — всё уже загружено'),
       undefined,
       5000,
     )
   } catch (e) {
-    ui.toast(`Не получилось: ${e instanceof Error ? e.message : String(e)}`, undefined, 6000)
+    ui.toast($t('Не получилось: {0}', e instanceof Error ? e.message : String(e)), undefined, 6000)
   } finally {
     busy.value = false
     progress.value = ''
@@ -101,7 +102,7 @@ async function clear() {
     await setSpotifyEnabled(false)
     await load()
     await refreshStats()
-    ui.toast('История Spotify удалена')
+    ui.toast($t('История Spotify удалена'))
   } finally {
     busy.value = false
   }
@@ -115,9 +116,9 @@ async function clear() {
     <template v-if="summary">
       <label class="row">
         <span>
-          <b>Показывать в статистике</b>
+          <b>{{ $t('Показывать в статистике') }}</b>
           <small
-            >{{ countLabel(summary.counted, ['прослушивание', 'прослушивания', 'прослушиваний']) }} ·
+            >{{ countLabel(summary.counted, $tp('прослушивание|прослушивания|прослушиваний')) }} ·
             {{ formatListen(summary.listenedMs)
             }}<template v-if="summary.first && summary.last">
               · {{ formatDate(summary.first) }} — {{ formatDate(summary.last) }}</template
@@ -134,13 +135,17 @@ async function clear() {
         />
       </label>
       <p class="note">
-        В медиатеке нашлось {{ summary.matched.toLocaleString('ru-RU') }} из
-        {{ countLabel(summary.tracks, ['трека', 'треков', 'треков']) }} Spotify —
-        {{ countLabel(summary.matchedPlays, ['прослушивание', 'прослушивания', 'прослушиваний']) }} добавились к их счётчикам.
-        Остальное идёт в общее время, календарь, часы, серии и итоги. Выключение ничего не удаляет.
+        {{
+          $t(
+            'В медиатеке нашлось {0} из {1} Spotify — {2} добавились к их счётчикам. Остальное идёт в общее время, календарь, часы, серии и итоги. Выключение ничего не удаляет.',
+            summary.matched.toLocaleString(LOCALE),
+            countLabel(summary.tracks, $tp('трека|треков|треков')),
+            countLabel(summary.matchedPlays, $tp('прослушивание|прослушивания|прослушиваний')),
+          )
+        }}
       </p>
       <div v-if="artists.length" class="artists">
-        <b>Чаще всего в Spotify</b>
+        <b>{{ $t('Чаще всего в Spotify') }}</b>
         <div v-for="(a, i) in artists" :key="a.artist" class="artist">
           <span class="n">{{ i + 1 }}</span>
           <span class="ellipsis">{{ a.artist }}</span>
@@ -149,19 +154,23 @@ async function clear() {
       </div>
       <p v-if="progress" class="note">{{ progress }}</p>
       <div class="btns">
-        <button type="button" class="btn" :disabled="busy" @click="pick">Загрузить новую выгрузку</button>
-        <button v-if="!confirmClear" type="button" class="btn" :disabled="busy" @click="confirmClear = true">Удалить</button>
-        <button v-else type="button" class="btn danger" :disabled="busy" @click="clear">Точно удалить</button>
+        <button type="button" class="btn" :disabled="busy" @click="pick">{{ $t('Загрузить новую выгрузку') }}</button>
+        <button v-if="!confirmClear" type="button" class="btn" :disabled="busy" @click="confirmClear = true">
+          {{ $t('Удалить') }}
+        </button>
+        <button v-else type="button" class="btn danger" :disabled="busy" @click="clear">{{ $t('Точно удалить') }}</button>
       </div>
     </template>
     <template v-else>
       <p class="note">
-        История прослушиваний из Spotify дополнит статистику: время, календарь, часы, серии и счётчики треков, которые есть в
-        медиатеке. Запроси на spotify.com → Аккаунт → Конфиденциальность → «Расширенная история потоковой передачи» и загрузи сюда
-        архив my_spotify_data.zip (или JSON-файлы из него). Всё разбирается на этом устройстве.
+        {{
+          $t(
+            'История прослушиваний из Spotify дополнит статистику: время, календарь, часы, серии и счётчики треков, которые есть в медиатеке. Запроси на spotify.com → Аккаунт → Конфиденциальность → «Расширенная история потоковой передачи» и загрузи сюда архив my_spotify_data.zip (или JSON-файлы из него). Всё разбирается на этом устройстве.',
+          )
+        }}
       </p>
       <p v-if="progress" class="note">{{ progress }}</p>
-      <button type="button" class="btn primary block" :disabled="busy" @click="pick">Загрузить данные Spotify</button>
+      <button type="button" class="btn primary block" :disabled="busy" @click="pick">{{ $t('Загрузить данные Spotify') }}</button>
     </template>
   </section>
 </template>

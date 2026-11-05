@@ -667,6 +667,11 @@ object PlayerHub {
         session?.let { PlaybackService.applyButtons(it, favoriteCurrent) }
     }
 
+    /** Язык сменился: подпись кнопки «в избранное» в уведомлении */
+    fun refreshButtons() {
+        main.post { updateButtons() }
+    }
+
     /* ------------------------------ снимок очереди ------------------------------ */
 
     private val queueFile get() = File(app.filesDir, "queue.json")

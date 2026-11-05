@@ -9,6 +9,7 @@ import { useLibrary } from '@/stores/library'
 import { useSettings, type SortPref } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import type { AlbumGroup } from '@/domain/groups'
+import { $t } from '@/i18n'
 
 const library = useLibrary()
 const settings = useSettings()
@@ -18,11 +19,11 @@ const scrollEl = ref<HTMLElement | null>(null)
 
 const SCREEN = 'library.albums'
 const OPTIONS = [
-  { key: 'title', label: 'Название', dir: 'asc' as const },
-  { key: 'artist', label: 'Исполнитель', dir: 'asc' as const },
-  { key: 'year', label: 'Год', dir: 'desc' as const },
-  { key: 'plays', label: 'Прослушивания', dir: 'desc' as const },
-  { key: 'tracks', label: 'Число треков', dir: 'desc' as const },
+  { key: 'title', label: $t('Название'), dir: 'asc' as const },
+  { key: 'artist', label: $t('Исполнитель'), dir: 'asc' as const },
+  { key: 'year', label: $t('Год'), dir: 'desc' as const },
+  { key: 'plays', label: $t('Прослушивания'), dir: 'desc' as const },
+  { key: 'tracks', label: $t('Число треков'), dir: 'desc' as const },
 ]
 const pref = computed(() => settings.sortFor(SCREEN, { key: 'title', dir: 'asc' }))
 const coll = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' })
@@ -53,7 +54,7 @@ function openSort() {
   <div ref="scrollEl" class="scroll screen">
     <HeadSpace />
     <div class="toolbar">
-      <span class="muted">{{ albums.length }} альб.</span>
+      <span class="muted">{{ $t('{0} альб.', albums.length) }}</span>
       <button type="button" class="sort" @click="openSort">
         <IconSort />{{ OPTIONS.find((o) => o.key === pref.key)?.label }}
       </button>
@@ -70,13 +71,13 @@ function openSort() {
         <CoverArt :art="a.art" :seed="a.seed" :label="a.title" size="m" radius="var(--r-m)" />
         <span class="t ellipsis">{{ a.title }}</span>
         <span class="s ellipsis"
-          >{{ a.artist || 'Разные исполнители' }}<template v-if="a.year"> · {{ a.year }}</template></span
+          >{{ a.artist || $t('Разные исполнители') }}<template v-if="a.year"> · {{ a.year }}</template></span
         >
       </button>
     </div>
     <div v-if="library.loaded && !albums.length" class="empty">
-      <h3>Альбомов нет</h3>
-      <p>У треков пустой тег альбома. Включи в настройках «Считать папку альбомом».</p>
+      <h3>{{ $t('Альбомов нет') }}</h3>
+      <p>{{ $t('У треков пустой тег альбома. Включи в настройках «Считать папку альбомом».') }}</p>
     </div>
     <div class="bottom-space" />
   </div>

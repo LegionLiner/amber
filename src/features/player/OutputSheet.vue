@@ -15,6 +15,7 @@ import { isNative } from '@/native/paths'
 import { isDesktop } from '@/native/desktop/bridge'
 import { outputLabel } from '@/domain/outputs'
 import type { OutputDevice } from '@/native/types'
+import { $t } from '@/i18n'
 
 /**
  * Куда идёт звук. Можно выбрать устройство прямо здесь или открыть системный переключатель.
@@ -60,16 +61,16 @@ function isCurrent(d: OutputDevice): boolean {
 
 async function choose(d: OutputDevice | null) {
   await player.setOutput(d?.id ?? null)
-  ui.toast(d ? `Звук: ${d.name}` : isDesktop ? 'Звук: как в настройках Windows' : 'Звук: как решит система')
+  ui.toast(d ? $t('Звук: {0}', d.name) : isDesktop ? $t('Звук: как в настройках Windows') : $t('Звук: как решит система'))
 }
 
 function saveProfile() {
   settings.s.audio.profiles[current.value] = { eq: structuredClone(toRaw(settings.s.audio.eq)) }
-  ui.toast(`Профиль сохранён для «${outputLabel(current.value)}»`)
+  ui.toast($t('Профиль сохранён для «{0}»', outputLabel(current.value)))
 }
 function dropProfile() {
   delete settings.s.audio.profiles[current.value]
-  ui.toast('Профиль убран: действует общий эквалайзер')
+  ui.toast($t('Профиль убран: действует общий эквалайзер'))
 }
 function openEq() {
   emit('close')
@@ -79,12 +80,12 @@ function openEq() {
 
 <template>
   <div class="sheet-body form">
-    <h3 class="sheet-head">Вывод звука</h3>
+    <h3 class="sheet-head">{{ $t('Вывод звука') }}</h3>
     <div class="sheet-list">
       <button v-for="d in devices" :key="d.id" type="button" class="sheet-item" :class="{ on: isCurrent(d) }" @click="choose(d)">
         <component :is="icon(d)" />
         <span class="ellipsis">{{ d.name }}</span>
-        <span v-if="settings.s.audio.profiles[keyOf(d)]" class="hint">свой звук</span>
+        <span v-if="settings.s.audio.profiles[keyOf(d)]" class="hint">{{ $t('свой звук') }}</span>
       </button>
       <button
         v-if="isNative || isDesktop"
@@ -93,23 +94,24 @@ function openEq() {
         :class="{ on: isDesktop && player.outputs?.preferred == null }"
         @click="choose(null)"
       >
-        <IconSpeaker /><span>Автоматически</span><span class="hint">{{ isDesktop ? 'как в Windows' : 'как решит система' }}</span>
+        <IconSpeaker /><span>{{ $t('Автоматически') }}</span
+        ><span class="hint">{{ isDesktop ? $t('как в Windows') : $t('как решит система') }}</span>
       </button>
       <button v-if="isNative" type="button" class="sheet-item" @click="MusicCore.openSystemOutputSwitcher()">
-        <IconSwitch /><span>Системный переключатель</span>
+        <IconSwitch /><span>{{ $t('Системный переключатель') }}</span>
       </button>
     </div>
     <div class="group-lite">
       <p class="note">
-        Сейчас: <b>{{ outputLabel(current) }}</b
+        {{ $t('Сейчас:') }} <b>{{ outputLabel(current) }}</b
         >.
-        <template v-if="profile">У этого устройства свой эквалайзер: он включается сам при подключении.</template>
-        <template v-else>Эквалайзер общий. Можно сохранить текущие настройки как профиль этого устройства.</template>
+        <template v-if="profile">{{ $t('У этого устройства свой эквалайзер: он включается сам при подключении.') }}</template>
+        <template v-else>{{ $t('Эквалайзер общий. Можно сохранить текущие настройки как профиль этого устройства.') }}</template>
       </p>
       <div class="btns">
-        <button v-if="!profile" type="button" class="btn" @click="saveProfile">Сохранить профиль</button>
-        <button v-else type="button" class="btn" @click="dropProfile">Убрать профиль</button>
-        <button type="button" class="btn" @click="openEq">Эквалайзер</button>
+        <button v-if="!profile" type="button" class="btn" @click="saveProfile">{{ $t('Сохранить профиль') }}</button>
+        <button v-else type="button" class="btn" @click="dropProfile">{{ $t('Убрать профиль') }}</button>
+        <button type="button" class="btn" @click="openEq">{{ $t('Эквалайзер') }}</button>
       </div>
     </div>
   </div>

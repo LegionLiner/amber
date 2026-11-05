@@ -14,6 +14,7 @@ import { contextStats, listContexts, startContext, stopContexts, type ContextRow
 import { formatListen } from '@/domain/format'
 import { displayArtist, type Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
+import { $t } from '@/i18n'
 
 /** Контекст: его саундтрек (что чаще всего звучит в этой ситуации) и статистика */
 const route = useViewRoute()
@@ -70,18 +71,24 @@ function edit() {
     <ScreenHeader
       v-if="ctx"
       :title="ctx.title"
-      :subtitle="stats ? `${formatListen(stats.listenedMs)} · ${stats.plays} прослуш.` : ''"
+      :subtitle="stats ? $t('{0} · {1} прослуш.', formatListen(stats.listenedMs), stats.plays) : ''"
       back
     >
       <template #actions>
-        <button type="button" class="icon-btn" aria-label="Изменить" @click="edit"><IconPen /></button>
+        <button type="button" class="icon-btn" :aria-label="$t('Изменить')" @click="edit"><IconPen /></button>
       </template>
     </ScreenHeader>
     <div v-if="ctx" class="btns">
-      <button type="button" class="btn primary" :disabled="!tracks.length" @click="play()"><IconPlay />Саундтрек</button>
-      <button type="button" class="btn" @click="toggle">{{ ctx.running != null ? 'Закончить' : 'Начать без музыки' }}</button>
+      <button type="button" class="btn primary" :disabled="!tracks.length" @click="play()">
+        <IconPlay />{{ $t('Саундтрек') }}
+      </button>
+      <button type="button" class="btn" @click="toggle">
+        {{ ctx.running != null ? $t('Закончить') : $t('Начать без музыки') }}
+      </button>
     </div>
-    <div v-if="tracks.length" class="section-title"><span>Чаще всего звучит</span></div>
+    <div v-if="tracks.length" class="section-title">
+      <span>{{ $t('Чаще всего звучит') }}</span>
+    </div>
     <button v-for="(x, i) in tracks" :key="x.t.key" type="button" class="trow" @click="play(i)">
       <CoverArt :art="x.t.art" :seed="x.t.title" :label="x.t.title" size="s" class="cv" />
       <span class="text">
@@ -91,8 +98,8 @@ function edit() {
       <span class="n num">{{ x.plays }}×</span>
     </button>
     <div v-if="ctx && !tracks.length" class="empty">
-      <h3>Саундтрек пока пуст</h3>
-      <p>Нажми «Начать», когда окажешься в этой ситуации, или задай правила — музыка запишется сама.</p>
+      <h3>{{ $t('Саундтрек пока пуст') }}</h3>
+      <p>{{ $t('Нажми «Начать», когда окажешься в этой ситуации, или задай правила — музыка запишется сама.') }}</p>
     </div>
     <div class="bottom-space" />
   </div>

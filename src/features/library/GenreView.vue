@@ -5,6 +5,7 @@ import CollectionPage from '@/components/CollectionPage.vue'
 import { useLibrary } from '@/stores/library'
 import { sortTracks } from '@/domain/sort'
 import { metaFor, tableFor } from './rowMeta'
+import { $t } from '@/i18n'
 
 const route = useViewRoute()
 const library = useLibrary()
@@ -17,7 +18,7 @@ const tracks = computed(() => (genre.value ? sortTracks(genre.value.tracks, 'rat
 <template>
   <CollectionPage
     v-if="genre"
-    kind="Жанр"
+    :kind="$t('Жанр')"
     :title="genre.name"
     :tracks="tracks"
     :source="{ type: 'genre', id: genre.id, title: genre.name }"
@@ -25,5 +26,7 @@ const tracks = computed(() => (genre.value ? sortTracks(genre.value.tracks, 'rat
     :detail="table?.of"
     :extra-label="table?.label"
   />
-  <div v-else class="empty"><h3>Жанр не найден</h3></div>
+  <div v-else class="empty">
+    <h3>{{ $t('Жанр не найден') }}</h3>
+  </div>
 </template>

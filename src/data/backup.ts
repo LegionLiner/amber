@@ -2,6 +2,7 @@ import { all, batch } from './db'
 import { APP_VERSION } from '@/app/version'
 import type { SqlStatement, SqlValue } from '@/native/types'
 import { normKey } from '@/domain/names'
+import { $t } from '@/i18n'
 
 /**
  * Экспорт и импорт всех твоих данных в один JSON.
@@ -151,8 +152,8 @@ export interface ImportReport {
 
 export function parseBackup(json: string): BackupFile {
   const data = JSON.parse(json) as BackupFile
-  if (data?.format !== BACKUP_FORMAT) throw new Error('Это не файл бэкапа Amber')
-  if (data.version > BACKUP_VERSION) throw new Error('Бэкап сделан более новой версией приложения')
+  if (data?.format !== BACKUP_FORMAT) throw new Error($t('Это не файл бэкапа Amber'))
+  if (data.version > BACKUP_VERSION) throw new Error($t('Бэкап сделан более новой версией приложения'))
   return data
 }
 

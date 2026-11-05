@@ -22,6 +22,7 @@ import type { PlaySource } from '@/native/types'
 import { onPageShown } from '@/app/paging'
 import { isDesktop } from '@/native/desktop/bridge'
 import { GLOBAL_SEARCH_ID, searchQuery } from '@/app/search-query'
+import { $t } from '@/i18n'
 
 const library = useLibrary()
 const player = usePlayer()
@@ -87,7 +88,7 @@ const folderResults = computed(() => {
 })
 
 const shownTracks = computed(() => (showAll.value ? trackResults.value : trackResults.value.slice(0, 30)))
-const source = computed<PlaySource>(() => ({ type: 'search', title: `Поиск «${q.value.trim()}»` }))
+const source = computed<PlaySource>(() => ({ type: 'search', title: $t('Поиск «{0}»', q.value.trim()) }))
 
 function remember() {
   const v = query.value.trim()
@@ -134,7 +135,7 @@ function go(to: Parameters<typeof router.push>[0]) {
 <template>
   <div class="scroll screen">
     <header class="hdr glass-hdr">
-      <h1 class="display title">Поиск</h1>
+      <h1 class="display title">{{ $t('Поиск') }}</h1>
       <label v-if="!isDesktop" class="field">
         <IconSearch class="ic" />
         <input
@@ -146,39 +147,44 @@ function go(to: Parameters<typeof router.push>[0]) {
           autocomplete="off"
           autocapitalize="off"
           spellcheck="false"
-          placeholder="Трек, исполнитель, папка, заметка"
+          :placeholder="$t('Трек, исполнитель, папка, заметка')"
           @keydown.enter="submit"
         />
-        <button v-if="query" type="button" class="clear" aria-label="Очистить" @click="clearQuery">
+        <button v-if="query" type="button" class="clear" :aria-label="$t('Очистить')" @click="clearQuery">
           <IconClose />
         </button>
       </label>
       <button v-if="!ytLink" type="button" class="yt-btn" @click="openYoutube()">
-        <IconDownload />Скачать с YouTube по ссылке
+        <IconDownload />{{ $t('Скачать с YouTube по ссылке') }}
       </button>
     </header>
 
     <button v-if="ytLink" type="button" class="yt-card" @click="openYoutube(query.trim())">
       <IconDownload />
-      <span><b>Ссылка на YouTube</b><small>Скачать звук этого ролика в медиатеку</small></span>
+      <span
+        ><b>{{ $t('Ссылка на YouTube') }}</b
+        ><small>{{ $t('Скачать звук этого ролика в медиатеку') }}</small></span
+      >
     </button>
 
     <div v-if="!q.trim()" class="recent">
       <template v-if="settings.s.recentSearches.length">
         <div class="section-title">
-          <span>Недавние запросы</span>
-          <button type="button" class="more-link" @click="settings.s.recentSearches = []">очистить</button>
+          <span>{{ $t('Недавние запросы') }}</span>
+          <button type="button" class="more-link" @click="settings.s.recentSearches = []">{{ $t('очистить') }}</button>
         </div>
         <button v-for="r in settings.s.recentSearches" :key="r" type="button" class="recent-row" @click="query = r">
           <IconHistory />{{ r }}
         </button>
       </template>
-      <p v-else class="hint muted">Ищет с опечатками, транслитом и в неверной раскладке: «rbyj» найдёт «Кино».</p>
+      <p v-else class="hint muted">{{ $t('Ищет с опечатками, транслитом и в неверной раскладке: «rbyj» найдёт «Кино».') }}</p>
     </div>
 
     <template v-else>
       <section v-if="artistResults.length">
-        <div class="section-title"><span>Исполнители</span></div>
+        <div class="section-title">
+          <span>{{ $t('Исполнители') }}</span>
+        </div>
         <div class="chips hscroll">
           <button
             v-for="a in artistResults"
@@ -195,7 +201,8 @@ function go(to: Parameters<typeof router.push>[0]) {
 
       <section v-if="trackResults.length">
         <div class="section-title">
-          <span>Треки</span><span class="muted cnt">{{ trackResults.length }}</span>
+          <span>{{ $t('Треки') }}</span
+          ><span class="muted cnt">{{ trackResults.length }}</span>
         </div>
         <div v-for="(t, i) in shownTracks" :key="t.key" class="row">
           <TrackRow
@@ -205,17 +212,19 @@ function go(to: Parameters<typeof router.push>[0]) {
             :meta="{ kind: 'stars', rating: t.rating }"
             @tap="play(i)"
             @more="ui.openSheet(TrackActionsSheet, { trackKey: t.key, source })"
-            @swipe-right="player.playNext([t], source).then(() => ui.toast('Сыграет следующим'))"
+            @swipe-right="player.playNext([t], source).then(() => ui.toast($t('Сыграет следующим')))"
             @swipe-left="library.toggleFavorite(t.key)"
           />
         </div>
         <button v-if="!showAll && trackResults.length > 30" type="button" class="btn all" @click="showAll = true">
-          Показать все {{ trackResults.length }}
+          {{ $t('Показать все {0}', trackResults.length) }}
         </button>
       </section>
 
       <section v-if="albumResults.length">
-        <div class="section-title"><span>Альбомы</span></div>
+        <div class="section-title">
+          <span>{{ $t('Альбомы') }}</span>
+        </div>
         <div class="albums hscroll">
           <button
             v-for="a in albumResults"
@@ -233,7 +242,9 @@ function go(to: Parameters<typeof router.push>[0]) {
       </section>
 
       <section v-if="folderResults.length">
-        <div class="section-title"><span>Папки</span></div>
+        <div class="section-title">
+          <span>{{ $t('Папки') }}</span>
+        </div>
         <button
           v-for="f in folderResults"
           :key="f"
@@ -246,8 +257,8 @@ function go(to: Parameters<typeof router.push>[0]) {
       </section>
 
       <div v-if="!trackResults.length && !artistResults.length && !albumResults.length && !folderResults.length" class="empty">
-        <h3>Ничего не нашлось</h3>
-        <p>Попробуй часть названия или имя файла.</p>
+        <h3>{{ $t('Ничего не нашлось') }}</h3>
+        <p>{{ $t('Попробуй часть названия или имя файла.') }}</p>
       </div>
     </template>
     <div class="bottom-space" />

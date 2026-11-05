@@ -13,6 +13,7 @@ import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { isDesktop } from '@/native/desktop/bridge'
 import { deviceIcon } from './device'
+import { $t } from '@/i18n'
 
 /**
  * Полоска «Играет на …»: что сейчас звучит на другом устройстве, с паузой, следующим треком и «Слушать здесь».
@@ -40,11 +41,11 @@ const open = () => ui.openSheet(DevicesSheet)
       class="rstrip"
       :class="{ desk: isDesktop, high: !isDesktop && player.hasTrack, on: d.state.playing }"
     >
-      <button type="button" class="body" :aria-label="`Устройства: играет на «${d.name}»`" @click="open">
+      <button type="button" class="body" :aria-label="$t('Устройства: играет на «{0}»', d.name)" @click="open">
         <CoverArt :art="art" :seed="d.state.title" :label="d.state.title" size="s" class="cv" />
         <span class="text">
           <small class="ellipsis"
-            ><component :is="deviceIcon(d.platform)" class="dic" />{{ d.state.playing ? 'Играет на' : 'На паузе на' }} «{{
+            ><component :is="deviceIcon(d.platform)" class="dic" />{{ d.state.playing ? $t('Играет на') : $t('На паузе на') }} «{{
               d.name
             }}»</small
           >
@@ -56,25 +57,33 @@ const open = () => ui.openSheet(DevicesSheet)
       <button
         type="button"
         class="ib"
-        :aria-label="d.state.playing ? 'Пауза там' : 'Играть там'"
-        :title="d.state.playing ? 'Пауза там' : 'Играть там'"
+        :aria-label="d.state.playing ? $t('Пауза там') : $t('Играть там')"
+        :title="d.state.playing ? $t('Пауза там') : $t('Играть там')"
         @click="remote.control(d, 'toggle')"
       >
         <IconPause v-if="d.state.playing" /><IconPlay v-else />
       </button>
-      <button type="button" class="ib" aria-label="Следующий там" title="Следующий там" @click="remote.control(d, 'next')">
+      <button
+        type="button"
+        class="ib"
+        :aria-label="$t('Следующий там')"
+        :title="$t('Следующий там')"
+        @click="remote.control(d, 'next')"
+      >
         <IconNext />
       </button>
       <button
         type="button"
         class="here"
-        title="Продолжить на этом устройстве с того же места"
-        aria-label="Слушать здесь"
+        :title="$t('Продолжить на этом устройстве с того же места')"
+        :aria-label="$t('Слушать здесь')"
         @click="remote.continueHere(d)"
       >
-        <IconHere /><span>Слушать здесь</span>
+        <IconHere /><span>{{ $t('Слушать здесь') }}</span>
       </button>
-      <button type="button" class="ib x" aria-label="Скрыть" title="Скрыть" @click="remote.dismiss(d)"><IconClose /></button>
+      <button type="button" class="ib x" :aria-label="$t('Скрыть')" :title="$t('Скрыть')" @click="remote.dismiss(d)">
+        <IconClose />
+      </button>
       <i class="bar" :style="{ transform: `scaleX(${frac})` }" />
     </div>
   </Transition>

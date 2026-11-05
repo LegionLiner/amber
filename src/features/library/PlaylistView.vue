@@ -19,6 +19,7 @@ import { orderFor } from '@/domain/shuffle'
 import type { Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
 import { metaFor } from './rowMeta'
+import { $t } from '@/i18n'
 
 const route = useViewRoute()
 const router = useRouter()
@@ -79,9 +80,9 @@ const source = computed<PlaySource>(() => ({
   title: info.value?.name,
 }))
 const kindLabel = computed(() =>
-  info.value?.kind === 'smart' ? 'Умный плейлист' : info.value?.kind === 'mix' ? 'Микс' : 'Плейлист',
+  info.value?.kind === 'smart' ? $t('Умный плейлист') : info.value?.kind === 'mix' ? $t('Микс') : $t('Плейлист'),
 )
-const subtitle = computed(() => (rules.value ? rules.value.conditions.map(describe).join(' · ') || 'Все треки' : ''))
+const subtitle = computed(() => (rules.value ? rules.value.conditions.map(describe).join(' · ') || $t('Все треки') : ''))
 
 /** Микс играет со своими переходами на стыках */
 async function playMix(index: number, shuffle: boolean) {
@@ -128,27 +129,31 @@ function menu() {
     :reorder="info.kind === 'smart' ? undefined : reorder"
   >
     <template #actions>
-      <button type="button" class="icon-btn" aria-label="Меню плейлиста" @click="menu"><IconMore /></button>
+      <button type="button" class="icon-btn" :aria-label="$t('Меню плейлиста')" @click="menu"><IconMore /></button>
     </template>
     <template #extra>
       <button v-if="info.kind !== 'smart'" type="button" class="btn addbtn" @click="router.push(`/playlist/${info.id}/add`)">
-        <IconAdd />Добавить треки
+        <IconAdd />{{ $t('Добавить треки') }}
       </button>
       <p v-if="loaded && !tracks.length && info.kind !== 'smart'" class="hint muted">
-        Пока пусто: нажми «Добавить треки» или долгое нажатие на любой трек → «Добавить в плейлист».
+        {{ $t('Пока пусто: нажми «Добавить треки» или долгое нажатие на любой трек → «Добавить в плейлист».') }}
       </p>
-      <p v-else-if="info.kind === 'smart' && !tracks.length" class="hint muted">Под условия пока ничего не подходит.</p>
+      <p v-else-if="info.kind === 'smart' && !tracks.length" class="hint muted">
+        {{ $t('Под условия пока ничего не подходит.') }}
+      </p>
       <button
         v-if="info.kind === 'mix' && tracks.length > 1"
         type="button"
         class="btn mixbtn"
         @click="router.push(`/mix/${info.id}`)"
       >
-        <IconMix />Стыки микса
+        <IconMix />{{ $t('Стыки микса') }}
       </button>
     </template>
   </CollectionPage>
-  <div v-else-if="playlists.loaded" class="empty"><h3>Плейлист не найден</h3></div>
+  <div v-else-if="playlists.loaded" class="empty">
+    <h3>{{ $t('Плейлист не найден') }}</h3>
+  </div>
 </template>
 
 <style scoped>

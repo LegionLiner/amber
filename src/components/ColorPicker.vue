@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import IconPalette from '~icons/solar/palette-linear'
 import { TINTS } from '@/domain/palette'
+import { $t } from '@/i18n'
 
 /** Цвет эпохи или контекста: готовые оттенки и «свой» — системный выбор любого цвета */
 const model = defineModel<string>({ required: true })
@@ -9,7 +10,7 @@ const custom = computed(() => !TINTS.includes(model.value.toLowerCase()))
 </script>
 
 <template>
-  <div class="colors" role="radiogroup" aria-label="Цвет">
+  <div class="colors" role="radiogroup" :aria-label="$t('Цвет')">
     <button
       v-for="c in TINTS"
       :key="c"
@@ -22,7 +23,12 @@ const custom = computed(() => !TINTS.includes(model.value.toLowerCase()))
       :aria-label="c"
       @click="model = c"
     />
-    <label class="sw own" :class="{ on: custom }" :style="custom ? { background: model } : undefined" aria-label="Свой цвет">
+    <label
+      class="sw own"
+      :class="{ on: custom }"
+      :style="custom ? { background: model } : undefined"
+      :aria-label="$t('Свой цвет')"
+    >
       <IconPalette v-if="!custom" />
       <input id="color-own" v-model="model" type="color" />
     </label>

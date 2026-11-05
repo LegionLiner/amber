@@ -20,6 +20,7 @@ import { sortTracks } from '@/domain/sort'
 import { displayArtist, type Track } from '@/domain/track'
 import { countLabel } from '@/domain/format'
 import { haptic } from '@/native/haptics'
+import { $t, $tp } from '@/i18n'
 
 /**
  * Подбор треков прямо из плейлиста: поиск по всей медиатеке, у каждого трека отметка,
@@ -50,10 +51,10 @@ onActivated(() => {
 
 type Filter = 'all' | 'new' | 'fav' | 'top'
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'Все' },
-  { id: 'new', label: 'Новые' },
-  { id: 'fav', label: 'Любимые' },
-  { id: 'top', label: 'Частые' },
+  { id: 'all', label: $t('Все') },
+  { id: 'new', label: $t('Новые') },
+  { id: 'fav', label: $t('Любимые') },
+  { id: 'top', label: $t('Частые') },
 ]
 const filter = ref<Filter>('all')
 const query = ref('')
@@ -122,12 +123,12 @@ async function toggle(t: Track) {
     else back.delete(t.key)
     inList.value = back
     changed.value += had ? 1 : -1
-    ui.toast(`Не получилось: ${e instanceof Error ? e.message : String(e)}`)
+    ui.toast($t('Не получилось: {0}', e instanceof Error ? e.message : String(e)))
   }
 }
 
 function done() {
-  if (changed.value > 0) ui.toast(`Добавлено: ${countLabel(changed.value, ['трек', 'трека', 'треков'])}`)
+  if (changed.value > 0) ui.toast($t('Добавлено: {0}', countLabel(changed.value, $tp('трек|трека|треков'))))
   router.back()
 }
 </script>
@@ -136,14 +137,14 @@ function done() {
   <div class="screen add">
     <header class="hdr glass-hdr">
       <div class="bar">
-        <button type="button" class="icon-btn" aria-label="Назад" @click="router.back()"><IconBack /></button>
+        <button type="button" class="icon-btn" :aria-label="$t('Назад')" @click="router.back()"><IconBack /></button>
         <div class="ttl">
-          <h1 class="ellipsis">Добавить треки</h1>
+          <h1 class="ellipsis">{{ $t('Добавить треки') }}</h1>
           <small class="ellipsis">
-            в «{{ info?.name ?? '…' }}» · {{ countLabel(inList.size, ['трек', 'трека', 'треков']) }}
+            {{ $t('в «{0}» · {1}', info?.name ?? '…', countLabel(inList.size, $tp('трек|трека|треков'))) }}
           </small>
         </div>
-        <button type="button" class="done" @click="done">Готово</button>
+        <button type="button" class="done" @click="done">{{ $t('Готово') }}</button>
       </div>
       <label class="field">
         <IconSearch class="ic" />
@@ -151,10 +152,10 @@ function done() {
           id="playlist-add-search"
           v-model="query"
           type="search"
-          placeholder="Название, исполнитель, альбом"
+          :placeholder="$t('Название, исполнитель, альбом')"
           enterkeyhint="search"
         />
-        <button v-if="query" type="button" class="clear" aria-label="Очистить" @click="query = ''"><IconClose /></button>
+        <button v-if="query" type="button" class="clear" :aria-label="$t('Очистить')" @click="query = ''"><IconClose /></button>
       </label>
       <ChipTabs v-model="filter" :items="FILTERS" />
     </header>
@@ -175,7 +176,8 @@ function done() {
           <span class="text">
             <span class="t ellipsis">{{ list[r.index]!.title }}</span>
             <span class="s ellipsis">
-              <b v-if="inList.has(list[r.index]!.key)" class="here">уже в плейлисте · </b>{{ displayArtist(list[r.index]!) }}
+              <b v-if="inList.has(list[r.index]!.key)" class="here">{{ $t('уже в плейлисте ·') }} </b
+              >{{ displayArtist(list[r.index]!) }}
             </span>
           </span>
           <span class="mark">
@@ -185,7 +187,7 @@ function done() {
         </button>
       </div>
       <div v-if="!list.length" class="empty">
-        <h3>{{ q.trim() ? 'Ничего не нашлось' : 'Здесь пусто' }}</h3>
+        <h3>{{ q.trim() ? $t('Ничего не нашлось') : $t('Здесь пусто') }}</h3>
       </div>
       <div class="bottom-space" />
     </div>

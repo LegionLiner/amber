@@ -3,6 +3,11 @@ package app.yantar.player.core
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.view.WindowManager
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -27,6 +32,7 @@ import app.yantar.player.library.KeyAliases
 import app.yantar.player.library.TagFiles
 import app.yantar.player.playback.Loudness
 import app.yantar.player.playback.PlayerHub
+import app.yantar.player.playback.WidgetUpdater
 import app.yantar.player.playback.Preview
 import app.yantar.player.tracking.PlayTracker
 import com.getcapacitor.JSArray
@@ -77,6 +83,7 @@ class MusicCorePlugin : Plugin() {
     }
 
     override fun load() {
+        Lang.init(context)
         PlayerHub.init(context)
         PlayerHub.listeners.add(hubListener)
         PlayerHub.setUiVisible(true)
@@ -147,6 +154,30 @@ class MusicCorePlugin : Plugin() {
             info.put("dbRecovery", JSObject().put("restoredFrom", at ?: JSONObject.NULL).put("brokenFile", broken ?: JSONObject.NULL))
         }
         call.resolve(info)
+    }
+
+    /**
+     * «Сцена»: экран поворачивается за телефоном (обложка разворачивается и лёжа), системные полосы
+     * прячутся (возвращаются свайпом от края), экран не гаснет. Выход — обратно портрет и полосы
+     */
+    @PluginMethod
+    fun setStage(call: PluginCall) {
+        val on = call.getBoolean("on", false) == true
+        val act = activity ?: return call.resolve()
+        act.runOnUiThread {
+            act.requestedOrientation =
+                if (on) ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            val bars = WindowCompat.getInsetsController(act.window, act.window.decorView)
+            if (on) {
+                bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                bars.hide(WindowInsetsCompat.Type.systemBars())
+                act.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                bars.show(WindowInsetsCompat.Type.systemBars())
+                act.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+            call.resolve()
+        }
     }
 
     @PluginMethod
@@ -234,7 +265,7 @@ class MusicCorePlugin : Plugin() {
                         ),
                 )
             } catch (e: SecurityException) {
-                call.reject("Нет доступа к музыке", "PERMISSION")
+                call.reject(Lang.t("Нет доступа к музыке", "No access to music"), "PERMISSION")
             } catch (e: Exception) {
                 call.reject(e.message ?: e.toString())
             }
@@ -298,7 +329,7 @@ class MusicCorePlugin : Plugin() {
     fun writeTags(call: PluginCall) {
         val items = call.getArray("items") ?: JSArray()
         withWriteAccess(call, items) { granted ->
-            if (!granted) return@withWriteAccess call.reject("Изменение файлов не разрешено", "CANCELLED")
+            if (!granted) return@withWriteAccess call.reject(Lang.t("Изменение файлов не разрешено", "Changing files is not allowed"), "CANCELLED")
             onWork(call) { call.resolve(runOnFiles(items) { uri, key, it -> TagFiles.apply(context, uri, key, editOf(it)) }) }
         }
     }
@@ -308,7 +339,7 @@ class MusicCorePlugin : Plugin() {
     fun repairFiles(call: PluginCall) {
         val items = call.getArray("items") ?: JSArray()
         withWriteAccess(call, items) { granted ->
-            if (!granted) return@withWriteAccess call.reject("Изменение файлов не разрешено", "CANCELLED")
+            if (!granted) return@withWriteAccess call.reject(Lang.t("Изменение файлов не разрешено", "Changing files is not allowed"), "CANCELLED")
             onWork(call) { call.resolve(runOnFiles(items) { uri, key, _ -> TagFiles.repair(context, uri, key) }) }
         }
     }
@@ -318,7 +349,7 @@ class MusicCorePlugin : Plugin() {
     fun restoreTags(call: PluginCall) {
         val items = call.getArray("items") ?: JSArray()
         withWriteAccess(call, items) { granted ->
-            if (!granted) return@withWriteAccess call.reject("Изменение файлов не разрешено", "CANCELLED")
+            if (!granted) return@withWriteAccess call.reject(Lang.t("Изменение файлов не разрешено", "Changing files is not allowed"), "CANCELLED")
             onWork(call) { call.resolve(runOnFiles(items) { uri, key, _ -> TagFiles.restore(context, uri, key) }) }
         }
     }
@@ -378,18 +409,18 @@ class MusicCorePlugin : Plugin() {
     @Volatile private var ytLast: Pair<String, app.yantar.player.online.YouTube.Info>? = null
 
     private fun ytError(e: Throwable): String = when (e) {
-        is org.schabi.newpipe.extractor.exceptions.ReCaptchaException -> "YouTube просит проверку «я не робот». Попробуй позже"
-        is org.schabi.newpipe.extractor.exceptions.AgeRestrictedContentException -> "Видео с ограничением по возрасту — без входа в аккаунт его не скачать"
-        is org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException -> "Видео недоступно: удалено, закрыто или не для этой страны"
-        is java.net.UnknownHostException -> "Нет интернета"
-        is org.schabi.newpipe.extractor.exceptions.ParsingException -> "Не получилось разобрать страницу YouTube. Возможно, нужна новая версия приложения"
+        is org.schabi.newpipe.extractor.exceptions.ReCaptchaException -> Lang.t("YouTube просит проверку «я не робот». Попробуй позже", "YouTube asks for an “I'm not a robot” check. Try later")
+        is org.schabi.newpipe.extractor.exceptions.AgeRestrictedContentException -> Lang.t("Видео с ограничением по возрасту — без входа в аккаунт его не скачать", "The video is age-restricted — it can't be downloaded without signing in")
+        is org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException -> Lang.t("Видео недоступно: удалено, закрыто или не для этой страны", "The video is unavailable: deleted, private or blocked in this country")
+        is java.net.UnknownHostException -> Lang.t("Нет интернета", "No internet")
+        is org.schabi.newpipe.extractor.exceptions.ParsingException -> Lang.t("Не получилось разобрать страницу YouTube. Возможно, нужна новая версия приложения", "Couldn't parse the YouTube page. A newer app version may be needed")
         else -> e.message ?: e.toString()
     }
 
     @PluginMethod
     fun youtubeInfo(call: PluginCall) {
         val url = call.getString("url")?.trim().orEmpty()
-        if (url.isEmpty()) return call.reject("Нет ссылки")
+        if (url.isEmpty()) return call.reject(Lang.t("Нет ссылки", "No link"))
         ytWork.execute {
             try {
                 val i = app.yantar.player.online.YouTube.info(url)
@@ -412,7 +443,7 @@ class MusicCorePlugin : Plugin() {
     @PluginMethod
     fun youtubeDownload(call: PluginCall) {
         val url = call.getString("url")?.trim().orEmpty()
-        if (url.isEmpty()) return call.reject("Нет ссылки")
+        if (url.isEmpty()) return call.reject(Lang.t("Нет ссылки", "No link"))
         ytWork.execute {
             try {
                 val info = ytLast?.takeIf { it.first == url }?.second ?: app.yantar.player.online.YouTube.info(url)
@@ -438,14 +469,14 @@ class MusicCorePlugin : Plugin() {
     /** Своя картинка (обложка плейлиста или трека внутри приложения): в общую папку обложек, ответ — её ключ */
     @PluginMethod
     fun saveCover(call: PluginCall) {
-        val data = call.getString("data") ?: return call.reject("нет картинки")
+        val data = call.getString("data") ?: return call.reject(Lang.t("нет картинки", "no picture"))
         work.execute {
             try {
                 val saved = Covers.save(context, android.util.Base64.decode(data, android.util.Base64.DEFAULT))
-                    ?: return@execute call.reject("Не удалось прочитать картинку")
+                    ?: return@execute call.reject(Lang.t("Не удалось прочитать картинку", "Couldn't read the picture"))
                 call.resolve(JSObject().put("art", saved.hash).put("color1", saved.color1).put("color2", saved.color2))
             } catch (e: Exception) {
-                call.reject(e.message ?: "ошибка")
+                call.reject(e.message ?: Lang.t("ошибка", "error"))
             }
         }
     }
@@ -458,7 +489,7 @@ class MusicCorePlugin : Plugin() {
         }
         val uris = (0 until items.length()).map { Uri.parse(items.getJSONObject(it).optString("uri")) }
         try {
-            val launcher = writeLauncher ?: return call.reject("Запрос на запись недоступен")
+            val launcher = writeLauncher ?: return call.reject(Lang.t("Запрос на запись недоступен", "Write request is unavailable"))
             pendingWrite = call to then
             launcher.launch(IntentSenderRequest.Builder(MediaStore.createWriteRequest(context.contentResolver, uris).intentSender).build())
         } catch (e: Exception) {
@@ -479,10 +510,10 @@ class MusicCorePlugin : Plugin() {
         val uris = (0 until items.length()).map { Uri.parse(items.getJSONObject(it).optString("uri")) }
         val keys = (0 until items.length()).map { items.getJSONObject(it).optString("key") }
         try {
-            val launcher = writeLauncher ?: return call.reject("Запрос на удаление недоступен")
+            val launcher = writeLauncher ?: return call.reject(Lang.t("Запрос на удаление недоступен", "Delete request is unavailable"))
             pendingWrite = call to { ok ->
                 if (!ok) {
-                    call.reject("Удаление отменено", "CANCELLED")
+                    call.reject(Lang.t("Удаление отменено", "Deletion cancelled"), "CANCELLED")
                 } else {
                     work.execute {
                         val now = System.currentTimeMillis()
@@ -516,7 +547,7 @@ class MusicCorePlugin : Plugin() {
                 val uri = Uri.parse(it.optString("uri"))
                 val r = action(uri, key, it)
                 if (!r.ok) {
-                    failed.put(JSONObject().put("key", key).put("reason", r.reason ?: "ошибка"))
+                    failed.put(JSONObject().put("key", key).put("reason", r.reason ?: Lang.t("ошибка", "error")))
                     continue
                 }
                 val e = editOf(it)
@@ -541,7 +572,7 @@ class MusicCorePlugin : Plugin() {
                 r.newKey?.let { nk -> if (nk != key) KeyAliases.add(key, nk) }
                 written++
             } catch (e: Exception) {
-                failed.put(JSONObject().put("key", key).put("reason", e.message ?: "ошибка"))
+                failed.put(JSONObject().put("key", key).put("reason", e.message ?: Lang.t("ошибка", "error")))
             }
         }
         KeyAliases.fixup()
@@ -559,6 +590,12 @@ class MusicCorePlugin : Plugin() {
 
     @PluginMethod
     fun configure(call: PluginCall) {
+        call.getString("lang")?.let { l ->
+            if (Lang.set(context, l)) {
+                WidgetUpdater.update(context)
+                PlayerHub.refreshButtons()
+            }
+        }
         val c = call.getObject("counting")
         if (c != null) {
             PlayerHub.tracker.rule = PlayTracker.Rule(
@@ -637,7 +674,7 @@ class MusicCorePlugin : Plugin() {
         }
     }
 
-    private fun fsRoot(call: PluginCall): File = File(call.getString("root") ?: error("Папка не задана"))
+    private fun fsRoot(call: PluginCall): File = File(call.getString("root") ?: error(Lang.t("Папка не задана", "No folder set")))
 
     @PluginMethod
     fun fsAccess(call: PluginCall) {
@@ -674,7 +711,7 @@ class MusicCorePlugin : Plugin() {
         if (call == null) return
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
-            call.reject("Папка не выбрана", "CANCELLED")
+            call.reject(Lang.t("Папка не выбрана", "No folder chosen"), "CANCELLED")
             return
         }
         // «primary:Music/Rock» → /storage/emulated/0/Music/Rock; карта памяти «1234-ABCD:Music» → /storage/1234-ABCD/Music
@@ -901,7 +938,7 @@ class MusicCorePlugin : Plugin() {
             }
             exportStash.writeBytes(bytes)
         } catch (e: Exception) {
-            return call.reject(e.message ?: "Не удалось подготовить файл")
+            return call.reject(e.message ?: Lang.t("Не удалось подготовить файл", "Couldn't prepare the file"))
         }
         call.data.remove("data")
         startActivityForResult(call, intent, "onExportPicked")
@@ -913,14 +950,14 @@ class MusicCorePlugin : Plugin() {
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
             exportStash.delete()
-            call.reject("Сохранение отменено", "CANCELLED")
+            call.reject(Lang.t("Сохранение отменено", "Saving cancelled"), "CANCELLED")
             return
         }
         onWork(call) {
             val stash = exportStash
-            if (!stash.exists()) error("Данные для сохранения потерялись, повтори экспорт")
+            if (!stash.exists()) error(Lang.t("Данные для сохранения потерялись, повтори экспорт", "The data to save was lost, repeat the export"))
             context.contentResolver.openOutputStream(uri, "wt")?.use { out -> stash.inputStream().use { it.copyTo(out) } }
-                ?: error("Не удалось открыть файл для записи")
+                ?: error(Lang.t("Не удалось открыть файл для записи", "Couldn't open the file for writing"))
             stash.delete()
             call.resolve(JSObject().put("uri", uri.toString()))
         }
@@ -940,7 +977,7 @@ class MusicCorePlugin : Plugin() {
         if (call == null) return
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
-            call.reject("Выбор файла отменён", "CANCELLED")
+            call.reject(Lang.t("Выбор файла отменён", "File selection cancelled"), "CANCELLED")
             return
         }
         onWork(call) {
@@ -948,7 +985,7 @@ class MusicCorePlugin : Plugin() {
             val name = cr.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                 if (c.moveToFirst()) c.getString(0) else null
             } ?: "backup.json"
-            val text = cr.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: error("Не удалось прочитать файл")
+            val text = cr.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: error(Lang.t("Не удалось прочитать файл", "Couldn't read the file"))
             call.resolve(JSObject().put("name", name).put("data", text))
         }
     }
@@ -964,7 +1001,7 @@ class MusicCorePlugin : Plugin() {
         if (call == null) return
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
-            call.reject("Папка не выбрана", "CANCELLED")
+            call.reject(Lang.t("Папка не выбрана", "No folder chosen"), "CANCELLED")
             return
         }
         context.contentResolver.takePersistableUriPermission(
@@ -977,7 +1014,7 @@ class MusicCorePlugin : Plugin() {
     /** JSON от интерфейса + копия базы в папку автобэкапа; старые копии удаляются */
     @PluginMethod
     fun writeBackup(call: PluginCall) = onWork(call) {
-        val tree = Uri.parse(call.getString("folderUri") ?: error("Папка не задана"))
+        val tree = Uri.parse(call.getString("folderUri") ?: error(Lang.t("Папка не задана", "No folder set")))
         val keep = call.getInt("keep", 14) ?: 14
         val stamp = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US).format(Date())
         val json = Backups.write(context, tree, "amber-backup-$stamp.json", "application/json", (call.getString("json") ?: "").toByteArray())

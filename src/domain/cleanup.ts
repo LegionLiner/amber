@@ -1,5 +1,6 @@
 import { parseFileName, stripJunk } from './names'
 import type { Track } from './track'
+import { $t } from '@/i18n'
 
 /**
  * Уборка тегов: находит мусор и предлагает исправления, ничего не меняя без спроса.
@@ -21,11 +22,11 @@ export interface Fix {
 }
 
 export const REASON_LABEL: Record<Fix['reason'], string> = {
-  junk: 'Мусор сайта',
-  number: 'Номер в названии',
-  caps: 'Капслок',
-  fromFile: 'Из имени файла',
-  spaces: 'Пробелы',
+  junk: $t('Мусор сайта'),
+  number: $t('Номер в названии'),
+  caps: $t('Капслок'),
+  fromFile: $t('Из имени файла'),
+  spaces: $t('Пробелы'),
 }
 
 const hasLetters = (s: string) => /\p{L}{3,}/u.test(s)

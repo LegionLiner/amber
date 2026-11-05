@@ -12,6 +12,7 @@ import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { haptic } from '@/native/haptics'
+import { $t } from '@/i18n'
 
 /**
  * Длинный список треков с виртуализацией: в DOM только видимые строки,
@@ -36,7 +37,7 @@ const props = withDefaults(
     /** Порядок можно менять: удержание берёт строку, мышью — просто потянуть */
     reorder?: (from: number, to: number) => void | Promise<void>
   }>(),
-  { numbered: false, positions: false, extraLabel: 'Добавлен' },
+  { numbered: false, positions: false, extraLabel: $t('Добавлен') },
 )
 
 const ROW_H = 64
@@ -112,13 +113,13 @@ function more(t: Track) {
 async function swipeRight(t: Track) {
   await player.playNext([t], props.source)
   haptic.success()
-  ui.toast(`«${t.title}» сыграет следующим`)
+  ui.toast($t('«{0}» сыграет следующим', t.title))
 }
 
 async function swipeLeft(t: Track) {
   const on = await library.toggleFavorite(t.key)
   haptic.success()
-  ui.toast(on ? 'Добавлено в избранное' : 'Убрано из избранного')
+  ui.toast(on ? $t('Добавлено в избранное') : $t('Убрано из избранного'))
 }
 
 function scrollToTop() {
@@ -139,11 +140,11 @@ defineExpose({ scrollToTop, scrollToIndex, scrollEl })
       <div v-if="wide && tracks.length" class="thead">
         <span v-if="positions" class="num">#</span>
         <span />
-        <span>Название</span>
-        <span v-if="hasAlbum">Альбом</span>
+        <span>{{ $t('Название') }}</span>
+        <span v-if="hasAlbum">{{ $t('Альбом') }}</span>
         <span v-if="hasAdded">{{ extraLabel }}</span>
-        <span>Оценка</span>
-        <span class="dur" aria-label="Длительность"><IconClock /></span>
+        <span>{{ $t('Оценка') }}</span>
+        <span class="dur" :aria-label="$t('Длительность')"><IconClock /></span>
         <span />
       </div>
     </div>

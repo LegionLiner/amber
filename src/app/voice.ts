@@ -7,6 +7,7 @@ import { useSettings } from '@/stores/settings'
 import { usePlayer } from '@/stores/player'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
+import { $t } from '@/i18n'
 
 /**
  * Голосовые команды на компьютере: «Эмбер, стоп», «Эмбер, следующий», «Эмбер, тише».
@@ -58,7 +59,7 @@ export function setupVoice(): void {
   if (!desktop) return
   desktop.onVoiceProgress((p) => {
     voice.progress = p.stage === 'download' && p.total ? p.done / p.total : null
-    voice.stage = p.stage === 'download' ? 'Скачиваю модель речи' : 'Готовлю модель речи'
+    voice.stage = p.stage === 'download' ? $t('Скачиваю модель речи') : $t('Готовлю модель речи')
   })
   const settings = useSettings()
   watch(
@@ -97,7 +98,7 @@ async function loadModel(url: string): Promise<Model> {
     })
     if (ok) return m
     m.terminate()
-    if (attempt > 0) throw new Error('Не удалось загрузить распознаватель речи')
+    if (attempt > 0) throw new Error($t('Не удалось загрузить распознаватель речи'))
     await new Promise((done) => {
       const q = indexedDB.deleteDatabase('/vosk')
       q.onsuccess = q.onerror = q.onblocked = done
@@ -144,7 +145,7 @@ export async function listMics(): Promise<{ id: string; label: string }[]> {
   const all = await navigator.mediaDevices?.enumerateDevices().catch(() => [])
   return (all ?? [])
     .filter((d) => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
-    .map((d, i) => ({ id: d.deviceId, label: d.label || `Микрофон ${i + 1}` }))
+    .map((d, i) => ({ id: d.deviceId, label: d.label || $t('Микрофон {0}', i + 1) }))
 }
 
 async function startVoice() {
@@ -152,11 +153,11 @@ async function startVoice() {
   const my = ++run
   voice.state = 'loading'
   voice.error = ''
-  voice.stage = 'Готовлю модель речи'
+  voice.stage = $t('Готовлю модель речи')
   voice.progress = null
   try {
     const url = await desktop.voicePrepare()
-    voice.stage = 'Загружаю распознаватель'
+    voice.stage = $t('Загружаю распознаватель')
     voice.progress = null
     const m = await loadModel(url)
     if (my !== run) return m.terminate()
@@ -213,8 +214,8 @@ async function startVoice() {
 function humanError(e: unknown): string {
   const name = (e as { name?: string })?.name
   if (name === 'NotAllowedError')
-    return 'Нет доступа к микрофону: разреши его в параметрах Windows (Конфиденциальность → Микрофон)'
-  if (name === 'NotFoundError') return 'Микрофон не найден'
+    return $t('Нет доступа к микрофону: разреши его в параметрах Windows (Конфиденциальность → Микрофон)')
+  if (name === 'NotFoundError') return $t('Микрофон не найден')
   return e instanceof Error ? e.message : String(e)
 }
 
@@ -313,7 +314,7 @@ function exec(cmd: VoiceCommand) {
       const title = player.current.title
       void useLibrary()
         .toggleFavorite(player.current.key)
-        .then((on) => useUi().toast(on ? `«${title}» в избранном` : `«${title}» убран из избранного`))
+        .then((on) => useUi().toast(on ? $t('«{0}» в избранном', title) : $t('«{0}» убран из избранного', title)))
     }
   }
   voice.last = COMMAND_LABELS[cmd]
@@ -321,6 +322,6 @@ function exec(cmd: VoiceCommand) {
   if (cmd !== 'like') {
     const label =
       cmd === 'quieter' || cmd === 'louder' ? `${COMMAND_LABELS[cmd]}: ${Math.round(volume.value * 100)}%` : COMMAND_LABELS[cmd]
-    useUi().toast(`Голос: ${label}`, undefined, 1600)
+    useUi().toast($t('Голос: {0}', label), undefined, 1600)
   }
 }

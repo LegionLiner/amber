@@ -11,6 +11,7 @@ import { useUi } from '@/stores/ui'
 import { playlistItems, removeFromPlaylist, reorderPlaylist, type PlaylistItemRow } from '@/data/repos/playlists'
 import { useDragList } from '@/composables/useDragList'
 import { displayArtist } from '@/domain/track'
+import { $t } from '@/i18n'
 
 /** Порядок плейлиста: тянешь за ручку, отпускаешь — порядок сохранён */
 const route = useViewRoute()
@@ -55,13 +56,13 @@ async function remove(i: PlaylistItemRow) {
   await removeFromPlaylist(i.id)
   items.value = items.value.filter((x) => x.id !== i.id)
   await playlists.refresh()
-  ui.toast('Убрано из плейлиста')
+  ui.toast($t('Убрано из плейлиста'))
 }
 </script>
 
 <template>
   <div ref="scrollEl" class="scroll screen">
-    <ScreenHeader title="Порядок" :subtitle="info?.name" back />
+    <ScreenHeader :title="$t('Порядок')" :subtitle="info?.name" back />
     <div class="list" :style="{ height: `${items.length * ROW_H}px` }">
       <div
         v-for="(it, i) in items"
@@ -83,11 +84,13 @@ async function remove(i: PlaylistItemRow) {
             <span class="s ellipsis">{{ displayArtist(library.byKey.get(it.trackKey)!) }}</span>
           </span>
         </template>
-        <span v-else class="text"><span class="t muted">Файл не найден</span></span>
-        <button type="button" class="mini" aria-label="Убрать" @click="remove(it)"><IconRemove /></button>
+        <span v-else class="text"
+          ><span class="t muted">{{ $t('Файл не найден') }}</span></span
+        >
+        <button type="button" class="mini" :aria-label="$t('Убрать')" @click="remove(it)"><IconRemove /></button>
         <span
           class="mini handle"
-          aria-label="Перетащить"
+          :aria-label="$t('Перетащить')"
           @pointerdown="drag.start($event, i)"
           @pointermove="drag.move"
           @pointerup="drag.end"

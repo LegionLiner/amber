@@ -11,6 +11,7 @@ import { haptic } from '@/native/haptics'
 import { outputLabel } from '@/domain/outputs'
 import { touchStoppedScroll } from '@/composables/tapGuard'
 import type { CrossfadeSettings, EqSettings, NormalizationSettings } from '@/native/types'
+import { $t } from '@/i18n'
 
 /**
  * Звук: переходы между треками, выравнивание громкости и эквалайзер.
@@ -23,30 +24,30 @@ const ui = useUi()
 const a = settings.s.audio
 
 const MODES: { id: CrossfadeSettings['mode']; label: string }[] = [
-  { id: 'off', label: 'Без' },
-  { id: 'crossfade', label: 'Кроссфейд' },
-  { id: 'overlay', label: 'Наложение' },
-  { id: 'fadeOutIn', label: 'Затухание' },
+  { id: 'off', label: $t('Без') },
+  { id: 'crossfade', label: $t('Кроссфейд') },
+  { id: 'overlay', label: $t('Наложение') },
+  { id: 'fadeOutIn', label: $t('Затухание') },
 ]
 const MODE_HINT: Record<CrossfadeSettings['mode'], string> = {
-  off: 'Треки идут встык, без пауз.',
-  crossfade: 'Конец одного трека плавно перетекает в начало следующего.',
-  overlay: 'Следующий входит сразу, предыдущий уходит на второй план и затихает — как у диджея.',
-  fadeOutIn: 'Трек затихает, потом начинается следующий.',
+  off: $t('Треки идут встык, без пауз.'),
+  crossfade: $t('Конец одного трека плавно перетекает в начало следующего.'),
+  overlay: $t('Следующий входит сразу, предыдущий уходит на второй план и затихает — как у диджея.'),
+  fadeOutIn: $t('Трек затихает, потом начинается следующий.'),
 }
 const CURVES: { id: CrossfadeSettings['curve']; label: string }[] = [
-  { id: 'equalPower', label: 'Плавная' },
-  { id: 'linear', label: 'Прямая' },
-  { id: 'sCurve', label: 'S-кривая' },
+  { id: 'equalPower', label: $t('Плавная') },
+  { id: 'linear', label: $t('Прямая') },
+  { id: 'sCurve', label: $t('S-кривая') },
 ]
 const NORMS: { id: NormalizationSettings['mode']; label: string; hint: string }[] = [
-  { id: 'off', label: 'Выкл', hint: 'Как записано в файлах: одни треки громче других.' },
-  { id: 'track', label: 'Трек', hint: 'Каждый трек к одной громкости.' },
-  { id: 'album', label: 'Альбом', hint: 'Альбом целиком к одной громкости: тихие вступления остаются тихими.' },
-  { id: 'smart', label: 'Умная', hint: 'Альбом — по альбому, остальное — по треку.' },
+  { id: 'off', label: $t('Выкл'), hint: $t('Как записано в файлах: одни треки громче других.') },
+  { id: 'track', label: $t('Трек'), hint: $t('Каждый трек к одной громкости.') },
+  { id: 'album', label: $t('Альбом'), hint: $t('Альбом целиком к одной громкости: тихие вступления остаются тихими.') },
+  { id: 'smart', label: $t('Умная'), hint: $t('Альбом — по альбому, остальное — по треку.') },
 ]
 const TARGETS = [-18, -16, -14, -11]
-const FREQ_LABELS = ['31', '62', '125', '250', '500', '1к', '2к', '4к', '8к', '16к']
+const FREQ_LABELS = ['31', '62', '125', '250', '500', $t('1к'), $t('2к'), $t('4к'), $t('8к'), $t('16к')]
 
 /* ---- эквалайзер: правим профиль текущего устройства, если он есть, иначе общий ---- */
 const profileKey = computed(() => (a.profiles[player.output] ? player.output : null))
@@ -134,9 +135,9 @@ const pct = (v: number, min: number, max: number) => `${((v - min) / (max - min)
 const analyzedCount = computed(() => library.tracks.filter((t) => t.analyzed).length)
 async function analyzeAll() {
   const keys = library.tracks.filter((t) => !t.analyzed).map((t) => t.key)
-  if (!keys.length) return ui.toast('Всё уже проанализировано')
+  if (!keys.length) return ui.toast($t('Всё уже проанализировано'))
   await MusicCore.analyze({ keys, priority: 'now' })
-  ui.toast(`Анализирую ${keys.length}: громкость, тишина по краям и волна`)
+  ui.toast($t('Анализирую {0}: громкость, тишина по краям и волна', keys.length))
 }
 
 /* ---- послушать переход на текущей паре треков ---- */
@@ -144,7 +145,7 @@ const previewing = ref(false)
 async function previewTransition() {
   const cur = player.current
   const next = player.upcoming[0]
-  if (!cur || !next) return ui.toast('Нужны два трека в очереди: текущий и следующий')
+  if (!cur || !next) return ui.toast($t('Нужны два трека в очереди: текущий и следующий'))
   const c = a.crossfade
   const dur = c.mode === 'off' ? 0 : c.durationMs
   const end = cur.trimEndMs ?? cur.durationMs
@@ -174,10 +175,10 @@ async function stopPreview() {
 
 <template>
   <div class="scroll screen form">
-    <ScreenHeader title="Звук" back />
+    <ScreenHeader :title="$t('Звук')" back />
 
     <section class="group">
-      <h2 class="gtitle">Переходы между треками</h2>
+      <h2 class="gtitle">{{ $t('Переходы между треками') }}</h2>
       <div class="seg four">
         <button
           v-for="m in MODES"
@@ -193,7 +194,8 @@ async function stopPreview() {
       <template v-if="a.crossfade.mode !== 'off'">
         <div class="slider-row">
           <header>
-            <span>Длительность</span><output>{{ (a.crossfade.durationMs / 1000).toFixed(1).replace('.0', '') }} с</output>
+            <span>{{ $t('Длительность') }}</span
+            ><output>{{ $t('{0} с', (a.crossfade.durationMs / 1000).toFixed(1).replace('.0', '')) }}</output>
           </header>
           <RangeSlider v-model="a.crossfade.durationMs" :min="1000" :max="12000" :step="500" />
         </div>
@@ -210,31 +212,38 @@ async function stopPreview() {
         </div>
         <div v-if="a.crossfade.mode === 'overlay'" class="slider-row">
           <header>
-            <span>Предыдущий трек тише на</span><output>{{ -a.crossfade.duckDb }} дБ</output>
+            <span>{{ $t('Предыдущий трек тише на') }}</span
+            ><output>{{ $t('{0} дБ', -a.crossfade.duckDb) }}</output>
           </header>
           <RangeSlider v-model="a.crossfade.duckDb" :min="-18" :max="-3" :step="1" />
         </div>
       </template>
       <label class="row">
-        <span><b>Альбомы без склеек</b><small>Соседние треки одного альбома по порядку идут встык, как задумано</small></span>
+        <span
+          ><b>{{ $t('Альбомы без склеек') }}</b
+          ><small>{{ $t('Соседние треки одного альбома по порядку идут встык, как задумано') }}</small></span
+        >
         <input id="xf-smart" v-model="a.crossfade.smart" type="checkbox" class="switch" />
       </label>
       <label class="row">
-        <span><b>Мягкий пропуск</b><small>Короткое затухание, когда листаешь треки</small></span>
+        <span
+          ><b>{{ $t('Мягкий пропуск') }}</b
+          ><small>{{ $t('Короткое затухание, когда листаешь треки') }}</small></span
+        >
         <select id="xf-skip" v-model.number="a.crossfade.skipFadeMs" class="select">
-          <option :value="0">выкл</option>
-          <option :value="150">быстро</option>
-          <option :value="250">обычно</option>
-          <option :value="450">медленно</option>
+          <option :value="0">{{ $t('выкл') }}</option>
+          <option :value="150">{{ $t('быстро') }}</option>
+          <option :value="250">{{ $t('обычно') }}</option>
+          <option :value="450">{{ $t('медленно') }}</option>
         </select>
       </label>
       <button type="button" class="btn block" @click="previewing ? stopPreview() : previewTransition()">
-        {{ previewing ? 'Остановить' : 'Послушать переход' }}
+        {{ previewing ? $t('Остановить') : $t('Послушать переход') }}
       </button>
     </section>
 
     <section class="group">
-      <h2 class="gtitle">Одинаковая громкость</h2>
+      <h2 class="gtitle">{{ $t('Одинаковая громкость') }}</h2>
       <div class="seg four">
         <button
           v-for="n in NORMS"
@@ -248,31 +257,42 @@ async function stopPreview() {
       </div>
       <p class="note">{{ NORMS.find((n) => n.id === a.normalization.mode)?.hint }}</p>
       <label v-if="a.normalization.mode !== 'off'" class="row">
-        <span><b>Уровень</b><small>−14 LUFS как у стримингов; −18 тише и с запасом для динамики</small></span>
+        <span
+          ><b>{{ $t('Уровень') }}</b
+          ><small>{{ $t('−14 LUFS как у стримингов; −18 тише и с запасом для динамики') }}</small></span
+        >
         <select id="norm-target" v-model.number="a.normalization.targetLufs" class="select">
           <option v-for="t in TARGETS" :key="t" :value="t">{{ t }} LUFS</option>
         </select>
       </label>
       <p class="note">
-        Проанализировано {{ analyzedCount }} из {{ library.tracks.length }}.
-        <template v-if="library.analysis"> Сейчас идёт: {{ library.analysis.done }} из {{ library.analysis.total }}.</template>
-        На телефоне анализ идёт на зарядке или пока приложение открыто. Пока трек не проанализирован, берётся ReplayGain из тегов.
+        {{ $t('Проанализировано {0} из {1}.', analyzedCount, library.tracks.length) }}
+        <template v-if="library.analysis">
+          {{ $t('Сейчас идёт: {0} из {1}.', library.analysis.done, library.analysis.total) }}</template
+        >
+        {{
+          $t(
+            'На телефоне анализ идёт на зарядке или пока приложение открыто. Пока трек не проанализирован, берётся ReplayGain из тегов.',
+          )
+        }}
       </p>
       <button v-if="analyzedCount < library.tracks.length" type="button" class="btn block" @click="analyzeAll">
-        Проанализировать сейчас
+        {{ $t('Проанализировать сейчас') }}
       </button>
     </section>
 
     <section class="group">
       <div class="eq-head">
-        <h2 class="gtitle">Эквалайзер</h2>
-        <input id="eq-on" v-model="eq.enabled" type="checkbox" class="switch" aria-label="Включить эквалайзер" />
+        <h2 class="gtitle">{{ $t('Эквалайзер') }}</h2>
+        <input id="eq-on" v-model="eq.enabled" type="checkbox" class="switch" :aria-label="$t('Включить эквалайзер')" />
       </div>
       <p class="note">
-        <template v-if="profileKey"
-          >Профиль устройства «{{ outputLabel(profileKey) }}»: включается сам, когда звук идёт туда.</template
-        >
-        <template v-else>Общий для всех устройств. Свой профиль для наушников или колонки — в «Вывод звука» в плеере.</template>
+        <template v-if="profileKey">{{
+          $t('Профиль устройства «{0}»: включается сам, когда звук идёт туда.', outputLabel(profileKey))
+        }}</template>
+        <template v-else>{{
+          $t('Общий для всех устройств. Свой профиль для наушников или колонки — в «Вывод звука» в плеере.')
+        }}</template>
       </p>
       <div class="pills">
         <button
@@ -292,7 +312,7 @@ async function stopPreview() {
           <div
             class="rail"
             role="slider"
-            :aria-label="`${f} Гц`"
+            :aria-label="$t('{0} Гц', f)"
             :aria-valuenow="eq.bands[i]"
             aria-valuemin="-12"
             aria-valuemax="12"
@@ -318,18 +338,24 @@ async function stopPreview() {
       </div>
       <div class="slider-row">
         <header>
-          <span>Предусиление</span><output>{{ eq.preampDb > 0 ? '+' : '' }}{{ eq.preampDb }} дБ</output>
+          <span>{{ $t('Предусиление') }}</span
+          ><output>{{ $t('{0}{1} дБ', eq.preampDb > 0 ? '+' : '', eq.preampDb) }}</output>
         </header>
         <RangeSlider v-model="eq.preampDb" :min="-12" :max="6" :step="0.5" />
       </div>
       <p class="note">
-        Если подняли низы или верха, уберите предусиление на столько же, чтобы не было перегруза. На выходе стоит лимитер.
+        {{
+          $t('Если подняли низы или верха, уберите предусиление на столько же, чтобы не было перегруза. На выходе стоит лимитер.')
+        }}
       </p>
     </section>
 
     <section class="group">
       <label class="row">
-        <span><b>Продолжать при подключении</b><small>Наушники подключились — музыка продолжается с того же места</small></span>
+        <span
+          ><b>{{ $t('Продолжать при подключении') }}</b
+          ><small>{{ $t('Наушники подключились — музыка продолжается с того же места') }}</small></span
+        >
         <input id="auto-resume" v-model="a.autoResume" type="checkbox" class="switch" />
       </label>
     </section>

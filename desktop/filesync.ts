@@ -7,6 +7,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { pipeline } from 'node:stream/promises'
 import { ignored } from '../src/filesync/plan'
+import { tr } from './lang'
 
 /**
  * Папка с музыкой по Wi-Fi: компьютер раздаёт её телефону в локальной сети (как Syncthing, только проще).
@@ -67,11 +68,13 @@ export interface FileSyncHost {
 
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex')
 
+/** Ошибка запроса: текст по-русски и по-английски — телефон получит на своём языке */
 class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
     readonly why?: string,
+    readonly en = message,
   ) {
     super(message)
   }
@@ -121,7 +124,10 @@ export class FileSyncServer {
     server.requestTimeout = 0
     await new Promise<void>((resolve) => {
       server.once('error', (e: NodeJS.ErrnoException) => {
-        this.error = e.code === 'EADDRINUSE' ? `Порт ${port} занят другой программой` : e.message
+        this.error =
+          e.code === 'EADDRINUSE'
+            ? tr(`Порт ${port} занят другой программой`, `Port ${port} is used by another program`)
+            : e.message
         resolve()
       })
       // AMBER_FILESYNC_BIND=127.0.0.1 — для проверок: без окна брандмауэра Windows
@@ -178,7 +184,7 @@ export class FileSyncServer {
   private async handle(req: http.IncomingMessage, res: http.ServerResponse) {
     try {
       const url = new URL(req.url ?? '/', 'http://x')
-      if (!url.pathname.startsWith(API)) throw new HttpError(404, 'Не найдено')
+      if (!url.pathname.startsWith(API)) throw new HttpError(404, 'Не найдено', undefined, 'Not found')
       const route = `${req.method} ${url.pathname.slice(API.length)}`
       if (route === 'GET /hello') return this.json(res, this.hello())
       if (route === 'POST /pair') return this.json(res, this.pair((await this.body(req)) as { code?: string; name?: string }))
@@ -199,10 +205,11 @@ export class FileSyncServer {
           return this.json(res, await this.trash(root, b.p ?? '', b.expect ?? '', device))
         }
       }
-      throw new HttpError(404, 'Не найдено')
+      throw new HttpError(404, 'Не найдено', undefined, 'Not found')
     } catch (e) {
       const err = e instanceof HttpError ? e : new HttpError(500, e instanceof Error ? e.message : String(e))
-      if (!res.headersSent) this.json(res, { error: err.message, why: err.why }, err.status)
+      const en = /^en/i.test(req.headers['accept-language'] ?? '')
+      if (!res.headersSent) this.json(res, { error: en ? err.en : err.message, why: err.why }, err.status)
       else res.destroy()
       // Недочитанное тело (отказали до приёма файла) не держим
       req.resume()
@@ -216,11 +223,17 @@ export class FileSyncServer {
 
   private pair(b: { code?: string; name?: string }) {
     const code = this.code
-    if (!code || Date.now() > code.expiresAt) throw new HttpError(403, 'Код устарел: открой подключение на компьютере заново')
+    if (!code || Date.now() > code.expiresAt)
+      throw new HttpError(
+        403,
+        'Код устарел: открой подключение на компьютере заново',
+        undefined,
+        'The code expired: start connecting on the computer again',
+      )
     if (b.code !== code.value) {
       // Перебор кода: после пяти ошибок код сгорает
       if (++code.wrong >= 5) this.code = null
-      throw new HttpError(403, 'Неверный код')
+      throw new HttpError(403, 'Неверный код', undefined, 'Wrong code')
     }
     this.code = null
     const token = crypto.randomBytes(24).toString('base64url')
@@ -241,7 +254,13 @@ export class FileSyncServer {
     const token = h.startsWith('Bearer ') ? h.slice(7) : ''
     const c = this.host.config()
     const d = token ? c.devices.find((x) => x.tokenHash === sha(token)) : undefined
-    if (!d) throw new HttpError(401, 'Телефон не подключён к этому компьютеру')
+    if (!d)
+      throw new HttpError(
+        401,
+        'Телефон не подключён к этому компьютеру',
+        undefined,
+        'The phone is not connected to this computer',
+      )
     if (!d.lastSeenAt || Date.now() - d.lastSeenAt > 60_000) {
       d.lastSeenAt = Date.now()
       this.host.save({ ...c })
@@ -251,23 +270,25 @@ export class FileSyncServer {
 
   private root(): string {
     const f = this.host.config().folder
-    if (!f || !fs.existsSync(f)) throw new HttpError(503, 'Папка для синхронизации недоступна')
+    if (!f || !fs.existsSync(f))
+      throw new HttpError(503, 'Папка для синхронизации недоступна', undefined, 'The sync folder is unavailable')
     return path.resolve(f)
   }
 
   /** Путь от телефона → файл внутри папки. Выйти за её пределы нельзя */
   private resolve(root: string, p: string | null): string {
     if (!p || p.includes('\\') || p.split('/').some((x) => x === '..' || x === '') || ignored(p)) {
-      throw new HttpError(400, 'Недопустимый путь')
+      throw new HttpError(400, 'Недопустимый путь', undefined, 'Invalid path')
     }
     const abs = path.resolve(root, ...p.split('/'))
-    if (!abs.toLowerCase().startsWith(root.toLowerCase() + path.sep)) throw new HttpError(400, 'Недопустимый путь')
+    if (!abs.toLowerCase().startsWith(root.toLowerCase() + path.sep))
+      throw new HttpError(400, 'Недопустимый путь', undefined, 'Invalid path')
     return abs
   }
 
   private async sendFile(res: http.ServerResponse, abs: string, device: PairedDevice) {
     const st = await fsp.stat(abs).catch(() => null)
-    if (!st?.isFile()) throw new HttpError(404, 'Файла нет', 'missing')
+    if (!st?.isFile()) throw new HttpError(404, 'Файла нет', 'missing', 'No such file')
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
       'Content-Length': st.size,
@@ -285,22 +306,31 @@ export class FileSyncServer {
     const size = Number(q.get('s'))
     const mtime = Number(q.get('m'))
     const expect = q.get('expect') ?? ''
-    if (!Number.isFinite(size) || size < 0 || !Number.isFinite(mtime)) throw new HttpError(400, 'Нет размера или времени')
+    if (!Number.isFinite(size) || size < 0 || !Number.isFinite(mtime))
+      throw new HttpError(400, 'Нет размера или времени', undefined, 'No size or time')
     // Цель уже не та, что видел телефон, — даже не принимаем
-    if (!(await matches(abs, expect))) throw new HttpError(409, 'Файл на компьютере изменился', 'changed')
+    if (!(await matches(abs, expect)))
+      throw new HttpError(409, 'Файл на компьютере изменился', 'changed', 'The file changed on the computer')
     await fsp.mkdir(path.dirname(abs), { recursive: true })
     const tmp = path.join(path.dirname(abs), `.${path.basename(abs)}.${crypto.randomBytes(4).toString('hex')}.amber-part`)
     try {
       await pipeline(req, fs.createWriteStream(tmp))
       const got = (await fsp.stat(tmp)).size
-      if (got !== size) throw new HttpError(400, `Файл пришёл не целиком: ${got} из ${size} байт`, 'error')
+      if (got !== size)
+        throw new HttpError(
+          400,
+          `Файл пришёл не целиком: ${got} из ${size} байт`,
+          'error',
+          `The file arrived incomplete: ${got} of ${size} bytes`,
+        )
       // Пока принимали, файл на компьютере могли поменять
-      if (!(await matches(abs, expect))) throw new HttpError(409, 'Файл на компьютере изменился', 'changed')
+      if (!(await matches(abs, expect)))
+        throw new HttpError(409, 'Файл на компьютере изменился', 'changed', 'The file changed on the computer')
       if (expect !== 'none') {
         try {
           await this.host.trash(abs)
         } catch {
-          throw new HttpError(423, 'Файл занят', 'busy')
+          throw new HttpError(423, 'Файл занят', 'busy', 'The file is busy')
         }
       }
       await fsp.rename(tmp, abs)
@@ -320,7 +350,7 @@ export class FileSyncServer {
     try {
       await this.host.trash(abs)
     } catch {
-      throw new HttpError(423, 'Файл занят', 'busy')
+      throw new HttpError(423, 'Файл занят', 'busy', 'The file is busy')
     }
     this.host.onActivity?.({ device: device.name, op: 'trash', path: abs })
     return { result: 'ok' }
@@ -332,13 +362,13 @@ export class FileSyncServer {
       req.setEncoding('utf8')
       req.on('data', (c: string) => {
         data += c
-        if (data.length > 64 * 1024) reject(new HttpError(413, 'Слишком большой запрос'))
+        if (data.length > 64 * 1024) reject(new HttpError(413, 'Слишком большой запрос', undefined, 'Request too large'))
       })
       req.on('end', () => {
         try {
           resolve(data ? JSON.parse(data) : {})
         } catch {
-          reject(new HttpError(400, 'Неверный запрос'))
+          reject(new HttpError(400, 'Неверный запрос', undefined, 'Bad request'))
         }
       })
       req.on('error', reject)

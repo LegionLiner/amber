@@ -1,5 +1,6 @@
 package app.yantar.player.online
 
+import app.yantar.player.core.Lang
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -67,7 +68,7 @@ object YouTube {
     fun info(url: String): Info {
         init()
         val s = StreamInfo.getInfo(ServiceList.YouTube, url.trim())
-        val audio = pickAudio(s.audioStreams) ?: error("У этого видео нет отдельной звуковой дорожки")
+        val audio = pickAudio(s.audioStreams) ?: error(Lang.t("У этого видео нет отдельной звуковой дорожки", "This video has no separate audio track"))
         val (artist, title) = splitTitle(s.name, s.uploaderName ?: "")
         // Для предпросмотра хватает того, что дала страница; для обложки в файле ниже ищем крупнее
         val thumb = s.thumbnails
@@ -151,7 +152,7 @@ object YouTube {
                             total = c.getHeaderField("Content-Range")?.substringAfter('/')?.toLongOrNull() ?: total
                         }
                         200 -> total = c.contentLengthLong
-                        else -> error("YouTube ответил ${c.responseCode}")
+                        else -> error(Lang.t("YouTube ответил ${c.responseCode}", "YouTube responded ${c.responseCode}"))
                     }
                     val n = c.inputStream.use { it.copyTo(fos) }
                     if (n == 0L) break
@@ -163,7 +164,7 @@ object YouTube {
                 }
             }
         }
-        if (total > 0 && done < total) error("Загрузка оборвалась")
+        if (total > 0 && done < total) error(Lang.t("Загрузка оборвалась", "The download was interrupted"))
     }
 
     /** DASH-кусочки → обычный файл: тот же звук без перекодирования */
@@ -171,7 +172,7 @@ object YouTube {
         val ex = MediaExtractor()
         ex.setDataSource(src.path)
         val track = (0 until ex.trackCount).firstOrNull { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
-            ?: error("В файле нет звука")
+            ?: error(Lang.t("В файле нет звука", "The file has no audio"))
         ex.selectTrack(track)
         val mux = MediaMuxer(dst.path, format)
         try {
@@ -242,9 +243,9 @@ object YouTube {
             put(MediaStore.Audio.Media.IS_PENDING, 1)
         }
         val uri = cr.insert(MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
-            ?: error("Не удалось создать файл в «Музыке»")
+            ?: error(Lang.t("Не удалось создать файл в «Музыке»", "Couldn't create a file in “Music”"))
         try {
-            cr.openOutputStream(uri, "w")?.use { it.write(bytes) } ?: error("Не удалось записать файл")
+            cr.openOutputStream(uri, "w")?.use { it.write(bytes) } ?: error(Lang.t("Не удалось записать файл", "Couldn't write the file"))
             cr.update(uri, ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) }, null, null)
         } catch (e: Exception) {
             cr.delete(uri, null, null)
@@ -277,7 +278,7 @@ object YouTube {
             }
             try {
                 val code = c.responseCode
-                if (code == 429) throw ReCaptchaException("YouTube просит пройти проверку «я не робот»", request.url())
+                if (code == 429) throw ReCaptchaException(Lang.t("YouTube просит пройти проверку «я не робот»", "YouTube asks for an “I'm not a robot” check"), request.url())
                 val body = (if (code >= 400) c.errorStream else c.inputStream)?.use { it.readBytes().toString(Charsets.UTF_8) }
                 return Response(code, c.responseMessage, c.headerFields.filterKeys { it != null }, body, c.url.toString())
             } finally {

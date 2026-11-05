@@ -14,6 +14,7 @@ import { dayLabel } from '@/domain/weeks'
 import { formatListen } from '@/domain/format'
 import { MOODS } from './mood'
 import { displayArtist, type Track } from '@/domain/track'
+import { LOCALE, $t } from '@/i18n'
 
 /** День в дневнике: что звучало, в каком порядке впервые, настроение и заметка */
 const route = useViewRoute()
@@ -64,13 +65,13 @@ async function saveNote() {
   if (note.value === savedNote) return
   savedNote = note.value
   await saveDiaryNote(day.value, mood.value, note.value.trim() || null)
-  ui.toast('Заметка сохранена')
+  ui.toast($t('Заметка сохранена'))
 }
 function play(list: Track[], i = 0) {
   void player.playTracks(
     list,
     i,
-    { type: 'top', id: `day-${day.value}`, title: `Саундтрек ${dayLabel(day.value)}` },
+    { type: 'top', id: `day-${day.value}`, title: $t('Саундтрек {0}', dayLabel(day.value)) },
     { shuffle: false },
   )
 }
@@ -82,13 +83,17 @@ function play(list: Track[], i = 0) {
       :title="dayLabel(day, true)"
       :subtitle="
         rows.length
-          ? `${formatListen(total)} · с ${new Date(firstAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+          ? $t(
+              '{0} · с {1}',
+              formatListen(total),
+              new Date(firstAt).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }),
+            )
           : ''
       "
       back
     />
     <section class="group">
-      <h2 class="gtitle">Настроение</h2>
+      <h2 class="gtitle">{{ $t('Настроение') }}</h2>
       <div class="moods">
         <button
           v-for="m in MOODS"
@@ -102,12 +107,14 @@ function play(list: Track[], i = 0) {
           <component :is="m.icon" /><small>{{ m.label }}</small>
         </button>
       </div>
-      <textarea id="day-note" v-model="note" class="field" placeholder="Что было в этот день?" @blur="saveNote" />
+      <textarea id="day-note" v-model="note" class="field" :placeholder="$t('Что было в этот день?')" @blur="saveNote" />
     </section>
 
     <div v-if="items.length" class="section-title">
-      <span>Саундтрек дня</span>
-      <button type="button" class="btn small primary" @click="play(items.map((x) => x.t))"><IconPlay />Слушать</button>
+      <span>{{ $t('Саундтрек дня') }}</span>
+      <button type="button" class="btn small primary" @click="play(items.map((x) => x.t))">
+        <IconPlay />{{ $t('Слушать') }}
+      </button>
     </div>
     <button
       v-for="(x, i) in items"
@@ -123,7 +130,9 @@ function play(list: Track[], i = 0) {
     >
       <CoverArt :art="x.t.art" :seed="x.t.title" :label="x.t.title" size="s" class="cv" />
       <span class="text">
-        <span class="t ellipsis">{{ x.t.title }}<b v-if="x.r.isNew" class="new">впервые</b></span>
+        <span class="t ellipsis"
+          >{{ x.t.title }}<b v-if="x.r.isNew" class="new">{{ $t('впервые') }}</b></span
+        >
         <span class="s ellipsis">{{ displayArtist(x.t) }} · {{ formatListen(x.r.listenedMs) }}</span>
       </span>
       <span class="n num">{{ x.r.plays }}×</span>
@@ -132,14 +141,16 @@ function play(list: Track[], i = 0) {
       <CoverArt :seed="x.c.title" :label="x.c.title" size="s" class="cv" />
       <span class="text">
         <span class="t ellipsis">{{ x.c.title }}</span>
-        <span class="s ellipsis"
-          >{{ x.c.artist || 'Неизвестный исполнитель' }} · {{ formatListen(x.r.listenedMs) }} · нет в медиатеке</span
-        >
+        <span class="s ellipsis">{{
+          $t('{0} · {1} · нет в медиатеке', x.c.artist || $t('Неизвестный исполнитель'), formatListen(x.r.listenedMs))
+        }}</span>
       </span>
       <span class="n num">{{ x.r.plays }}×</span>
     </div>
-    <p v-if="firstTime.length" class="lead muted">Впервые в этот день: {{ firstTime.length }}.</p>
-    <div v-if="!rows.length" class="empty"><h3>В этот день музыки не было</h3></div>
+    <p v-if="firstTime.length" class="lead muted">{{ $t('Впервые в этот день: {0}.', firstTime.length) }}</p>
+    <div v-if="!rows.length" class="empty">
+      <h3>{{ $t('В этот день музыки не было') }}</h3>
+    </div>
     <div class="bottom-space" />
   </div>
 </template>

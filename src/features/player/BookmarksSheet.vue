@@ -11,6 +11,7 @@ import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
 import { formatDuration } from '@/domain/format'
 import { haptic } from '@/native/haptics'
+import { $t } from '@/i18n'
 
 /**
  * Метки внутри трека. Тап по метке перематывает к ней.
@@ -33,7 +34,7 @@ const isCurrent = () => player.current?.key === props.trackKey
 
 async function add() {
   const pos = isCurrent() ? player.position : posAtOpen.value
-  await addBookmark(props.trackKey, pos, `Метка ${formatDuration(pos)}`)
+  await addBookmark(props.trackKey, pos, $t('Метка {0}', formatDuration(pos)))
   haptic.success()
   await reload()
 }
@@ -46,9 +47,9 @@ function jump(b: Bookmark) {
 
 function rename(b: Bookmark) {
   ui.openSheet(NameSheet, {
-    title: 'Название метки',
+    title: $t('Название метки'),
     initial: b.title,
-    confirm: 'Сохранить',
+    confirm: $t('Сохранить'),
     onDone: async (v: string) => {
       await renameBookmark(b.id, v)
       props.onChanged?.()
@@ -69,22 +70,30 @@ async function remove(b: Bookmark) {
 
 <template>
   <div class="scroll body">
-    <h3 class="head ellipsis">Метки · {{ title }}</h3>
+    <h3 class="head ellipsis">{{ $t('Метки · {0}', title) }}</h3>
     <button type="button" class="add" @click="add">
-      <IconAdd />Поставить метку на {{ formatDuration(isCurrent() ? player.position : posAtOpen) }}
+      <IconAdd />{{ $t('Поставить метку на {0}', formatDuration(isCurrent() ? player.position : posAtOpen)) }}
     </button>
     <div v-for="b in list" :key="b.id" class="row">
       <button type="button" class="main" @click="jump(b)">
         <span class="time num">{{ formatDuration(b.positionMs) }}</span>
         <span class="t ellipsis">{{ b.title }}</span>
       </button>
-      <button type="button" class="ic" :class="{ best: b.kind === 'best' }" aria-label="Лучший момент" @click="toggleBest(b)">
+      <button
+        type="button"
+        class="ic"
+        :class="{ best: b.kind === 'best' }"
+        :aria-label="$t('Лучший момент')"
+        @click="toggleBest(b)"
+      >
         <IconStar v-if="b.kind === 'best'" /><IconStarO v-else />
       </button>
-      <button type="button" class="ic" aria-label="Переименовать" @click="rename(b)"><IconPen /></button>
-      <button type="button" class="ic" aria-label="Удалить" @click="remove(b)"><IconTrash /></button>
+      <button type="button" class="ic" :aria-label="$t('Переименовать')" @click="rename(b)"><IconPen /></button>
+      <button type="button" class="ic" :aria-label="$t('Удалить')" @click="remove(b)"><IconTrash /></button>
     </div>
-    <p v-if="!list.length" class="note muted">Меток пока нет. Отметь припев, соло или момент, ради которого включаешь трек.</p>
+    <p v-if="!list.length" class="note muted">
+      {{ $t('Меток пока нет. Отметь припев, соло или момент, ради которого включаешь трек.') }}
+    </p>
   </div>
 </template>
 

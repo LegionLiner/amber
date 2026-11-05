@@ -15,8 +15,8 @@ object Backups {
     fun write(ctx: Context, tree: Uri, name: String, mime: String, data: ByteArray): Uri {
         val cr = ctx.contentResolver
         val dir = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-        val doc = DocumentsContract.createDocument(cr, dir, mime, name) ?: error("Не удалось создать файл в папке бэкапов")
-        cr.openOutputStream(doc, "wt")?.use { it.write(data) } ?: error("Не удалось записать бэкап")
+        val doc = DocumentsContract.createDocument(cr, dir, mime, name) ?: error(Lang.t("Не удалось создать файл в папке бэкапов", "Couldn't create a file in the backup folder"))
+        cr.openOutputStream(doc, "wt")?.use { it.write(data) } ?: error(Lang.t("Не удалось записать бэкап", "Couldn't write the backup"))
         return doc
     }
 

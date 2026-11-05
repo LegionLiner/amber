@@ -15,6 +15,7 @@ import { useUi } from '@/stores/ui'
 import { displayArtist, type Track } from '@/domain/track'
 import { onPageShown } from '@/app/paging'
 import { isDesktop } from '@/native/desktop/bridge'
+import { $t } from '@/i18n'
 
 type TopTab = 'rank' | 'rate' | 'charts' | 'duels'
 
@@ -59,8 +60,12 @@ onPageShown(() => (justRated.value = new Set()))
     <ChartsTab v-else-if="tab === 'charts'" />
     <section v-else>
       <p class="lead muted">
-        Сначала треки, которые ты слушаешь чаще всего.
-        {{ isDesktop ? 'Нажми на звезду — левая половина ставит оценку с половинкой.' : 'Проведи пальцем по звёздам.' }}
+        {{
+          $t(
+            'Сначала треки, которые ты слушаешь чаще всего. {0}',
+            isDesktop ? $t('Нажми на звезду — левая половина ставит оценку с половинкой.') : $t('Проведи пальцем по звёздам.'),
+          )
+        }}
       </p>
       <!-- .rate-grid на телефоне «прозрачная» (список строк), на компьютере — сетка карточек -->
       <div class="rate-grid">
@@ -76,7 +81,7 @@ onPageShown(() => (justRated.value = new Set()))
           <button
             type="button"
             class="icon-btn"
-            aria-label="Послушать"
+            :aria-label="$t('Послушать')"
             @click="player.playTracks([t], 0, { type: 'track', title: t.title }, { shuffle: false })"
           >
             <IconPlay />
@@ -84,8 +89,8 @@ onPageShown(() => (justRated.value = new Set()))
         </div>
       </div>
       <div v-if="!toRate.length" class="empty">
-        <h3>Всё оценено</h3>
-        <p>Каждый трек в библиотеке уже со звёздами.</p>
+        <h3>{{ $t('Всё оценено') }}</h3>
+        <p>{{ $t('Каждый трек в библиотеке уже со звёздами.') }}</p>
       </div>
     </section>
     <div class="bottom-space" />

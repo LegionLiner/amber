@@ -9,6 +9,7 @@ import { mergeDuplicates } from '@/data/repos/library'
 import { deleteTracks } from '@/app/delete-tracks'
 import { dismiss, dismissedKeys } from '@/data/repos/tags'
 import { formatBytes, formatDuration } from '@/domain/format'
+import { $t } from '@/i18n'
 
 /**
  * Дубли: один трек в нескольких файлах. «Слить» переносит историю, оценку и метки на выбранный файл,
@@ -38,7 +39,7 @@ async function merge(g: DuplicateGroup) {
     g.tracks.map((t) => t.key).filter((k) => k !== best),
   )
   await library.load()
-  ui.toast('Слито: история и оценки теперь у одного файла')
+  ui.toast($t('Слито: история и оценки теперь у одного файла'))
   await load()
 }
 
@@ -52,9 +53,9 @@ async function mergeAndDelete(g: DuplicateGroup) {
   )
   try {
     const n = await deleteTracks(extra)
-    ui.toast(n ? `Слито, лишних файлов удалено: ${n}` : 'Слито. Лишние файлы остались на месте')
+    ui.toast(n ? $t('Слито, лишних файлов удалено: {0}', n) : $t('Слито. Лишние файлы остались на месте'))
   } catch (e) {
-    ui.toast(`Слито, но удалить не получилось: ${e instanceof Error ? e.message : String(e)}`)
+    ui.toast($t('Слито, но удалить не получилось: {0}', e instanceof Error ? e.message : String(e)))
   }
   await library.load()
   await load()
@@ -68,10 +69,10 @@ async function notDup(g: DuplicateGroup) {
 
 <template>
   <div class="scroll screen form">
-    <ScreenHeader title="Дубли" :subtitle="groups.length ? `${groups.length} групп` : undefined" back />
+    <ScreenHeader :title="$t('Дубли')" :subtitle="groups.length ? $t('{0} групп', groups.length) : undefined" back />
     <section v-if="!groups.length" class="empty">
-      <h3>Дублей нет</h3>
-      <p>Одинаковых треков в разных файлах не нашлось.</p>
+      <h3>{{ $t('Дублей нет') }}</h3>
+      <p>{{ $t('Одинаковых треков в разных файлах не нашлось.') }}</p>
     </section>
     <section v-for="g in groups" :key="g.id" class="group">
       <div class="head">
@@ -86,16 +87,23 @@ async function notDup(g: DuplicateGroup) {
         <span class="info">
           <span class="ellipsis">{{ t.folder }}{{ t.fileName }}</span>
           <small>
-            {{ t.bitrate ? `${Math.round(t.bitrate / 1000)} кбит/с · ` : '' }}{{ formatBytes(t.size) }} ·
-            {{ formatDuration(t.durationMs) }} · {{ t.plays }} прослуш.<template v-if="t.rating"> · ★{{ t.rating / 2 }}</template>
+            {{
+              $t(
+                '{0}{1} · {2} · {3} прослуш.',
+                t.bitrate ? $t('{0} кбит/с · ', Math.round(t.bitrate / 1000)) : '',
+                formatBytes(t.size),
+                formatDuration(t.durationMs),
+                t.plays,
+              )
+            }}<template v-if="t.rating"> · ★{{ t.rating / 2 }}</template>
           </small>
         </span>
       </label>
       <div class="btns">
-        <button type="button" class="btn" @click="notDup(g)">Это разные</button>
-        <button type="button" class="btn primary" @click="merge(g)">Слить</button>
+        <button type="button" class="btn" @click="notDup(g)">{{ $t('Это разные') }}</button>
+        <button type="button" class="btn primary" @click="merge(g)">{{ $t('Слить') }}</button>
       </div>
-      <button type="button" class="btn block del" @click="mergeAndDelete(g)">Слить и удалить лишние файлы</button>
+      <button type="button" class="btn block del" @click="mergeAndDelete(g)">{{ $t('Слить и удалить лишние файлы') }}</button>
     </section>
     <div class="bottom-space" />
   </div>

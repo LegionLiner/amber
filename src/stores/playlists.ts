@@ -20,6 +20,7 @@ import {
 } from '@/data/repos/playlists'
 import { buildTree, groupPosFor, nodePos, nudge, placeFor, type Drop } from '@/domain/playlist-tree'
 import { useSettings } from './settings'
+import { $t } from '@/i18n'
 
 export const usePlaylists = defineStore('playlists', () => {
   const list = ref<PlaylistRow[]>([])
@@ -45,7 +46,7 @@ export const usePlaylists = defineStore('playlists', () => {
     kind: PlaylistRow['kind'] = 'manual',
     rules: string | null = null,
   ): Promise<number> {
-    const id = await createPlaylist(name.trim() || 'Новый плейлист', kind, rules)
+    const id = await createPlaylist(name.trim() || $t('Новый плейлист'), kind, rules)
     if (keys.length) await addToPlaylist(id, keys)
     await refresh()
     return id
@@ -118,7 +119,7 @@ export const usePlaylists = defineStore('playlists', () => {
 
   async function addGroup(name: string): Promise<number> {
     const first = tree.value.root[0]
-    const createdAt = await createGroup(name.trim() || 'Новая группа', first ? nodePos(first) - 1 : 0)
+    const createdAt = await createGroup(name.trim() || $t('Новая группа'), first ? nodePos(first) - 1 : 0)
     await refresh()
     return createdAt
   }

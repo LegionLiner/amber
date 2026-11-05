@@ -7,6 +7,7 @@ import NameSheet from '@/components/NameSheet.vue'
 import { usePlaylists } from '@/stores/playlists'
 import { useUi } from '@/stores/ui'
 import { DEFAULT_RULES } from '@/domain/smart'
+import { $t } from '@/i18n'
 
 /** Что создать: обычный плейлист, умный (собирается по правилам) или микс (переходы на каждом стыке) */
 const emit = defineEmits<{ close: [] }>()
@@ -16,8 +17,8 @@ const router = useRouter()
 
 function manual() {
   ui.openSheet(NameSheet, {
-    title: 'Новый плейлист',
-    confirm: 'Создать',
+    title: $t('Новый плейлист'),
+    confirm: $t('Создать'),
     onDone: async (name: string) => {
       const id = await playlists.create(name)
       void router.push(`/playlist/${id}`)
@@ -25,19 +26,19 @@ function manual() {
   })
 }
 async function smart() {
-  const id = await playlists.create('Умный плейлист', [], 'smart', JSON.stringify(DEFAULT_RULES))
+  const id = await playlists.create($t('Умный плейлист'), [], 'smart', JSON.stringify(DEFAULT_RULES))
   emit('close')
   void router.push(`/playlist/${id}/rules`)
 }
 function mix() {
   ui.openSheet(NameSheet, {
-    title: 'Новый микс',
-    confirm: 'Создать',
-    placeholder: 'Например, «Ночная трасса»',
+    title: $t('Новый микс'),
+    confirm: $t('Создать'),
+    placeholder: $t('Например, «Ночная трасса»'),
     onDone: async (name: string) => {
       const id = await playlists.create(name, [], 'mix')
       void router.push(`/playlist/${id}`)
-      ui.toast('Добавляй треки через «Добавить в плейлист», потом настрой стыки в редакторе')
+      ui.toast($t('Добавляй треки через «Добавить в плейлист», потом настрой стыки в редакторе'))
     },
   })
 }
@@ -45,16 +46,22 @@ function mix() {
 
 <template>
   <div class="sheet-body">
-    <h3 class="sheet-head">Создать</h3>
+    <h3 class="sheet-head">{{ $t('Создать') }}</h3>
     <div class="sheet-list">
       <button type="button" class="sheet-item" @click="manual">
-        <IconList /><span>Плейлист<small>Сам выбираешь треки и порядок</small></span>
+        <IconList /><span
+          >{{ $t('Плейлист') }}<small>{{ $t('Сам выбираешь треки и порядок') }}</small></span
+        >
       </button>
       <button type="button" class="sheet-item" @click="smart">
-        <IconSmart /><span>Умный плейлист<small>Собирается сам по условиям и обновляется</small></span>
+        <IconSmart /><span
+          >{{ $t('Умный плейлист') }}<small>{{ $t('Собирается сам по условиям и обновляется') }}</small></span
+        >
       </button>
       <button type="button" class="sheet-item" @click="mix">
-        <IconMix /><span>Микс<small>Свой переход на каждом стыке, как у диджея</small></span>
+        <IconMix /><span
+          >{{ $t('Микс') }}<small>{{ $t('Свой переход на каждом стыке, как у диджея') }}</small></span
+        >
       </button>
     </div>
   </div>

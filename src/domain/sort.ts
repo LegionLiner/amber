@@ -1,5 +1,6 @@
 import type { Track } from './track'
 import { refinementOf } from './rating'
+import { $t } from '@/i18n'
 
 export type TrackSortKey =
   | 'title'
@@ -18,20 +19,20 @@ export type TrackSortKey =
   | 'random'
 
 export const TRACK_SORTS: { key: TrackSortKey; label: string; dir: 'asc' | 'desc' }[] = [
-  { key: 'rating', label: 'Оценка и место', dir: 'desc' },
-  { key: 'plays', label: 'Прослушивания', dir: 'desc' },
-  { key: 'title', label: 'Название', dir: 'asc' },
-  { key: 'artist', label: 'Исполнитель', dir: 'asc' },
-  { key: 'album', label: 'Альбом', dir: 'asc' },
-  { key: 'added', label: 'Дата добавления', dir: 'desc' },
-  { key: 'lastPlayed', label: 'Последнее прослушивание', dir: 'desc' },
-  { key: 'listened', label: 'Время прослушивания', dir: 'desc' },
-  { key: 'duration', label: 'Длительность', dir: 'desc' },
-  { key: 'skips', label: 'Пропуски', dir: 'desc' },
-  { key: 'year', label: 'Год', dir: 'desc' },
-  { key: 'fileName', label: 'Имя файла', dir: 'asc' },
-  { key: 'folder', label: 'Папка', dir: 'asc' },
-  { key: 'random', label: 'Случайно', dir: 'asc' },
+  { key: 'rating', label: $t('Оценка и место'), dir: 'desc' },
+  { key: 'plays', label: $t('Прослушивания'), dir: 'desc' },
+  { key: 'title', label: $t('Название'), dir: 'asc' },
+  { key: 'artist', label: $t('Исполнитель'), dir: 'asc' },
+  { key: 'album', label: $t('Альбом'), dir: 'asc' },
+  { key: 'added', label: $t('Дата добавления'), dir: 'desc' },
+  { key: 'lastPlayed', label: $t('Последнее прослушивание'), dir: 'desc' },
+  { key: 'listened', label: $t('Время прослушивания'), dir: 'desc' },
+  { key: 'duration', label: $t('Длительность'), dir: 'desc' },
+  { key: 'skips', label: $t('Пропуски'), dir: 'desc' },
+  { key: 'year', label: $t('Год'), dir: 'desc' },
+  { key: 'fileName', label: $t('Имя файла'), dir: 'asc' },
+  { key: 'folder', label: $t('Папка'), dir: 'asc' },
+  { key: 'random', label: $t('Случайно'), dir: 'asc' },
 ]
 
 const coll = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' })

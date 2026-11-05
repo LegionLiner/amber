@@ -7,6 +7,7 @@ import { loadAutoContext } from '@/data/repos/auto'
 import { AUTO_PLAYLISTS, buildAuto, type AutoId } from '@/domain/auto'
 import type { Track } from '@/domain/track'
 import { metaFor, tableFor } from './rowMeta'
+import { $t } from '@/i18n'
 
 const route = useViewRoute()
 const library = useLibrary()
@@ -36,17 +37,17 @@ const meta = computed(() => metaFor(sortKey.value))
 const table = computed(() => tableFor(sortKey.value === 'rating' ? 'plays' : sortKey.value))
 
 const EMPTY: Partial<Record<AutoId, string>> = {
-  now: 'Подборка появится, когда наберётся история: нужно хотя бы три прослушивания трека в это время суток.',
-  onRepeat: 'Сюда попадают треки, которые за две недели звучат заметно чаще обычного.',
-  forgotten: 'Здесь будут любимые треки, которые ты не слушал больше двух месяцев.',
-  yearAgo: 'Через год здесь будет то, что звучит сейчас.',
+  now: $t('Подборка появится, когда наберётся история: нужно хотя бы три прослушивания трека в это время суток.'),
+  onRepeat: $t('Сюда попадают треки, которые за две недели звучат заметно чаще обычного.'),
+  forgotten: $t('Здесь будут любимые треки, которые ты не слушал больше двух месяцев.'),
+  yearAgo: $t('Через год здесь будет то, что звучит сейчас.'),
 }
 </script>
 
 <template>
   <CollectionPage
     v-if="def"
-    kind="Подборка"
+    :kind="$t('Подборка')"
     :title="def.title"
     :subtitle="loaded ? undefined : def.hint"
     :tracks="tracks"
@@ -56,10 +57,12 @@ const EMPTY: Partial<Record<AutoId, string>> = {
     :extra-label="table?.label"
   >
     <template #extra>
-      <p class="hint muted">{{ loaded && !tracks.length ? (EMPTY[def.id] ?? 'Пока пусто.') : def.hint }}</p>
+      <p class="hint muted">{{ loaded && !tracks.length ? (EMPTY[def.id] ?? $t('Пока пусто.')) : def.hint }}</p>
     </template>
   </CollectionPage>
-  <div v-else class="empty"><h3>Подборка не найдена</h3></div>
+  <div v-else class="empty">
+    <h3>{{ $t('Подборка не найдена') }}</h3>
+  </div>
 </template>
 
 <style scoped>

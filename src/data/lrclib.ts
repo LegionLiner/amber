@@ -1,5 +1,6 @@
 import { APP_VERSION } from '@/app/version'
 import { rank, type LrclibRecord, type LyricsQuery } from '@/domain/lrclib'
+import { $t } from '@/i18n'
 
 /**
  * Запросы к LRCLIB. Без ключей и аккаунтов; браузер не даёт подменить User-Agent,
@@ -14,7 +15,7 @@ async function get<T>(path: string, params: Record<string, string>, timeoutMs = 
   try {
     const res = await fetch(`${BASE}${path}?${new URLSearchParams(params)}`, { headers: HEADERS, signal: ctl.signal })
     if (res.status === 404) return null
-    if (!res.ok) throw new Error(`LRCLIB ответил ${res.status}`)
+    if (!res.ok) throw new Error($t('LRCLIB ответил {0}', res.status))
     return (await res.json()) as T
   } finally {
     clearTimeout(timer)

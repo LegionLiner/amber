@@ -29,6 +29,7 @@ import { useUi } from '@/stores/ui'
 import { createGroupDialog, openGroupMenu, openPlaylistMenu } from '@/features/library/playlistMenu'
 import { pKey } from '@/domain/playlist-tree'
 import type { PlaylistGroupRow, PlaylistRow } from '@/data/repos/playlists'
+import { $t } from '@/i18n'
 
 /**
  * Боковое меню компьютерной версии: разделы (как нижняя навигация на телефоне), плейлисты, настройки.
@@ -43,11 +44,11 @@ const ui = useUi()
 const playlists = usePlaylists()
 
 const tabs: { id: TabId; to: string; label: string; icon: Component; on: Component }[] = [
-  { id: 'home', to: '/', label: 'Главная', icon: IconHome, on: IconHomeOn },
-  { id: 'library', to: '/library', label: 'Медиатека', icon: IconLib, on: IconLibOn },
-  { id: 'search', to: '/search', label: 'Поиск', icon: IconSearch, on: IconSearch },
-  { id: 'top', to: '/top', label: 'Топ', icon: IconTop, on: IconTopOn },
-  { id: 'chronicle', to: '/chronicle', label: 'Хроника', icon: IconChron, on: IconChronOn },
+  { id: 'home', to: '/', label: $t('Главная'), icon: IconHome, on: IconHomeOn },
+  { id: 'library', to: '/library', label: $t('Медиатека'), icon: IconLib, on: IconLibOn },
+  { id: 'search', to: '/search', label: $t('Поиск'), icon: IconSearch, on: IconSearch },
+  { id: 'top', to: '/top', label: $t('Топ'), icon: IconTop, on: IconTopOn },
+  { id: 'chronicle', to: '/chronicle', label: $t('Хроника'), icon: IconChron, on: IconChronOn },
 ]
 
 const active = computed(() =>
@@ -102,9 +103,9 @@ function toggle(g: PlaylistGroupRow) {
 
 function create() {
   ui.openSheet(NameSheet, {
-    title: 'Новый плейлист',
+    title: $t('Новый плейлист'),
     initial: '',
-    confirm: 'Создать',
+    confirm: $t('Создать'),
     onDone: async (name: string) => {
       const id = await playlists.create(name, [])
       void router.push(`/playlist/${id}`)
@@ -114,7 +115,7 @@ function create() {
 </script>
 
 <template>
-  <aside class="side" aria-label="Разделы">
+  <aside class="side" :aria-label="$t('Разделы')">
     <nav class="nav">
       <!-- Метка активного раздела — одна на всё меню, переезжает между пунктами -->
       <i
@@ -141,14 +142,20 @@ function create() {
       <div class="lists-head">
         <!-- Закреплённых нет: пока тянешь плейлист, на месте заголовка — зона «закрепить» (список не сдвигается) -->
         <div v-if="draggingPlaylist && !tree.pinned.length" class="pin-target" :class="markOf('pinzone')" data-drop="pinzone">
-          <IconPin />Сюда — закрепить наверху
+          <IconPin />{{ $t('Сюда — закрепить наверху') }}
         </div>
-        <span>Плейлисты</span>
+        <span>{{ $t('Плейлисты') }}</span>
         <span class="head-btns">
-          <button type="button" class="add" aria-label="Новая группа" title="Новая группа" @click="createGroupDialog()">
+          <button
+            type="button"
+            class="add"
+            :aria-label="$t('Новая группа')"
+            :title="$t('Новая группа')"
+            @click="createGroupDialog()"
+          >
             <IconFolderAdd />
           </button>
-          <button type="button" class="add" aria-label="Новый плейлист" title="Новый плейлист" @click="create">
+          <button type="button" class="add" :aria-label="$t('Новый плейлист')" :title="$t('Новый плейлист')" @click="create">
             <IconAdd />
           </button>
         </span>
@@ -161,12 +168,12 @@ function create() {
           @click="router.push('/library/favorites')"
         >
           <span class="fav"><IconHeart /></span>
-          <span class="ellipsis">Избранное</span>
+          <span class="ellipsis">{{ $t('Избранное') }}</span>
         </button>
 
         <!-- закреплённые: пока тянешь плейлист, зона видна, даже если пустая -->
         <div v-if="tree.pinned.length" class="pinbox" :class="markOf('pinzone')" data-drop="pinzone">
-          <div class="sub-head"><IconPin />Закреплённые</div>
+          <div class="sub-head"><IconPin />{{ $t('Закреплённые') }}</div>
           <button
             v-for="p in tree.pinned"
             :key="p.id"
@@ -223,7 +230,7 @@ function create() {
                 <SidePlaylist :p="p" />
               </button>
               <div v-if="!n.items.length" class="grp-empty" data-drop="group-end" :data-group="n.group.createdAt">
-                Перетащи сюда плейлисты
+                {{ $t('Перетащи сюда плейлисты') }}
               </div>
             </div>
           </template>
@@ -259,7 +266,7 @@ function create() {
       }"
       @click="router.push('/settings')"
     >
-      <IconSettings class="ic" /><span>Настройки</span>
+      <IconSettings class="ic" /><span>{{ $t('Настройки') }}</span>
     </button>
   </aside>
 </template>

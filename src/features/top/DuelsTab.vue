@@ -13,6 +13,7 @@ import { starsLabel } from '@/domain/rating'
 import { displayArtist, type Track } from '@/domain/track'
 import { haptic } from '@/native/haptics'
 import { onPageShown, onPageHidden } from '@/app/paging'
+import { $t } from '@/i18n'
 
 /**
  * Дуэли: два трека с одинаковыми звёздами, выбираешь тот, что лучше. Можно послушать по 15 секунд
@@ -86,9 +87,9 @@ async function decide(result: 1 | 0 | 0.5) {
     const loser = result === 1 ? p.b : p.a
     if ((winner.rating ?? 0) < (loser.rating ?? 0)) {
       ui.toast(
-        `«${winner.title}» обошёл трек на ${starsLabel(loser.rating)}`,
+        $t('«{0}» обошёл трек на {1}', winner.title, starsLabel(loser.rating)),
         {
-          label: `Поднять до ${starsLabel(loser.rating)}`,
+          label: $t('Поднять до {0}', starsLabel(loser.rating)),
           run: () => void library.setRating(winner.key, loser.rating),
         },
         6000,
@@ -109,14 +110,16 @@ function skip() {
 <template>
   <section class="duels">
     <p class="lead muted">
-      Выбери, какой лучше. Места внутри одинаковых звёзд уточняются сами, как рейтинг Эло.
+      {{ $t('Выбери, какой лучше. Места внутри одинаковых звёзд уточняются сами, как рейтинг Эло.') }}
       <template v-if="total">
-        Проведено дуэлей: {{ total }}<template v-if="session">, сейчас {{ session }}</template
+        {{ $t('Проведено дуэлей: {0}', total) }}<template v-if="session">{{ $t(', сейчас {0}', session) }}</template
         >.</template
       >
     </p>
     <template v-if="pair">
-      <p v-if="pair.border" class="border">Пограничная: {{ starsLabel(pair.a.rating) }} против {{ starsLabel(pair.b.rating) }}</p>
+      <p v-if="pair.border" class="border">
+        {{ $t('Пограничная: {0} против {1}', starsLabel(pair.a.rating), starsLabel(pair.b.rating)) }}
+      </p>
       <div class="pair">
         <div
           v-for="side in ['a', 'b'] as const"
@@ -141,7 +144,7 @@ function skip() {
           <button
             type="button"
             class="listen"
-            :aria-label="playing === pair[side].key ? 'Стоп' : 'Послушать'"
+            :aria-label="playing === pair[side].key ? $t('Стоп') : $t('Послушать')"
             @click.stop="preview(pair[side])"
           >
             <IconStop v-if="playing === pair[side].key" /><IconPlay v-else />
@@ -149,13 +152,13 @@ function skip() {
         </div>
       </div>
       <div class="btns">
-        <button type="button" class="btn" @click="decide(0.5)">Одинаково</button>
-        <button type="button" class="btn" @click="skip">Пропустить</button>
+        <button type="button" class="btn" @click="decide(0.5)">{{ $t('Одинаково') }}</button>
+        <button type="button" class="btn" @click="skip">{{ $t('Пропустить') }}</button>
       </div>
     </template>
     <div v-else class="empty">
-      <h3>Пока не с кем сравнивать</h3>
-      <p>Нужно хотя бы два трека с одинаковой оценкой.</p>
+      <h3>{{ $t('Пока не с кем сравнивать') }}</h3>
+      <p>{{ $t('Нужно хотя бы два трека с одинаковой оценкой.') }}</p>
     </div>
   </section>
 </template>

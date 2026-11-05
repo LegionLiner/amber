@@ -1,3 +1,4 @@
+import { $t } from '@/i18n'
 /**
  * Оценки: звёзды с половинками хранятся числом 1..10 (7 = 3½★).
  * Счёт = база от звёзд (500 за каждые ползвезды) + уточнение в пределах ±400. Уточнения соседних групп
@@ -27,7 +28,7 @@ export function scoreForRating(newRating: number | null, oldRating: number | nul
 }
 
 export function starsLabel(rating: number | null): string {
-  if (rating == null) return 'без оценки'
+  if (rating == null) return $t('без оценки')
   const whole = Math.floor(rating / 2)
   return rating % 2 ? `${whole}½★` : `${whole}★`
 }
@@ -68,9 +69,14 @@ export function ratingSuggestions(tracks: SuggestInput[], now = Date.now()): Rat
     const recent = t.lastPlayedAt != null && now - t.lastPlayedAt < 60 * 86_400_000
     const upper = med.get(t.rating + 1) ?? med.get(t.rating + 2)
     if (t.rating < 10 && recent && upper != null && upper !== Infinity && t.plays >= Math.max(6, upper) && skipRate < 0.15) {
-      out.push({ key: t.key, from: t.rating, to: t.rating + 1, reason: `слушаешь как трек на ${starsLabel(t.rating + 1)}` })
+      out.push({ key: t.key, from: t.rating, to: t.rating + 1, reason: $t('слушаешь как трек на {0}', starsLabel(t.rating + 1)) })
     } else if (t.rating >= 7 && starts >= 6 && skipRate > 0.5) {
-      out.push({ key: t.key, from: t.rating, to: t.rating - 1, reason: `пропускаешь ${Math.round(skipRate * 100)}% запусков` })
+      out.push({
+        key: t.key,
+        from: t.rating,
+        to: t.rating - 1,
+        reason: $t('пропускаешь {0}% запусков', Math.round(skipRate * 100)),
+      })
     }
   }
   return out.sort((a, b) => (b.to > b.from ? 1 : 0) - (a.to > a.from ? 1 : 0))

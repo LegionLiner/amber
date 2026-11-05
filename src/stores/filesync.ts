@@ -8,6 +8,7 @@ import { keyOf, type BaseEntry } from '@/filesync/plan'
 import { runSync, type BaseStore, type SyncProgress, type SyncReport } from '@/filesync/run'
 import { nativeIO } from '@/filesync/native'
 import { useLibrary } from './library'
+import { $t } from '@/i18n'
 
 /**
  * Папка с музыкой по Wi-Fi — вместо Syncthing.
@@ -112,7 +113,7 @@ export const useFileSync = defineStore('filesync', () => {
       .replace(/^https?:\/\//, '')
       .split(':')
     const base = baseUrl(host!, Number(port) || 47862)
-    const r = await MusicCore.fsPair({ base, code: code.trim(), name: 'Телефон' })
+    const r = await MusicCore.fsPair({ base, code: code.trim(), name: $t('Телефон') })
     link.value = { base, token: r.token, pcId: r.id, pcName: r.name }
     // Новый компьютер — память о прошлых проходах к нему не относится
     await run(`DELETE FROM filesync_base`)
@@ -157,7 +158,7 @@ export const useFileSync = defineStore('filesync', () => {
   async function syncNow(opts: { confirmDeletes?: boolean; auto?: boolean } = {}) {
     if (!isNative || status.value === 'running' || !link.value || !root.value) return
     if (!(await checkAccess())) {
-      if (!opts.auto) error.value = 'Нужен доступ к файлам'
+      if (!opts.auto) error.value = $t('Нужен доступ к файлам')
       return
     }
     status.value = 'running'
@@ -188,8 +189,8 @@ export const useFileSync = defineStore('filesync', () => {
       report.value = r
       lastAt.value = Date.now()
       status.value = r.error === 'localEmpty' || r.error === 'remoteEmpty' ? 'error' : 'idle'
-      if (r.error === 'localEmpty') error.value = 'Папка на телефоне пуста — похоже, к ней нет доступа. Ничего не трогаю.'
-      if (r.error === 'remoteEmpty') error.value = 'Папка на компьютере пуста — похоже, она недоступна. Ничего не трогаю.'
+      if (r.error === 'localEmpty') error.value = $t('Папка на телефоне пуста — похоже, к ней нет доступа. Ничего не трогаю.')
+      if (r.error === 'remoteEmpty') error.value = $t('Папка на компьютере пуста — похоже, она недоступна. Ничего не трогаю.')
       await setStates({ report: JSON.stringify(r), lastAt: String(lastAt.value) })
       // Новые и убранные файлы медиатека телефона видит после пересканирования
       if (r.pulled || r.trashedLocal)
@@ -203,7 +204,8 @@ export const useFileSync = defineStore('filesync', () => {
     } catch (e) {
       status.value = 'error'
       error.value = e instanceof Error ? e.message : String(e)
-      if (/не подключён/.test(error.value)) error.value = 'Компьютер больше не знает этот телефон: подключись заново'
+      if (/не подключён|not connected/.test(error.value))
+        error.value = $t('Компьютер больше не знает этот телефон: подключись заново')
     } finally {
       if (status.value === 'running') status.value = 'idle'
       progress.value = null

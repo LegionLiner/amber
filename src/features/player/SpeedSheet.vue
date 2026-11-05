@@ -15,6 +15,7 @@ import {
   type Effects,
   type SoundPreset,
 } from '@/domain/effects'
+import { $t } from '@/i18n'
 
 /**
  * Скорость, тон и эффекты. «Slowed» и «Nightcore» — скорость и тон вместе, как на пластинке;
@@ -75,12 +76,12 @@ interface Preset {
   fx?: Effects
 }
 const PRESETS: Preset[] = [
-  { id: 'normal', label: 'Как есть', speed: 1, pitch: 1 },
+  { id: 'normal', label: $t('Как есть'), speed: 1, pitch: 1 },
   { id: 'slowed', label: 'Slowed', speed: 0.85, pitch: 0.85 },
   { id: 'slowedReverb', label: 'Slowed + reverb', speed: 0.85, pitch: 0.85, fx: { reverb: 0.6 } },
   { id: 'nightcore', label: 'Nightcore', speed: 1.25, pitch: 1.25 },
-  { id: 'slow', label: 'Медленнее', speed: 0.85, pitch: 1 },
-  { id: 'fast', label: 'Быстрее', speed: 1.2, pitch: 1 },
+  { id: 'slow', label: $t('Медленнее'), speed: 0.85, pitch: 1 },
+  { id: 'fast', label: $t('Быстрее'), speed: 1.2, pitch: 1 },
 ]
 
 const keepTone = computed(() => Math.abs(player.pitch - 1) < 0.001 || Math.abs(player.pitch - player.speed) > 0.001)
@@ -137,30 +138,32 @@ function resetFx() {
 
 <template>
   <div class="sheet-body form">
-    <h3 class="sheet-head">Скорость, тон и эффекты</h3>
+    <h3 class="sheet-head">{{ $t('Скорость, тон и эффекты') }}</h3>
 
     <div class="fx-head first">
-      <h4>Мои пресеты</h4>
+      <h4>{{ $t('Мои пресеты') }}</h4>
       <button v-if="mine.length" type="button" class="reset" @click="editing = !editing">
-        {{ editing ? 'Готово' : 'Изменить' }}
+        {{ editing ? $t('Готово') : $t('Изменить') }}
       </button>
     </div>
     <div class="pills">
-      <button type="button" class="pill" :class="{ on: plain }" data-preset="plain" @click="applyPlain">Обычный звук</button>
+      <button type="button" class="pill" :class="{ on: plain }" data-preset="plain" @click="applyPlain">
+        {{ $t('Обычный звук') }}
+      </button>
       <button
         v-for="p in mine"
         :key="p.id"
         type="button"
         class="pill"
         :class="{ on: activeMine === p.id && !editing, del: editing }"
-        :aria-label="editing ? `Удалить пресет «${p.name}»` : undefined"
+        :aria-label="editing ? $t('Удалить пресет «{0}»', p.name) : undefined"
         data-preset="mine"
         @click="applyMine(p)"
       >
         {{ p.name }}<span v-if="editing" class="x" aria-hidden="true">×</span>
       </button>
       <button v-if="canSave && !naming" type="button" class="pill add" data-preset="save" @click="startSave">
-        + Сохранить текущий
+        {{ $t('+ Сохранить текущий') }}
       </button>
     </div>
     <div v-if="naming" class="save-row">
@@ -169,18 +172,18 @@ function resetFx() {
         v-model="newName"
         class="field"
         maxlength="28"
-        placeholder="Название пресета"
+        :placeholder="$t('Название пресета')"
         autocomplete="off"
         @keydown.enter="save"
       />
-      <button type="button" class="btn primary" @click="save">Сохранить</button>
+      <button type="button" class="btn primary" @click="save">{{ $t('Сохранить') }}</button>
     </div>
     <p v-else-if="!mine.length" class="note">
-      Настрой скорость, тон и эффекты ниже и нажми «Сохранить текущий» — потом весь набор включается одним нажатием.
+      {{ $t('Настрой скорость, тон и эффекты ниже и нажми «Сохранить текущий» — потом весь набор включается одним нажатием.') }}
     </p>
 
     <div class="fx-head">
-      <h4>Скорость и тон</h4>
+      <h4>{{ $t('Скорость и тон') }}</h4>
     </div>
     <div class="pills">
       <button v-for="p in PRESETS" :key="p.id" type="button" class="pill" :class="{ on: current === p.id }" @click="preset(p)">
@@ -189,28 +192,30 @@ function resetFx() {
     </div>
     <div class="slider-row">
       <header>
-        <span>Скорость</span><output>{{ shownSpeed.toFixed(2) }}×</output>
+        <span>{{ $t('Скорость') }}</span
+        ><output>{{ shownSpeed.toFixed(2) }}×</output>
       </header>
       <RangeSlider
         :model-value="shownSpeed"
         :min="0.5"
         :max="2"
         :step="0.05"
-        label="Скорость"
+        :label="$t('Скорость')"
         @update:model-value="(v: number) => (draft = v)"
         @change="applySpeed"
       />
     </div>
     <label class="row">
       <span
-        ><b>Сохранять тон</b><small>{{ keepTone ? 'Голос звучит как обычно' : 'Тон меняется вместе со скоростью' }}</small></span
+        ><b>{{ $t('Сохранять тон') }}</b
+        ><small>{{ keepTone ? $t('Голос звучит как обычно') : $t('Тон меняется вместе со скоростью') }}</small></span
       >
       <input id="keep-tone" type="checkbox" class="switch" :checked="keepTone" @change="toggleTone" />
     </label>
 
     <div class="fx-head">
-      <h4>Эффекты</h4>
-      <button v-if="active.length" type="button" class="reset" @click="resetFx">Выключить все</button>
+      <h4>{{ $t('Эффекты') }}</h4>
+      <button v-if="active.length" type="button" class="reset" @click="resetFx">{{ $t('Выключить все') }}</button>
     </div>
     <div class="fx-grid">
       <button
@@ -237,17 +242,20 @@ function resetFx() {
         :min="0.05"
         :max="1"
         :step="0.05"
-        :label="`${d.label}: сила`"
+        :label="$t('{0}: сила', d.label)"
         @update:model-value="(v: number) => strength(d.id, v)"
       />
     </div>
 
     <p v-if="!isNative" class="note">
-      В браузере тон нельзя сдвинуть отдельно: он либо сохраняется, либо едет вместе со скоростью.
+      {{ $t('В браузере тон нельзя сдвинуть отдельно: он либо сохраняется, либо едет вместе со скоростью.') }}
     </p>
     <p class="note">
-      Эффекты действуют на все треки, пока их не выключишь. Прослушивание засчитывается по реальному времени: на ускорении трек
-      засчитается быстрее.
+      {{
+        $t(
+          'Эффекты действуют на все треки, пока их не выключишь. Прослушивание засчитывается по реальному времени: на ускорении трек засчитается быстрее.',
+        )
+      }}
     </p>
   </div>
 </template>

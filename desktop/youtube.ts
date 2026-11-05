@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import { tr } from './lang'
 
 /**
  * YouTube на компьютере — через утилиту yt-dlp (на телефоне это делает NewPipe).
@@ -38,7 +39,8 @@ async function ensureTool(userData: string, progress?: (p: YtProgress) => void):
   if (!fs.existsSync(file)) {
     await fsp.mkdir(binDir(userData), { recursive: true })
     const res = await fetch(YTDLP_URL)
-    if (!res.ok || !res.body) throw new Error(`Не удалось скачать загрузчик (${res.status})`)
+    if (!res.ok || !res.body)
+      throw new Error(tr(`Не удалось скачать загрузчик (${res.status})`, `Couldn't download the downloader (${res.status})`))
     const total = Number(res.headers.get('content-length') ?? 0)
     const tmp = `${file}.part`
     const out = fs.createWriteStream(tmp)
@@ -78,7 +80,7 @@ function run(bin: string, args: string[], onLine?: (line: string) => void): Prom
     p.on('error', reject)
     p.on('close', (code) => {
       if (code === 0) resolve(out)
-      else reject(new Error(humanError(err) || `yt-dlp завершился с кодом ${code}`))
+      else reject(new Error(humanError(err) || tr(`yt-dlp завершился с кодом ${code}`, `yt-dlp exited with code ${code}`)))
     })
   })
 }
@@ -89,11 +91,17 @@ function humanError(stderr: string): string {
     .reverse()
     .find((l) => l.startsWith('ERROR'))
   if (!line) return stderr.trim().split(/\r?\n/).pop() ?? ''
-  if (/private video/i.test(line)) return 'Видео приватное'
-  if (/unavailable|not available/i.test(line)) return 'Видео недоступно'
-  if (/sign in to confirm your age/i.test(line)) return 'Видео с возрастным ограничением: без входа в аккаунт не скачать'
-  if (/sign in to confirm/i.test(line)) return 'YouTube просит подтвердить, что это не бот. Попробуй позже'
-  if (/is not a valid url|unsupported url/i.test(line)) return 'Это не ссылка на видео YouTube'
+  if (/private video/i.test(line)) return tr('Видео приватное', 'The video is private')
+  if (/unavailable|not available/i.test(line)) return tr('Видео недоступно', 'The video is unavailable')
+  if (/sign in to confirm your age/i.test(line))
+    return tr(
+      'Видео с возрастным ограничением: без входа в аккаунт не скачать',
+      "The video is age-restricted: it can't be downloaded without signing in",
+    )
+  if (/sign in to confirm/i.test(line))
+    return tr('YouTube просит подтвердить, что это не бот. Попробуй позже', "YouTube asks to confirm you're not a bot. Try later")
+  if (/is not a valid url|unsupported url/i.test(line))
+    return tr('Это не ссылка на видео YouTube', "This isn't a YouTube video link")
   return line.replace(/^ERROR:\s*(\[[^\]]+\]\s*)?(\S+:\s*)?/, '')
 }
 
@@ -110,7 +118,7 @@ export async function youtubeInfo(url: string): Promise<YtInfo> {
   }
   return {
     id: j.id,
-    title: j.title ?? 'Без названия',
+    title: j.title ?? tr('Без названия', 'Untitled'),
     uploader: j.uploader ?? j.channel ?? '',
     durationMs: Math.round((j.duration ?? 0) * 1000),
     thumbnail: j.thumbnail ?? `https://i.ytimg.com/vi/${j.id}/hqdefault.jpg`,
@@ -184,7 +192,7 @@ export async function youtubeDownload(
     },
   )
   const got = (await fsp.readdir(tmpDir)).find((f) => f.startsWith(`${info.id}.`) && !f.endsWith('.part'))
-  if (!got) throw new Error('Файл не скачался')
+  if (!got) throw new Error(tr('Файл не скачался', "The file didn't download"))
   progress({ stage: 'save', done: 0, total: 0 })
   const ext = path.extname(got)
   let target = path.join(out, `${base}${ext}`)

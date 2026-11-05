@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
+import { $t } from '@/i18n'
 
 /** Сон-таймер. Музыка плавно затухает 15 секунд и встаёт на паузу. Работает при выключенном экране. */
 const emit = defineEmits<{ close: [] }>()
@@ -15,31 +16,33 @@ onBeforeUnmount(() => clearInterval(timer))
 const OPTIONS = [15, 30, 45, 60, 90]
 const active = computed(() => player.sleepAt > 0 || player.sleepEndOfTrack)
 const left = computed(() => {
-  if (player.sleepEndOfTrack) return 'после этого трека'
+  if (player.sleepEndOfTrack) return $t('после этого трека')
   const ms = Math.max(0, player.sleepAt - now.value)
   const m = Math.floor(ms / 60000)
   const s = Math.floor((ms % 60000) / 1000)
-  return `через ${m}:${String(s).padStart(2, '0')}`
+  return $t('через {0}:{1}', m, String(s).padStart(2, '0'))
 })
 
 async function set(v: number | 'end' | null) {
   await player.setSleep(v)
-  ui.toast(v == null ? 'Сон-таймер выключен' : v === 'end' ? 'Остановлю после этого трека' : `Остановлю через ${v} мин`)
+  ui.toast(
+    v == null ? $t('Сон-таймер выключен') : v === 'end' ? $t('Остановлю после этого трека') : $t('Остановлю через {0} мин', v),
+  )
   emit('close')
 }
 </script>
 
 <template>
   <div class="body">
-    <h3 class="head">Сон-таймер</h3>
-    <p v-if="active" class="now">Музыка остановится {{ left }}</p>
+    <h3 class="head">{{ $t('Сон-таймер') }}</h3>
+    <p v-if="active" class="now">{{ $t('Музыка остановится {0}', left) }}</p>
     <div class="grid">
       <button v-for="m in OPTIONS" :key="m" type="button" class="opt" @click="set(m)">
-        {{ m < 60 ? `${m} мин` : m === 60 ? '1 час' : '1,5 часа' }}
+        {{ m < 60 ? $t('{0} мин', m) : m === 60 ? $t('1 час') : $t('1,5 часа') }}
       </button>
-      <button type="button" class="opt wide" @click="set('end')">После этого трека</button>
+      <button type="button" class="opt wide" @click="set('end')">{{ $t('После этого трека') }}</button>
     </div>
-    <button v-if="active" type="button" class="btn block off" @click="set(null)">Выключить таймер</button>
+    <button v-if="active" type="button" class="btn block off" @click="set(null)">{{ $t('Выключить таймер') }}</button>
   </div>
 </template>
 

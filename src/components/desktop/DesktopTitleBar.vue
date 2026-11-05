@@ -14,6 +14,7 @@ import { GLOBAL_SEARCH_ID, searchQuery } from '@/app/search-query'
 import { useSettings } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { usePlayer } from '@/stores/player'
+import { $t } from '@/i18n'
 
 /**
  * Строка заголовка окна на компьютере. За неё окно таскают (кнопки окна справа рисует Windows),
@@ -62,14 +63,21 @@ function clear() {
   <header class="tbar">
     <div class="brand display" aria-hidden="true">Amber</div>
     <div class="nav">
-      <button type="button" class="tb" aria-label="Назад" title="Назад (Alt+←)" :disabled="!canBack" @click="router.back()">
+      <button
+        type="button"
+        class="tb"
+        :aria-label="$t('Назад')"
+        :title="$t('Назад (Alt+←)')"
+        :disabled="!canBack"
+        @click="router.back()"
+      >
         <IconBack />
       </button>
       <button
         type="button"
         class="tb"
-        aria-label="Вперёд"
-        title="Вперёд (Alt+→)"
+        :aria-label="$t('Вперёд')"
+        :title="$t('Вперёд (Alt+→)')"
         :disabled="!canForward"
         @click="router.forward()"
       >
@@ -86,13 +94,15 @@ function clear() {
           autocomplete="off"
           autocapitalize="off"
           spellcheck="false"
-          placeholder="Трек, исполнитель, папка, заметка"
-          aria-label="Поиск"
+          :placeholder="$t('Трек, исполнитель, папка, заметка')"
+          :aria-label="$t('Поиск')"
           @focus="toSearch"
           @input="toSearch"
           @keydown.esc.stop="field?.blur()"
         />
-        <button v-if="searchQuery" type="button" class="clr" aria-label="Очистить" @click.prevent="clear"><IconClose /></button>
+        <button v-if="searchQuery" type="button" class="clr" :aria-label="$t('Очистить')" @click.prevent="clear">
+          <IconClose />
+        </button>
         <kbd v-else>Ctrl F</kbd>
       </label>
     </div>
@@ -102,8 +112,8 @@ function clear() {
         type="button"
         class="tb dev"
         :class="{ on: remote.playingElsewhere.length > 0 }"
-        aria-label="Устройства"
-        :title="remote.playingElsewhere.length ? `Играет на «${remote.playingElsewhere[0]!.name}»` : 'Устройства'"
+        :aria-label="$t('Устройства')"
+        :title="remote.playingElsewhere.length ? $t('Играет на «{0}»', remote.playingElsewhere[0]!.name) : $t('Устройства')"
         @click="ui.openSheet(DevicesSheet)"
       >
         <IconDevices />
@@ -115,8 +125,8 @@ function clear() {
         class="tb panel"
         :class="{ on: settings.s.nowPanel }"
         :aria-pressed="settings.s.nowPanel"
-        aria-label="Панель «Сейчас играет»"
-        title="Панель «Сейчас играет»"
+        :aria-label="$t('Панель «Сейчас играет»')"
+        :title="$t('Панель «Сейчас играет»')"
         @click="settings.s.nowPanel = !settings.s.nowPanel"
       >
         <IconPanel />

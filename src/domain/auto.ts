@@ -1,5 +1,6 @@
 import type { Track } from './track'
 import { refinementOf } from './rating'
+import { $t } from '@/i18n'
 
 /**
  * Автоплейлисты: чистые функции отбора. Данные о прослушиваниях приходят готовыми
@@ -29,20 +30,20 @@ export interface AutoDef {
 }
 
 export const AUTO_PLAYLISTS: AutoDef[] = [
-  { id: 'now', title: 'Подходит сейчас', hint: 'любимое в это время суток' },
-  { id: 'eternal', title: 'Вечный чарт', hint: 'все треки по числу прослушиваний' },
-  { id: 'onRepeat', title: 'На повторе', hint: '14 дней чаще обычного' },
-  { id: 'bestRated', title: 'Лучшее по оценке', hint: '4½★ и выше, по месту' },
-  { id: 'forgotten', title: 'Давно не слушал', hint: 'любимое, но больше 60 дней назад' },
-  { id: 'discoveries', title: 'Открытия месяца', hint: 'впервые засчитаны за 30 дней' },
-  { id: 'recentlyAdded', title: 'Недавно добавленные', hint: 'новое на телефоне' },
-  { id: 'neverPlayed', title: 'Ни разу не слушал', hint: 'ноль засчитанных' },
-  { id: 'morning', title: 'Утро', hint: '5:00–11:00' },
-  { id: 'day', title: 'День', hint: '11:00–17:00' },
-  { id: 'evening', title: 'Вечер', hint: '17:00–23:00' },
-  { id: 'night', title: 'Ночь', hint: '23:00–5:00' },
-  { id: 'yearAgo', title: 'Год назад', hint: 'что звучало в эту неделю год назад' },
-  { id: 'skipped', title: 'Часто пропускаю', hint: 'кандидаты пересмотреть оценку' },
+  { id: 'now', title: $t('Подходит сейчас'), hint: $t('любимое в это время суток') },
+  { id: 'eternal', title: $t('Вечный чарт'), hint: $t('все треки по числу прослушиваний') },
+  { id: 'onRepeat', title: $t('На повторе'), hint: $t('14 дней чаще обычного') },
+  { id: 'bestRated', title: $t('Лучшее по оценке'), hint: $t('4½★ и выше, по месту') },
+  { id: 'forgotten', title: $t('Давно не слушал'), hint: $t('любимое, но больше 60 дней назад') },
+  { id: 'discoveries', title: $t('Открытия месяца'), hint: $t('впервые засчитаны за 30 дней') },
+  { id: 'recentlyAdded', title: $t('Недавно добавленные'), hint: $t('новое на телефоне') },
+  { id: 'neverPlayed', title: $t('Ни разу не слушал'), hint: $t('ноль засчитанных') },
+  { id: 'morning', title: $t('Утро'), hint: '5:00–11:00' },
+  { id: 'day', title: $t('День'), hint: '11:00–17:00' },
+  { id: 'evening', title: $t('Вечер'), hint: '17:00–23:00' },
+  { id: 'night', title: $t('Ночь'), hint: '23:00–5:00' },
+  { id: 'yearAgo', title: $t('Год назад'), hint: $t('что звучало в эту неделю год назад') },
+  { id: 'skipped', title: $t('Часто пропускаю'), hint: $t('кандидаты пересмотреть оценку') },
 ]
 
 export type DayPart = 'morning' | 'day' | 'evening' | 'night'

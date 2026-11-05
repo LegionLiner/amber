@@ -7,6 +7,7 @@ import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { countLabel } from '@/domain/format'
 import type { FolderNode } from '@/domain/groups'
+import { $tp } from '@/i18n'
 
 const library = useLibrary()
 const ui = useUi()
@@ -44,7 +45,7 @@ watch(
         <span class="ic"><IconFolder /></span>
         <span class="text">
           <span class="t ellipsis">{{ f.name }}</span>
-          <span class="s ellipsis">{{ f.path }} · {{ countLabel(f.total, ['трек', 'трека', 'треков']) }}</span>
+          <span class="s ellipsis">{{ f.path }} · {{ countLabel(f.total, $tp('трек|трека|треков')) }}</span>
         </span>
       </button>
     </div>

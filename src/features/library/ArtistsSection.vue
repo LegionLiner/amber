@@ -11,6 +11,7 @@ import { useSettings, type SortPref } from '@/stores/settings'
 import { useUi } from '@/stores/ui'
 import { countLabel } from '@/domain/format'
 import type { ArtistGroup } from '@/domain/groups'
+import { $t, $tp } from '@/i18n'
 
 const library = useLibrary()
 const settings = useSettings()
@@ -20,9 +21,9 @@ const scrollEl = ref<HTMLElement | null>(null)
 
 const SCREEN = 'library.artists'
 const OPTIONS = [
-  { key: 'name', label: 'Имя', dir: 'asc' as const },
-  { key: 'plays', label: 'Прослушивания', dir: 'desc' as const },
-  { key: 'tracks', label: 'Число треков', dir: 'desc' as const },
+  { key: 'name', label: $t('Имя'), dir: 'asc' as const },
+  { key: 'plays', label: $t('Прослушивания'), dir: 'desc' as const },
+  { key: 'tracks', label: $t('Число треков'), dir: 'desc' as const },
 ]
 const pref = computed(() => settings.sortFor(SCREEN, { key: 'name', dir: 'asc' }))
 const coll = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' })
@@ -55,7 +56,7 @@ function openSort() {
   <div ref="scrollEl" class="scroll screen">
     <HeadSpace />
     <div class="toolbar">
-      <span class="muted">{{ artists.length }} исп.</span>
+      <span class="muted">{{ $t('{0} исп.', artists.length) }}</span>
       <button type="button" class="sort" @click="openSort">
         <IconSort />{{ OPTIONS.find((o) => o.key === pref.key)?.label }}
       </button>
@@ -74,15 +75,15 @@ function openSort() {
         <span class="text">
           <span class="t ellipsis">{{ a.name }}</span>
           <span class="s ellipsis">
-            {{ countLabel(a.tracks.length, ['трек', 'трека', 'треков'])
-            }}<template v-if="a.plays"> · {{ a.plays }} прослуш.</template>
+            {{ countLabel(a.tracks.length, $tp('трек|трека|треков'))
+            }}<template v-if="a.plays"> {{ $t('· {0} прослуш.', a.plays) }}</template>
           </span>
         </span>
       </button>
     </div>
     <div v-if="library.loaded && !artists.length" class="empty">
-      <h3>Исполнителей нет</h3>
-      <p>Имена возьмутся из тегов или из имён файлов вида «Исполнитель - Название».</p>
+      <h3>{{ $t('Исполнителей нет') }}</h3>
+      <p>{{ $t('Имена возьмутся из тегов или из имён файлов вида «Исполнитель - Название».') }}</p>
     </div>
     <div class="bottom-space" />
     <AlphaScroller v-if="pref.key === 'name' && pref.dir === 'asc'" :names="artists.map((a) => a.name)" @jump="jump" />

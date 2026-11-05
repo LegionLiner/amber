@@ -7,6 +7,7 @@ import { useUi } from '@/stores/ui'
 import { findFixes, REASON_LABEL, type Fix } from '@/domain/cleanup'
 import { dismiss, dismissedKeys, saveTags, type TagEdit } from '@/data/repos/tags'
 import type { Track } from '@/domain/track'
+import { $t } from '@/i18n'
 
 /**
  * Уборка тегов: мусор сайтов, номера в названиях, капслок, пустые теги из имени файла.
@@ -51,7 +52,7 @@ function toggleGroup(list: Fix[], on: boolean) {
   selected.value = s
 }
 
-const FIELD: Record<Fix['field'], string> = { title: 'название', artist: 'исполнитель', album: 'альбом' }
+const FIELD: Record<Fix['field'], string> = { title: $t('название'), artist: $t('исполнитель'), album: $t('альбом') }
 
 async function apply() {
   const chosen = fixes.value.filter((f) => selected.value.has(idOf(f)))
@@ -64,7 +65,9 @@ async function apply() {
     const r = await saveTags(tracks, edits, settings.s.writeTagsToFiles)
     await library.load()
     ui.toast(
-      r.written ? `Исправлено: ${tracks.length}, в файлы записано ${r.written}` : `Исправлено в приложении: ${tracks.length}`,
+      r.written
+        ? $t('Исправлено: {0}, в файлы записано {1}', tracks.length, r.written)
+        : $t('Исправлено в приложении: {0}', tracks.length),
       undefined,
       5000,
     )
@@ -83,17 +86,21 @@ async function skipSelected() {
 
 <template>
   <div class="scroll screen form">
-    <ScreenHeader title="Уборка тегов" :subtitle="fixes.length ? `Нашлось ${fixes.length} исправлений` : undefined" back />
+    <ScreenHeader
+      :title="$t('Уборка тегов')"
+      :subtitle="fixes.length ? $t('Нашлось {0} исправлений', fixes.length) : undefined"
+      back
+    />
     <section v-if="!fixes.length" class="empty">
-      <h3>Всё чисто</h3>
-      <p>Мусора сайтов, капслока и пустых тегов не нашлось.</p>
+      <h3>{{ $t('Всё чисто') }}</h3>
+      <p>{{ $t('Мусора сайтов, капслока и пустых тегов не нашлось.') }}</p>
     </section>
     <template v-else>
       <section v-for="[reason, list] in groups" :key="reason" class="group">
         <div class="ghead">
           <h2 class="gtitle">{{ REASON_LABEL[reason] }} · {{ list.length }}</h2>
           <button type="button" class="link" @click="toggleGroup(list, !list.every((f) => selected.has(idOf(f))))">
-            {{ list.every((f) => selected.has(idOf(f))) ? 'снять' : 'все' }}
+            {{ list.every((f) => selected.has(idOf(f))) ? $t('снять') : $t('все') }}
           </button>
         </div>
         <label v-for="f in list.slice(0, 200)" :key="idOf(f)" class="fix">
@@ -104,20 +111,22 @@ async function skipSelected() {
             <b>{{ f.after }}</b>
           </span>
         </label>
-        <p v-if="list.length > 200" class="note">…и ещё {{ list.length - 200 }}</p>
+        <p v-if="list.length > 200" class="note">{{ $t('…и ещё {0}', list.length - 200) }}</p>
       </section>
       <section class="group">
         <p class="note">
           {{
             settings.s.writeTagsToFiles
-              ? 'Исправления запишутся в сами mp3 (Android спросит разрешение), остальное — в приложении.'
-              : 'Исправления сохранятся в приложении, файлы не меняются.'
+              ? $t('Исправления запишутся в сами mp3 (Android спросит разрешение), остальное — в приложении.')
+              : $t('Исправления сохранятся в приложении, файлы не меняются.')
           }}
         </p>
         <div class="btns">
-          <button type="button" class="btn" :disabled="busy || !selected.size" @click="skipSelected">Не предлагать</button>
+          <button type="button" class="btn" :disabled="busy || !selected.size" @click="skipSelected">
+            {{ $t('Не предлагать') }}
+          </button>
           <button type="button" class="btn primary" :disabled="busy || !selected.size" @click="apply">
-            Исправить {{ selected.size }}
+            {{ $t('Исправить {0}', selected.size) }}
           </button>
         </div>
       </section>

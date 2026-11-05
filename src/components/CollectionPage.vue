@@ -14,6 +14,7 @@ import { useCoverGlow } from '@/app/cover-colors'
 import { formatListen, countLabel } from '@/domain/format'
 import { flyCoverTo } from '@/app/motion'
 import { isDesktop } from '@/native/desktop/bridge'
+import { $t, $tp } from '@/i18n'
 
 /**
  * Общая страница набора треков: альбом, исполнитель, жанр, папка, плейлист.
@@ -62,7 +63,7 @@ onActivated(land)
 
 const totalMs = computed(() => props.tracks.reduce((s, t) => s + t.durationMs, 0))
 const line = computed(
-  () => props.subtitle || `${countLabel(props.tracks.length, ['трек', 'трека', 'треков'])} · ${formatListen(totalMs.value)}`,
+  () => props.subtitle || `${countLabel(props.tracks.length, $tp('трек|трека|треков'))} · ${formatListen(totalMs.value)}`,
 )
 </script>
 
@@ -82,7 +83,7 @@ const line = computed(
       <template #header>
         <div class="hero" :class="{ wide: isDesktop }" :style="{ '--c1': colors[0], '--c2': colors[1] }">
           <div class="bar">
-            <button type="button" class="icon-btn" aria-label="Назад" @click="router.back()"><IconBack /></button>
+            <button type="button" class="icon-btn" :aria-label="$t('Назад')" @click="router.back()"><IconBack /></button>
             <slot name="actions" />
           </div>
           <CoverArt
@@ -107,7 +108,7 @@ const line = computed(
                   :disabled="!tracks.length"
                   @click="play ? play(0, false) : player.playTracks(tracks, 0, source, { shuffle: false })"
                 >
-                  <IconPlay />Слушать
+                  <IconPlay />{{ $t('Слушать') }}
                 </button>
                 <button
                   type="button"
@@ -115,7 +116,7 @@ const line = computed(
                   :disabled="!tracks.length"
                   @click="play ? play(-1, true) : player.playTracks(tracks, -1, source, { shuffle: true })"
                 >
-                  <IconShuffle />Перемешать
+                  <IconShuffle />{{ $t('Перемешать') }}
                 </button>
               </div>
               <slot name="extra" />

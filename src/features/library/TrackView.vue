@@ -23,6 +23,7 @@ import { formatBytes, formatDate, formatDuration, formatListen, relativeDay } fr
 import TrackPlaysChart from './TrackPlaysChart.vue'
 import { starsLabel } from '@/domain/rating'
 import type { PlaySource } from '@/native/types'
+import { $t } from '@/i18n'
 
 const route = useViewRoute()
 const router = useRouter()
@@ -33,6 +34,8 @@ const ui = useUi()
 const key = computed(() => String(route.params.key ?? ''))
 const t = computed(() => library.byKey.get(key.value))
 const source = computed<PlaySource>(() => ({ type: 'track', id: key.value, title: t.value?.title }))
+const toArtist = (name: string) => router.push(`/artist/${encodeURIComponent(artistIdOf(name))}`)
+const toAlbum = () => t.value && router.push(`/album/${encodeURIComponent(albumIdOf(t.value))}`)
 
 interface Ev {
   startedAt: number
@@ -59,10 +62,10 @@ const counted = computed(() => events.value.filter((e) => e.counted).map((e) => 
 
 const dayparts = computed(() => {
   const parts = [
-    { label: 'Утро', from: 5, to: 11, n: 0 },
-    { label: 'День', from: 11, to: 17, n: 0 },
-    { label: 'Вечер', from: 17, to: 23, n: 0 },
-    { label: 'Ночь', from: 23, to: 5, n: 0 },
+    { label: $t('Утро'), from: 5, to: 11, n: 0 },
+    { label: $t('День'), from: 11, to: 17, n: 0 },
+    { label: $t('Вечер'), from: 17, to: 23, n: 0 },
+    { label: $t('Ночь'), from: 23, to: 5, n: 0 },
   ]
   for (const e of events.value) {
     if (!e.counted) continue
@@ -85,24 +88,24 @@ async function saveNote() {
   const v = note.value.trim() || null
   library.patch(t.value.key, { note: v })
   await upsertTrackUser(t.value.key, { note: v })
-  ui.toast('Заметка сохранена')
+  ui.toast($t('Заметка сохранена'))
 }
 
 const fileRows = computed(() => {
   const x = t.value
   if (!x) return []
   const rows: [string, string][] = [
-    ['Файл', x.fileName],
-    ['Папка', x.folder || '/'],
-    ['Длительность', formatDuration(x.durationMs)],
-    ['Размер', formatBytes(x.size)],
+    [$t('Файл'), x.fileName],
+    [$t('Папка'), x.folder || '/'],
+    [$t('Длительность'), formatDuration(x.durationMs)],
+    [$t('Размер'), formatBytes(x.size)],
   ]
-  if (x.mime) rows.push(['Формат', x.mime.replace('audio/', '').replace('mpeg', 'mp3')])
-  if (x.bitrate) rows.push(['Битрейт', `${Math.round(x.bitrate / 1000)} кбит/с`])
-  if (x.sampleRate) rows.push(['Частота', `${(x.sampleRate / 1000).toFixed(1).replace('.', ',')} кГц`])
-  if (x.year) rows.push(['Год', String(x.year)])
-  if (x.genre) rows.push(['Жанр', x.genre])
-  rows.push(['Добавлен', formatDate(x.addedAt)])
+  if (x.mime) rows.push([$t('Формат'), x.mime.replace('audio/', '').replace('mpeg', 'mp3')])
+  if (x.bitrate) rows.push([$t('Битрейт'), $t('{0} кбит/с', Math.round(x.bitrate / 1000))])
+  if (x.sampleRate) rows.push([$t('Частота'), $t('{0} кГц', (x.sampleRate / 1000).toFixed(1).replace('.', ','))])
+  if (x.year) rows.push([$t('Год'), String(x.year)])
+  if (x.genre) rows.push([$t('Жанр'), x.genre])
+  rows.push([$t('Добавлен'), formatDate(x.addedAt)])
   return rows
 })
 
@@ -115,11 +118,11 @@ const tagsDiffer = computed(() => {
 <template>
   <div v-if="t" class="scroll screen card">
     <div class="bar">
-      <button type="button" class="icon-btn" aria-label="Назад" @click="router.back()"><IconBack /></button>
+      <button type="button" class="icon-btn" :aria-label="$t('Назад')" @click="router.back()"><IconBack /></button>
       <button
         type="button"
         class="icon-btn"
-        aria-label="Действия"
+        :aria-label="$t('Действия')"
         @click="ui.openSheet(TrackActionsSheet, { trackKey: t.key, source })"
       >
         <IconMore />
@@ -130,16 +133,17 @@ const tagsDiffer = computed(() => {
       <CoverArt :art="t.art" :seed="t.title" :label="t.title" size="l" radius="var(--r-l)" class="cv" />
       <h1 class="display title">{{ t.title }}</h1>
       <p class="artist">
-        <template v-for="(a, i) in t.artists" :key="a">
-          <button type="button" class="link" @click="router.push(`/artist/${encodeURIComponent(artistIdOf(a))}`)">{{ a }}</button
-          ><span v-if="i < t.artists.length - 1">, </span>
-        </template>
+        <!-- Ссылки строчные (span): запятая держится за именем и не уезжает при переносе в начало строки -->
+        <template v-for="(a, i) in t.artists" :key="a"
+          ><span role="link" tabindex="0" class="link" @click="toArtist(a)" @keydown.enter.prevent="toArtist(a)">{{ a }}</span
+          ><template v-if="i < t.artists.length - 1">, </template></template
+        >
         <span v-if="!t.artists.length" class="muted">{{ displayArtist(t) }}</span>
       </p>
       <p v-if="t.album" class="album">
-        <button type="button" class="link" @click="router.push(`/album/${encodeURIComponent(albumIdOf(t))}`)">
-          <IconAlbum />{{ t.album }}
-        </button>
+        <span role="link" tabindex="0" class="link" @click="toAlbum" @keydown.enter.prevent="toAlbum"
+          ><IconAlbum />{{ t.album }}</span
+        >
       </p>
       <div class="rate">
         <RatingStars :model-value="t.rating" :size="32" @update:model-value="(v) => library.setRating(t!.key, v)" />
@@ -147,7 +151,7 @@ const tagsDiffer = computed(() => {
           type="button"
           class="icon-btn"
           :class="{ fav: t.favoriteAt }"
-          aria-label="Избранное"
+          :aria-label="$t('Избранное')"
           @click="library.toggleFavorite(t.key)"
         >
           <IconHeartOn v-if="t.favoriteAt" />
@@ -157,10 +161,10 @@ const tagsDiffer = computed(() => {
       <p class="muted small">{{ starsLabel(t.rating) }}</p>
       <div class="btns">
         <button type="button" class="btn primary" @click="player.playTracks([t], 0, source, { shuffle: false })">
-          <IconPlay />Слушать
+          <IconPlay />{{ $t('Слушать') }}
         </button>
-        <button type="button" class="btn" @click="player.playNext([t], source).then(() => ui.toast('Сыграет следующим'))">
-          <IconNext />Следующим
+        <button type="button" class="btn" @click="player.playNext([t], source).then(() => ui.toast($t('Сыграет следующим')))">
+          <IconNext />{{ $t('Следующим') }}
         </button>
       </div>
     </div>
@@ -168,19 +172,23 @@ const tagsDiffer = computed(() => {
     <!-- .blocks: на широком окне компьютера разделы расходятся по двум колонкам -->
     <div class="blocks">
       <section class="block">
-        <h2 class="section-title">История</h2>
+        <h2 class="section-title">{{ $t('История') }}</h2>
         <div class="tiles">
           <div class="tile">
-            <small>Прослушиваний</small><b>{{ t.plays }}</b>
+            <small>{{ $t('Прослушиваний') }}</small
+            ><b>{{ t.plays }}</b>
           </div>
           <div class="tile">
-            <small>Вместе</small><b>{{ formatListen(t.listenedMs) }}</b>
+            <small>{{ $t('Вместе') }}</small
+            ><b>{{ formatListen(t.listenedMs) }}</b>
           </div>
           <div class="tile">
-            <small>Первое</small><b class="sm">{{ relativeDay(t.firstPlayedAt) }}</b>
+            <small>{{ $t('Первое') }}</small
+            ><b class="sm">{{ relativeDay(t.firstPlayedAt) }}</b>
           </div>
           <div class="tile">
-            <small>Последнее</small><b class="sm">{{ relativeDay(t.lastPlayedAt) }}</b>
+            <small>{{ $t('Последнее') }}</small
+            ><b class="sm">{{ relativeDay(t.lastPlayedAt) }}</b>
           </div>
         </div>
         <div v-if="t.plays" class="chart">
@@ -193,23 +201,23 @@ const tagsDiffer = computed(() => {
             </div>
           </div>
         </div>
-        <p v-if="t.skips" class="muted small pad">Пропущен {{ t.skips }} раз.</p>
+        <p v-if="t.skips" class="muted small pad">{{ $t('Пропущен {0} раз.', t.skips) }}</p>
       </section>
 
       <section class="block">
-        <h2 class="section-title">Заметка</h2>
+        <h2 class="section-title">{{ $t('Заметка') }}</h2>
         <textarea
           id="track-note"
           v-model="note"
           class="note"
           rows="3"
-          placeholder="Почему этот трек важен, с чем связан"
+          :placeholder="$t('Почему этот трек важен, с чем связан')"
           @blur="saveNote"
         />
       </section>
 
       <section class="block">
-        <h2 class="section-title">Файл</h2>
+        <h2 class="section-title">{{ $t('Файл') }}</h2>
         <dl class="info">
           <template v-for="[k, v] in fileRows" :key="k">
             <dt>{{ k }}</dt>
@@ -217,13 +225,21 @@ const tagsDiffer = computed(() => {
           </template>
         </dl>
         <p v-if="tagsDiffer" class="muted small pad">
-          В тегах файла: «{{ t.tags.title || 'пусто' }}» — {{ t.tags.artist || 'исполнитель пуст' }}. Показано по имени файла.
+          {{
+            $t(
+              'В тегах файла: «{0}» — {1}. Показано по имени файла.',
+              t.tags.title || $t('пусто'),
+              t.tags.artist || $t('исполнитель пуст'),
+            )
+          }}
         </p>
       </section>
     </div>
     <div class="bottom-space" />
   </div>
-  <div v-else class="empty"><h3>Трек не найден</h3></div>
+  <div v-else class="empty">
+    <h3>{{ $t('Трек не найден') }}</h3>
+  </div>
 </template>
 
 <style scoped>
@@ -262,14 +278,14 @@ const tagsDiffer = computed(() => {
   font-size: 14px;
 }
 .album .link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   color: var(--ink-2);
 }
+/* Значок — в начале первой строки, а не сбоку от всего многострочного названия */
 .album svg {
   width: 16px;
   height: 16px;
+  margin-right: 6px;
+  vertical-align: -2px;
 }
 .link:hover {
   text-decoration: underline;
@@ -278,6 +294,12 @@ const tagsDiffer = computed(() => {
 .link {
   color: var(--amber-ink);
   font-weight: 500;
+  cursor: pointer;
+}
+.link:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 .rate {
   display: flex;

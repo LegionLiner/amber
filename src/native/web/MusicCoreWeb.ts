@@ -60,6 +60,7 @@ import { defragmentMp4, isFragmentedMp4, sniff, unwrapId3Mp4, writeMp4Tags } fro
 import { loadCovers, saveCover, webCoverUrl } from './web-covers'
 import { countedSqlExpr, DEFAULT_COUNTING, isCounted, localParts } from '@/domain/counting'
 import { rekeyFixupSql } from '@/data/rekey'
+import { $t } from '@/i18n'
 
 interface LiveEvent {
   id: number
@@ -872,7 +873,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
           markAnalyzing(key)
           try {
             const r = await this.analyzeKey(key, String(row[0]))
-            if (!r) throw new Error('нет файла')
+            if (!r) throw new Error($t('нет файла'))
             db.execute(
               `INSERT OR REPLACE INTO analysis (key, lufs, true_peak_db, intro_silence_ms, outro_silence_ms, waveform,
                  energy, bpm, analyzed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -919,12 +920,12 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     const d = this.demoMap().get(key)
     if (!d) return {}
     const words = [
-      'Ночной проспект уходит вдаль',
-      'Горят янтарные огни',
-      'И город тихо спит',
-      'А мы идём, идём одни',
-      'Трамвай звенит за поворотом',
-      'И свет в окне ещё не гас',
+      $t('Ночной проспект уходит вдаль'),
+      $t('Горят янтарные огни'),
+      $t('И город тихо спит'),
+      $t('А мы идём, идём одни'),
+      $t('Трамвай звенит за поворотом'),
+      $t('И свет в окне ещё не гас'),
     ]
     const lines: string[] = []
     for (let t = 3000, i = 0; t < d.durationMs - 3000; t += 5000, i++) {
@@ -950,14 +951,14 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
         const u = unwrapId3Mp4(bytes)!
         return writeMp4Tags(u.mp4, { ...u.edit, ...definedOnly(it) })
       }
-      throw new Error('Этот формат не поддерживается: правка сохранена в приложении')
+      throw new Error($t('Этот формат не поддерживается: правка сохранена в приложении'))
     })
   }
 
   async repairFiles(o: { items: { key: string; uri: string; path: string }[] }): Promise<WriteTagsResult> {
     return this.onFiles(o.items, (bytes) => {
       const u = unwrapId3Mp4(bytes)
-      if (!u) throw new Error('Файл не повреждён')
+      if (!u) throw new Error($t('Файл не повреждён'))
       return writeMp4Tags(u.mp4, u.edit)
     })
   }
@@ -965,14 +966,14 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   async restoreTags(o: { items: { key: string; uri: string; path: string }[] }): Promise<WriteTagsResult> {
     return this.onFiles(o.items, (_bytes, it) => {
       const saved = this.tagBackupsMem.get(it.key)
-      if (!saved) throw new Error('Копии нет')
+      if (!saved) throw new Error($t('Копии нет'))
       this.tagBackupsMem.delete(it.key)
       return saved
     })
   }
 
   async youtubeInfo(o: { url: string }): Promise<YoutubeInfo> {
-    if (!desktop) throw new Error('Загрузка с YouTube работает в приложении на телефоне и на компьютере')
+    if (!desktop) throw new Error($t('Загрузка с YouTube работает в приложении на телефоне и на компьютере'))
     const i = await desktop.ytInfo(o.url)
     const [artist, title] = splitYoutubeTitle(i.title, i.uploader)
     return { title, artist, uploader: i.uploader, durationMs: i.durationMs, thumbnail: i.thumbnail }
@@ -984,8 +985,8 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     title?: string
     artist?: string
   }): Promise<{ uri: string; path: string; name: string }> {
-    if (!desktop) throw new Error('Загрузка с YouTube работает в приложении на телефоне и на компьютере')
-    const title = o.title?.trim() || 'Без названия'
+    if (!desktop) throw new Error($t('Загрузка с YouTube работает в приложении на телефоне и на компьютере'))
+    const title = o.title?.trim() || $t('Без названия')
     const artist = o.artist?.trim() || 'YouTube'
     const r = await desktop.ytDownload(o.url, { title, artist })
     let bytes = await desktop.read(r.path, 0, Number.MAX_SAFE_INTEGER)
@@ -1009,7 +1010,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       let perm = (await h.queryPermission?.({ mode: 'readwrite' })) ?? 'granted'
       if (perm !== 'granted') perm = (await h.requestPermission?.({ mode: 'readwrite' })) ?? 'denied'
       this.folderWritable = perm === 'granted'
-      if (!this.folderWritable) throw new Error('Нет разрешения на изменение файлов')
+      if (!this.folderWritable) throw new Error($t('Нет разрешения на изменение файлов'))
     }
     let deleted = 0
     for (const it of o.items) {
@@ -1062,7 +1063,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     if (this.source !== 'folder' || !this.folder) {
       return {
         written: 0,
-        failed: items.map((i) => ({ key: i.key, reason: 'В демо-библиотеке файлов нет: правка сохранена в приложении' })),
+        failed: items.map((i) => ({ key: i.key, reason: $t('В демо-библиотеке файлов нет: правка сохранена в приложении') })),
       }
     }
     if (!this.folderWritable) {
@@ -1071,7 +1072,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       if (perm !== 'granted') perm = (await h.requestPermission?.({ mode: 'readwrite' })) ?? 'denied'
       this.folderWritable = perm === 'granted'
       if (!this.folderWritable) {
-        return { written: 0, failed: items.map((i) => ({ key: i.key, reason: 'Нет разрешения на изменение файлов' })) }
+        return { written: 0, failed: items.map((i) => ({ key: i.key, reason: $t('Нет разрешения на изменение файлов') })) }
       }
     }
     let written = 0
@@ -1080,7 +1081,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       const it = raw as WriteTagsItem
       const f = this.files.get(it.key)
       if (!f) {
-        failed.push({ key: it.key, reason: 'Файл не найден в выбранной папке' })
+        failed.push({ key: it.key, reason: $t('Файл не найден в выбранной папке') })
         continue
       }
       try {
@@ -1138,7 +1139,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       const it = raw as WriteTagsItem
       const f = this.files.get(it.key)
       if (!(f?.file instanceof DesktopFile)) {
-        failed.push({ key: it.key, reason: 'Файл не найден в папках с музыкой' })
+        failed.push({ key: it.key, reason: $t('Файл не найден в папках с музыкой') })
         continue
       }
       try {
@@ -1731,7 +1732,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   /* Папка по Wi-Fi: на компьютере её раздаёт главный процесс (desktop/filesync.ts), забирает только телефон */
   private noFs(): never {
-    throw new Error('Только на телефоне')
+    throw new Error($t('Только на телефоне'))
   }
   async fsAccess() {
     return { granted: false }
@@ -1838,7 +1839,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
 
   async getOutputs(): Promise<OutputsEvent> {
     if (!desktop || !navigator.mediaDevices) {
-      return { devices: [{ id: 0, name: 'Браузер', kind: 'speaker' }], preferred: null, current: 'web' }
+      return { devices: [{ id: 0, name: $t('Браузер'), kind: 'speaker' }], preferred: null, current: 'web' }
     }
     const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput')
     const def = all.find((d) => d.deviceId === 'default')
@@ -1889,6 +1890,9 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   }
 
   async openSystemOutputSwitcher(): Promise<void> {}
+
+  /** На компьютере «Сцена» уходит в полноэкранный режим сама (ZenMode), поворачивать нечего */
+  async setStage(): Promise<void> {}
 
   /* ---------------- предпрослушивание ---------------- */
 
@@ -2039,7 +2043,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
       input.accept = 'application/json,.json'
       input.onchange = async () => {
         const f = input.files?.[0]
-        if (!f) return reject(new Error('Файл не выбран'))
+        if (!f) return reject(new Error($t('Файл не выбран')))
         resolve({ name: f.name, data: await f.text() })
       }
       input.click()
@@ -2049,7 +2053,7 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
   /** В браузере нет постоянной папки: копия скачивается файлом */
   async chooseBackupFolder(): Promise<{ uri: string }> {
     if (desktop) {
-      const folder = await desktop.chooseFolder('Папка для бэкапов')
+      const folder = await desktop.chooseFolder($t('Папка для бэкапов'))
       if (!folder) throw new Error('cancel')
       return { uri: folder }
     }

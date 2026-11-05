@@ -11,6 +11,7 @@ import { isDesktop } from '@/native/desktop/bridge'
 import { useLibrary } from '@/stores/library'
 import { useSettings } from '@/stores/settings'
 import { countLabel } from '@/domain/format'
+import { $t, $tp } from '@/i18n'
 
 /**
  * Первый запуск: доступ к музыке → уведомления → поиск треков → готово.
@@ -27,9 +28,9 @@ const found = ref(0)
 
 const progressText = computed(() => {
   const p = library.progress
-  if (!p) return 'Смотрю, какие файлы есть на телефоне…'
-  if (p.phase === 'list') return `Нашёл ${p.total} файлов`
-  return `Читаю теги: ${p.done} из ${p.total}`
+  if (!p) return $t('Смотрю, какие файлы есть на телефоне…')
+  if (p.phase === 'list') return $t('Нашёл {0} файлов', p.total)
+  return $t('Читаю теги: {0} из {1}', p.done, p.total)
 })
 
 async function grant() {
@@ -40,8 +41,9 @@ async function grant() {
     const res = await MusicCore.requestPermissions({ permissions: [...aliases] })
     const audioOk = info.sdkInt >= 33 ? res.audio === 'granted' : res.storage === 'granted'
     if (!audioOk && isNative) {
-      error.value =
-        'Без доступа к музыке приложению нечего играть. Разреши доступ в настройках Android: Приложения → Amber → Разрешения.'
+      error.value = $t(
+        'Без доступа к музыке приложению нечего играть. Разреши доступ в настройках Android: Приложения → Amber → Разрешения.',
+      )
       return
     }
     step.value = 'scan'
@@ -81,43 +83,56 @@ function finish() {
     <div class="glow" aria-hidden="true"><i /><i /></div>
     <div class="content">
       <h1 class="display brand">Amber</h1>
-      <p class="tag">Личный офлайн-плеер, который помнит каждое прослушивание</p>
+      <p class="tag">{{ $t('Личный офлайн-плеер, который помнит каждое прослушивание') }}</p>
 
       <template v-if="step === 'intro'">
         <ul class="points">
           <li>
             <IconMusic /><span v-if="isDesktop"
-              ><b>Папка с музыкой</b>Amber читает файлы прямо с диска и сам замечает новые. Ничего не загружается в сеть.</span
-            ><span v-else><b>Доступ к музыке</b>Чтобы найти mp3 на телефоне. Файлы не покидают устройство.</span>
+              ><b>{{ $t('Папка с музыкой') }}</b
+              >{{ $t('Amber читает файлы прямо с диска и сам замечает новые. Ничего не загружается в сеть.') }}</span
+            ><span v-else
+              ><b>{{ $t('Доступ к музыке') }}</b
+              >{{ $t('Чтобы найти mp3 на телефоне. Файлы не покидают устройство.') }}</span
+            >
           </li>
           <li>
             <IconBell /><span v-if="isDesktop"
-              ><b>Трей и клавиши</b>Крестик прячет окно в трей — музыка играет. Клавиши мультимедиа и пробел работают.</span
-            ><span v-else><b>Уведомления</b>Плеер в шторке, на экране блокировки и на часах.</span>
+              ><b>{{ $t('Трей и клавиши') }}</b
+              >{{ $t('Крестик прячет окно в трей — музыка играет. Клавиши мультимедиа и пробел работают.') }}</span
+            ><span v-else
+              ><b>{{ $t('Уведомления') }}</b
+              >{{ $t('Плеер в шторке, на экране блокировки и на часах.') }}</span
+            >
           </li>
           <li v-if="isNative">
             <IconBattery /><span
-              ><b>Совет про батарею</b>В настройках Android поставь приложению режим «Без ограничений», чтобы One UI не усыплял
-              музыку.</span
+              ><b>{{ $t('Совет про батарею') }}</b
+              >{{ $t('В настройках Android поставь приложению режим «Без ограничений», чтобы One UI не усыплял музыку.') }}</span
             >
           </li>
         </ul>
         <p v-if="error" class="error">{{ error }}</p>
         <template v-if="isNative">
-          <button type="button" class="btn primary block" @click="grant">Разрешить и найти музыку</button>
+          <button type="button" class="btn primary block" @click="grant">{{ $t('Разрешить и найти музыку') }}</button>
         </template>
         <template v-else>
-          <button type="button" class="btn primary block" @click="pickFolder"><IconFolder />Открыть папку с музыкой</button>
+          <button type="button" class="btn primary block" @click="pickFolder">
+            <IconFolder />{{ $t('Открыть папку с музыкой') }}
+          </button>
           <template v-if="isDesktop">
             <p class="muted small">
-              Выбери папку, где лежит музыка, например «Музыка». Потом в настройках можно добавить ещё папки. Файлы не покидают
-              компьютер.
+              {{
+                $t(
+                  'Выбери папку, где лежит музыка, например «Музыка». Потом в настройках можно добавить ещё папки. Файлы не покидают компьютер.',
+                )
+              }}
             </p>
           </template>
           <template v-else>
-            <button type="button" class="btn block demo" @click="grant">Попробовать на демо-треках</button>
+            <button type="button" class="btn block demo" @click="grant">{{ $t('Попробовать на демо-треках') }}</button>
             <p class="muted small">
-              Это веб-версия для проверки на компьютере. Файлы читаются прямо в браузере и никуда не отправляются.
+              {{ $t('Это веб-версия для проверки на компьютере. Файлы читаются прямо в браузере и никуда не отправляются.') }}
             </p>
           </template>
         </template>
@@ -127,16 +142,16 @@ function finish() {
         <div class="scan">
           <div class="spinner" aria-hidden="true" />
           <p>{{ progressText }}</p>
-          <p class="muted small">Обложки и громкость догрузятся потом, в фоне.</p>
+          <p class="muted small">{{ $t('Обложки и громкость догрузятся потом, в фоне.') }}</p>
         </div>
       </template>
 
       <template v-else>
         <div class="scan">
-          <p class="big display">{{ countLabel(found, ['трек', 'трека', 'треков']) }}</p>
-          <p class="muted">Библиотека готова. Оценки, история и статистика начнут копиться с первого трека.</p>
+          <p class="big display">{{ countLabel(found, $tp('трек|трека|треков')) }}</p>
+          <p class="muted">{{ $t('Библиотека готова. Оценки, история и статистика начнут копиться с первого трека.') }}</p>
         </div>
-        <button type="button" class="btn primary block" @click="finish">Начать слушать</button>
+        <button type="button" class="btn primary block" @click="finish">{{ $t('Начать слушать') }}</button>
       </template>
     </div>
   </div>

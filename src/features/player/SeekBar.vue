@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { formatDuration } from '@/domain/format'
 import { haptic } from '@/native/haptics'
+import { $t } from '@/i18n'
 
 /**
  * Полоса перемотки: ведёшь пальцем, видишь время, отпускаешь и попадаешь туда.
@@ -89,7 +90,7 @@ function up() {
       class="track"
       :class="{ active: scrub != null, waved: !!bars }"
       role="slider"
-      aria-label="Перемотка"
+      :aria-label="$t('Перемотка')"
       :aria-valuenow="Math.round(shownPos / 1000)"
       :aria-valuemax="Math.round(duration / 1000)"
       @pointerdown="down"

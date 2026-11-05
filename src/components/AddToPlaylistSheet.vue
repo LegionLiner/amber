@@ -7,6 +7,7 @@ import { usePlaylists } from '@/stores/playlists'
 import { useUi } from '@/stores/ui'
 import { playlistsContaining } from '@/data/repos/playlists'
 import { countLabel } from '@/domain/format'
+import { $t, $tp } from '@/i18n'
 
 const props = defineProps<{ keys: string[] }>()
 const emit = defineEmits<{ close: [] }>()
@@ -32,17 +33,17 @@ async function add(id: number, title: string) {
   if (state(id) === 'all' && keys.length === 1) {
     // Трек уже там: повторный выбор убирает его, с возможностью вернуть
     await playlists.removeTrack(id, keys[0]!)
-    ui.toast(`Убрано из «${title}»`, { label: 'Вернуть', run: () => void playlists.add(id, keys) })
+    ui.toast($t('Убрано из «{0}»', title), { label: $t('Вернуть'), run: () => void playlists.add(id, keys) })
     emit('close')
     return
   }
   const n = await playlists.add(id, keys)
   ui.toast(
     !n
-      ? `Уже есть в «${title}»`
+      ? $t('Уже есть в «{0}»', title)
       : n < keys.length
-        ? `Добавлено в «${title}»: ${n}, остальные там уже были`
-        : `Добавлено в «${title}»`,
+        ? $t('Добавлено в «{0}»: {1}, остальные там уже были', title, n)
+        : $t('Добавлено в «{0}»', title),
   )
   emit('close')
 }
@@ -51,20 +52,20 @@ async function create() {
   const v = name.value.trim()
   if (!v) return
   await playlists.create(v, props.keys)
-  ui.toast(`Создан плейлист «${v}»`)
+  ui.toast($t('Создан плейлист «{0}»', v))
   emit('close')
 }
 </script>
 
 <template>
   <div class="scroll body">
-    <h3 class="head">Добавить в плейлист</h3>
+    <h3 class="head">{{ $t('Добавить в плейлист') }}</h3>
     <form v-if="creating" class="new" @submit.prevent="create">
-      <input id="new-playlist-name" v-model="name" placeholder="Название плейлиста" maxlength="80" autofocus />
-      <button type="submit" class="btn primary" :disabled="!name.trim()">Создать</button>
+      <input id="new-playlist-name" v-model="name" :placeholder="$t('Название плейлиста')" maxlength="80" autofocus />
+      <button type="submit" class="btn primary" :disabled="!name.trim()">{{ $t('Создать') }}</button>
     </form>
     <button v-else type="button" class="row" @click="creating = true">
-      <span class="ic add"><IconAdd /></span><span>Новый плейлист</span>
+      <span class="ic add"><IconAdd /></span><span>{{ $t('Новый плейлист') }}</span>
     </button>
     <button
       v-for="p in playlists.list.filter((x) => x.kind !== 'smart')"
@@ -79,10 +80,10 @@ async function create() {
         <span class="t ellipsis">{{ p.name }}</span>
         <span class="s">
           <b v-if="state(p.id) === 'all'" class="here">{{
-            uniq.length === 1 ? 'уже здесь · нажми, чтобы убрать' : 'все уже здесь'
+            uniq.length === 1 ? $t('уже здесь · нажми, чтобы убрать') : $t('все уже здесь')
           }}</b>
-          <b v-else-if="state(p.id) === 'some'" class="here">есть {{ have.get(p.id) }} из {{ uniq.length }} · </b>
-          <template v-if="state(p.id) !== 'all'">{{ countLabel(p.count, ['трек', 'трека', 'треков']) }}</template>
+          <b v-else-if="state(p.id) === 'some'" class="here">{{ $t('есть {0} из {1} ·', have.get(p.id), uniq.length) }} </b>
+          <template v-if="state(p.id) !== 'all'">{{ countLabel(p.count, $tp('трек|трека|треков')) }}</template>
         </span>
       </span>
       <IconCheck v-if="state(p.id) === 'all'" class="check" />

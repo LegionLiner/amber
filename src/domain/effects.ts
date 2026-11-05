@@ -1,3 +1,4 @@
+import { $t } from '@/i18n'
 /**
  * Эффекты звука. На телефоне — процессор SoundEffects.kt в звуке каждой деки, в браузере — узлы Web Audio
  * (native/web/audio-effects.ts). Сила каждого эффекта 0..1, отсутствует или 0 — выключен.
@@ -14,14 +15,14 @@ export interface EffectDef {
 }
 
 export const EFFECTS: EffectDef[] = [
-  { id: 'echo', label: 'Эхо', hint: 'повтор через треть секунды', initial: 0.5 },
-  { id: 'reverb', label: 'Зал', hint: 'реверберация, как в большом помещении', initial: 0.5 },
-  { id: 'bass', label: 'Бас', hint: 'низы плотнее', initial: 0.5 },
-  { id: 'wide', label: 'Шире', hint: 'стерео раздвигается', initial: 0.6 },
-  { id: 'orbit', label: '8D', hint: 'звук ходит вокруг головы, в наушниках', initial: 0.8 },
-  { id: 'wall', label: 'За стеной', hint: 'как музыка у соседей', initial: 0.7 },
-  { id: 'radio', label: 'Радио', hint: 'старый приёмник', initial: 0.8 },
-  { id: 'karaoke', label: 'Караоке', hint: 'голос тише — если он в центре микса', initial: 0.9 },
+  { id: 'echo', label: $t('Эхо'), hint: $t('повтор через треть секунды'), initial: 0.5 },
+  { id: 'reverb', label: $t('Зал'), hint: $t('реверберация, как в большом помещении'), initial: 0.5 },
+  { id: 'bass', label: $t('Бас'), hint: $t('низы плотнее'), initial: 0.5 },
+  { id: 'wide', label: $t('Шире'), hint: $t('стерео раздвигается'), initial: 0.6 },
+  { id: 'orbit', label: '8D', hint: $t('звук ходит вокруг головы, в наушниках'), initial: 0.8 },
+  { id: 'wall', label: $t('За стеной'), hint: $t('как музыка у соседей'), initial: 0.7 },
+  { id: 'radio', label: $t('Радио'), hint: $t('старый приёмник'), initial: 0.8 },
+  { id: 'karaoke', label: $t('Караоке'), hint: $t('голос тише — если он в центре микса'), initial: 0.9 },
 ]
 
 /** Только включённые эффекты, сила округлена до сотых */
@@ -72,9 +73,9 @@ export function soundName(s: Sound): string {
   const parts: string[] = []
   if (!near(s.speed, 1) || !near(s.pitch, 1)) {
     const x = `${Number(s.speed.toFixed(2))}×`
-    parts.push(near(s.pitch, s.speed) && !near(s.speed, 1) ? `${x} с тоном` : x)
+    parts.push(near(s.pitch, s.speed) && !near(s.speed, 1) ? $t('{0} с тоном', x) : x)
   }
   const fx = effectsLabel(s.effects)
   if (fx) parts.push(fx)
-  return parts.join(' · ') || 'Как есть'
+  return parts.join(' · ') || $t('Как есть')
 }

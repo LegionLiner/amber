@@ -1,4 +1,5 @@
 import { parseFileName, splitArtists } from './names'
+import { $t } from '@/i18n'
 
 /** Строка из запроса библиотеки (см. data/repos/library.ts) */
 export interface TrackRow {
@@ -139,7 +140,7 @@ export function toCard(r: {
   const parsed = !r.title || !r.artist ? parseFileName(r.fileName) : null
   return {
     key: r.key,
-    title: ov.title || r.title || parsed?.title || r.fileName || 'Без названия',
+    title: ov.title || r.title || parsed?.title || r.fileName || $t('Без названия'),
     artist: ov.artist || r.artist || parsed?.artist || '',
   }
 }
@@ -210,7 +211,12 @@ export function toTrack(r: TrackRow, opts: TrackOptions): Track {
   }
 }
 
-export const UNKNOWN_ARTIST = 'Неизвестный исполнитель'
+export const UNKNOWN_ARTIST = $t('Неизвестный исполнитель')
+
+/** Подпись очереди, сохранённая на другом языке (очередь пережила смену языка): показать на текущем */
+export function relabelUnknown(artist: string): string {
+  return artist === 'Неизвестный исполнитель' || artist === 'Unknown artist' ? UNKNOWN_ARTIST : artist
+}
 
 export function displayArtist(t: Pick<Track, 'artist'>): string {
   return t.artist || UNKNOWN_ARTIST

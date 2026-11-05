@@ -15,6 +15,7 @@ import { useUi } from '@/stores/ui'
 import { sortTracks, TRACK_SORTS, type TrackSortKey } from '@/domain/sort'
 import { countLabel } from '@/domain/format'
 import type { PlaySource } from '@/native/types'
+import { $t, $tp } from '@/i18n'
 
 const library = useLibrary()
 const player = usePlayer()
@@ -22,7 +23,7 @@ const settings = useSettings()
 const ui = useUi()
 
 const SCREEN = 'library.favorites'
-const OPTIONS = [{ key: 'favorited', label: 'Когда добавлены', dir: 'desc' as const }, ...TRACK_SORTS]
+const OPTIONS = [{ key: 'favorited', label: $t('Когда добавлены'), dir: 'desc' as const }, ...TRACK_SORTS]
 const pref = computed(() => settings.sortFor(SCREEN, { key: 'favorited', dir: 'desc' }))
 const sorted = computed(() => {
   const list = library.favorites
@@ -38,11 +39,11 @@ const detail = computed(() => {
   if (pref.value.key !== 'favorited') return detailFor(pref.value.key)
   const base = detailFor('added')
   return {
-    label: 'В избранном',
+    label: $t('В избранном'),
     of: (t: Parameters<typeof base.of>[0]) => ({ ...base.of(t), added: t.favoriteAt ? relativeDay(t.favoriteAt) : '—' }),
   }
 })
-const source: PlaySource = { type: 'favorites', title: 'Избранное' }
+const source: PlaySource = { type: 'favorites', title: $t('Избранное') }
 
 const list = ref<InstanceType<typeof TrackList> | null>(null)
 watch(
@@ -66,9 +67,9 @@ function openSort() {
           :disabled="!sorted.length"
           @click="player.playTracks(sorted, -1, source, { shuffle: true })"
         >
-          <IconShuffle />Перемешать
+          <IconShuffle />{{ $t('Перемешать') }}
         </button>
-        <span class="muted count">{{ countLabel(sorted.length, ['трек', 'трека', 'треков']) }}</span>
+        <span class="muted count">{{ countLabel(sorted.length, $tp('трек|трека|треков')) }}</span>
         <button type="button" class="sort" @click="openSort">
           <IconSort />{{ OPTIONS.find((o) => o.key === pref.key)?.label }}
         </button>
@@ -76,8 +77,8 @@ function openSort() {
     </template>
     <template #footer>
       <div v-if="!sorted.length" class="empty">
-        <h3>Здесь будет избранное</h3>
-        <p>Свайп влево по треку, ❤ в плеере или двойной тап по обложке.</p>
+        <h3>{{ $t('Здесь будет избранное') }}</h3>
+        <p>{{ $t('Свайп влево по треку, ❤ в плеере или двойной тап по обложке.') }}</p>
       </div>
     </template>
   </TrackList>

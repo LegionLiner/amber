@@ -209,6 +209,8 @@ export interface CountingRule {
 
 export interface EngineConfig {
   counting: CountingRule
+  /** Язык уведомления, виджета и ошибок движка */
+  lang?: 'ru' | 'en'
 }
 
 export interface NotificationActionEvent {

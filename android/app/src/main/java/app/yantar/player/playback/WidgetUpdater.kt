@@ -1,5 +1,6 @@
 package app.yantar.player.playback
 
+import app.yantar.player.core.Lang
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -72,7 +73,8 @@ object WidgetUpdater {
         if (ids.isEmpty()) return
 
         var title = "Amber"
-        var artist = "Нажми, чтобы выбрать музыку"
+        Lang.init(app)
+        var artist = Lang.t("Нажми, чтобы выбрать музыку", "Tap to pick music")
         var artUri: String? = null
         var playing = false
         val cur = try {
@@ -122,6 +124,10 @@ object WidgetUpdater {
             setTextViewText(R.id.widget_artist, artist)
             if (bmp != null) setImageViewBitmap(R.id.widget_cover, bmp) else setImageViewResource(R.id.widget_cover, R.drawable.ic_launcher_fg)
             setImageViewResource(R.id.widget_play, if (playing) R.drawable.ic_widget_pause else R.drawable.ic_widget_play)
+            setContentDescription(R.id.widget_cover, Lang.t("Обложка", "Cover"))
+            setContentDescription(R.id.widget_prev, Lang.t("Предыдущий", "Previous"))
+            setContentDescription(R.id.widget_play, Lang.t("Играть или пауза", "Play or pause"))
+            setContentDescription(R.id.widget_next, Lang.t("Следующий", "Next"))
             setOnClickPendingIntent(R.id.widget_root, open)
             setOnClickPendingIntent(R.id.widget_prev, prev)
             setOnClickPendingIntent(R.id.widget_play, play)

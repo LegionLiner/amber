@@ -1,5 +1,6 @@
 import { parseV2, tagSize, trackKey } from './id3'
 import { fromBase64, isPng } from './id3-writer'
+import { $t } from '@/i18n'
 
 /**
  * MP4/M4A (AAC): определение формата по содержимому, чтение и запись тегов iTunes (moov/udta/meta/ilst).
@@ -64,7 +65,7 @@ function boxes(b: Uint8Array, start: number, end: number): Box[] {
       size = u64(b, p + 8)
       header = 16
     } else if (size === 0) size = end - p
-    if (size < header || p + size > end) throw new Error(`MP4: битая коробка ${ascii(b, p + 4, 4)}`)
+    if (size < header || p + size > end) throw new Error($t('MP4: битая коробка {0}', ascii(b, p + 4, 4)))
     out.push({ type: ascii(b, p + 4, 4), start: p, header, end: p + size })
     p += size
   }
@@ -221,10 +222,10 @@ function trackItem(no: number, total: number): Uint8Array {
  */
 export function writeMp4Tags(file: Uint8Array, edit: Mp4Edit): Uint8Array {
   const top = boxes(file, 0, file.length)
-  if (top[0]?.type !== 'ftyp') throw new Error('Не MP4: нет ftyp в начале')
-  if (top.some((x) => x.type === 'moof')) throw new Error('Фрагментированный MP4 не поддерживается')
+  if (top[0]?.type !== 'ftyp') throw new Error($t('Не MP4: нет ftyp в начале'))
+  if (top.some((x) => x.type === 'moof')) throw new Error($t('Фрагментированный MP4 не поддерживается'))
   const moov = top.find((x) => x.type === 'moov')
-  if (!moov) throw new Error('В MP4 нет moov')
+  if (!moov) throw new Error($t('В MP4 нет moov'))
 
   const kids = boxes(file, moov.start + moov.header, moov.end)
   const udta = kids.find((x) => x.type === 'udta')
@@ -318,7 +319,7 @@ function shiftChunkOffsets(moov: Uint8Array, moovStart: number, delta: number) {
             moov.set(be32(Math.floor(nv / 2 ** 32)), at)
             moov.set(be32(nv >>> 0), at + 4)
           } else {
-            if (nv > 0xffffffff) throw new Error('MP4 больше 4 ГБ: смещения не помещаются')
+            if (nv > 0xffffffff) throw new Error($t('MP4 больше 4 ГБ: смещения не помещаются'))
             moov.set(be32(nv), at)
           }
         }
@@ -361,7 +362,7 @@ export function flatMp4(
 ): Uint8Array {
   const moovKids = boxes(moov, 8, moov.length)
   const trak = soundTrak(moov, moovKids)
-  if (!trak) throw new Error('В MP4 нет звуковой дорожки')
+  if (!trak) throw new Error($t('В MP4 нет звуковой дорожки'))
   const n = sizes.length
   let total = 0
   for (let i = 0; i < n; i++) total += durations[i]!
@@ -455,7 +456,7 @@ export function flatMp4(
     offsets.push(o)
     o += c.data.length
   }
-  if (o > 0xffffffff) throw new Error('MP4 больше 4 ГБ')
+  if (o > 0xffffffff) throw new Error($t('MP4 больше 4 ГБ'))
   const mdatHead = new Uint8Array(8)
   mdatHead.set(be32(o - dataStart + 8), 0)
   mdatHead.set([0x6d, 0x64, 0x61, 0x74], 4)
@@ -541,10 +542,11 @@ export function isFragmentedMp4(file: Uint8Array): boolean {
 export function defragmentMp4(file: Uint8Array): Uint8Array {
   const top = boxes(file, 0, file.length)
   const moovBox = top.find((x) => x.type === 'moov')
-  if (!moovBox) throw new Error('В MP4 нет moov')
+  if (!moovBox) throw new Error($t('В MP4 нет moov'))
   const moov = file.subarray(moovBox.start, moovBox.end)
   const moovKids = boxes(moov, 8, moov.length)
-  if (moovKids.filter((x) => x.type === 'trak').length !== 1) throw new Error('Пересобрать можно только файл с одной дорожкой')
+  if (moovKids.filter((x) => x.type === 'trak').length !== 1)
+    throw new Error($t('Пересобрать можно только файл с одной дорожкой'))
 
   // Значения по умолчанию из mvex/trex
   let defDuration = 0
@@ -611,13 +613,13 @@ export function defragmentMp4(file: Uint8Array): Uint8Array {
           sizes.push(s)
           bytes += s
         }
-        if (cursor + bytes > file.length) throw new Error('MP4: фрагмент указывает за конец файла')
+        if (cursor + bytes > file.length) throw new Error($t('MP4: фрагмент указывает за конец файла'))
         chunks.push({ count: n, data: file.subarray(cursor, cursor + bytes) })
         cursor += bytes
       }
     }
   }
-  if (!sizes.length) throw new Error('Во фрагментах нет звука')
+  if (!sizes.length) throw new Error($t('Во фрагментах нет звука'))
   return flatMp4(moov, durations, sizes, chunks)
 }
 

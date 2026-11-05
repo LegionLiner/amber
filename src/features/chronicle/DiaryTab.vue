@@ -12,6 +12,7 @@ import { formatDate, formatListen } from '@/domain/format'
 import { moodOf } from './mood'
 import { onPageShown } from '@/app/paging'
 import { stampedLoad } from '@/app/data-rev'
+import { LOCALE, $t } from '@/i18n'
 
 /**
  * Дневник: у каждого дня с музыкой своя запись — сколько слушал, трек дня, сколько нового.
@@ -60,27 +61,29 @@ const pastByDay = computed(() => {
     const key = rows[0]!.key
     const track = library.byKey.get(key)
     // Трека нет в медиатеке — заглушка вместо обложки и название из его карточки
-    return { day, rows, track, title: track?.title ?? cards.value.get(key)?.title ?? 'Трек не найден' }
+    return { day, rows, track, title: track?.title ?? cards.value.get(key)?.title ?? $t('Трек не найден') }
   })
 })
 
 function yearsAgo(day: string): string {
   const y = Number(today.slice(0, 4)) - Number(day.slice(0, 4))
-  if (y <= 0) return 'месяц назад'
-  return y === 1 ? 'год назад' : y < 5 ? `${y} года назад` : `${y} лет назад`
+  if (y <= 0) return $t('месяц назад')
+  return y === 1 ? $t('год назад') : y < 5 ? $t('{0} года назад', y) : $t('{0} лет назад', y)
 }
 
 function markText(m: Milestone): string {
-  if (m.kind === 'plays') return `${m.value.toLocaleString('ru-RU')}-е прослушивание`
-  if (m.kind === 'hours') return `${m.value.toLocaleString('ru-RU')} часов музыки`
+  if (m.kind === 'plays') return $t('{0}-е прослушивание', m.value.toLocaleString(LOCALE))
+  if (m.kind === 'hours') return $t('{0} часов музыки', m.value.toLocaleString(LOCALE))
   const t = m.key ? library.byKey.get(m.key) : null
-  return `«${t?.title ?? 'трек'}» — ${m.value} раз`
+  return $t('«{0}» — {1} раз', t?.title ?? $t('трек'), m.value)
 }
 </script>
 
 <template>
   <section>
-    <div v-if="pastByDay.length" class="section-title"><span>В этот день</span></div>
+    <div v-if="pastByDay.length" class="section-title">
+      <span>{{ $t('В этот день') }}</span>
+    </div>
     <div v-if="pastByDay.length" class="past hscroll">
       <button v-for="p in pastByDay" :key="p.day" type="button" class="pcard" @click="router.push(`/day/${p.day}`)">
         <CoverArt :art="p.track?.art" :seed="p.title" :label="p.title" size="s" class="cv" :class="{ gone: !p.track }" />
@@ -88,15 +91,18 @@ function markText(m: Milestone): string {
           <small>{{ yearsAgo(p.day) }} · {{ dayLabel(p.day, true) }}</small>
           <b class="ellipsis">{{ p.title }}</b>
           <small class="ellipsis"
-            ><template v-if="!p.track">нет в медиатеке</template><template v-if="!p.track && p.rows.length > 1"> · </template
-            ><template v-if="p.rows.length > 1">и ещё {{ p.rows.length - 1 }}</template></small
+            ><template v-if="!p.track">{{ $t('нет в медиатеке') }}</template
+            ><template v-if="!p.track && p.rows.length > 1"> · </template
+            ><template v-if="p.rows.length > 1">{{ $t('и ещё {0}', p.rows.length - 1) }}</template></small
           >
         </span>
       </button>
     </div>
 
     <template v-if="marks.length">
-      <div class="section-title"><span>Вехи</span></div>
+      <div class="section-title">
+        <span>{{ $t('Вехи') }}</span>
+      </div>
       <div class="marks hscroll">
         <div v-for="(m, i) in marks" :key="i" class="mark">
           <b>{{ markText(m) }}</b>
@@ -105,11 +111,13 @@ function markText(m: Milestone): string {
       </div>
     </template>
 
-    <div class="section-title"><span>Дни</span></div>
+    <div class="section-title">
+      <span>{{ $t('Дни') }}</span>
+    </div>
     <button v-for="d in feed" :key="d.day" type="button" class="day" @click="router.push(`/day/${d.day}`)">
       <div class="dhead">
-        <b>{{ d.day === today ? 'Сегодня' : dayLabel(d.day, d.day.slice(0, 4) !== today.slice(0, 4)) }}</b>
-        <span class="muted">{{ formatListen(d.listenedMs) }} · {{ d.plays }} прослуш.</span>
+        <b>{{ d.day === today ? $t('Сегодня') : dayLabel(d.day, d.day.slice(0, 4) !== today.slice(0, 4)) }}</b>
+        <span class="muted">{{ $t('{0} · {1} прослуш.', formatListen(d.listenedMs), d.plays) }}</span>
         <component :is="moodOf(d.mood)!.icon" v-if="moodOf(d.mood)" class="mood" :style="{ color: moodOf(d.mood)!.color }" />
       </div>
       <div v-if="d.topKey && library.byKey.get(d.topKey)" class="dtop">
@@ -121,17 +129,19 @@ function markText(m: Milestone): string {
           class="cv"
         />
         <span class="text">
-          <small>трек дня</small>
+          <small>{{ $t('трек дня') }}</small>
           <span class="ellipsis">{{ library.byKey.get(d.topKey)!.title }}</span>
         </span>
-        <span v-if="d.discoveries" class="new">+{{ d.discoveries }} нов.</span>
+        <span v-if="d.discoveries" class="new">{{ $t('+{0} нов.', d.discoveries) }}</span>
       </div>
       <p v-if="d.note" class="note">{{ d.note }}</p>
     </button>
-    <button v-if="more && feed.length" type="button" class="btn block more" :disabled="loading" @click="loadMore">Раньше</button>
+    <button v-if="more && feed.length" type="button" class="btn block more" :disabled="loading" @click="loadMore">
+      {{ $t('Раньше') }}
+    </button>
     <div v-if="!feed.length" class="empty">
-      <h3>Дневник пуст</h3>
-      <p>Каждый день с музыкой получит запись сам. Ты добавишь настроение и пару слов.</p>
+      <h3>{{ $t('Дневник пуст') }}</h3>
+      <p>{{ $t('Каждый день с музыкой получит запись сам. Ты добавишь настроение и пару слов.') }}</p>
     </div>
   </section>
 </template>

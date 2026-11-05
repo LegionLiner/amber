@@ -8,6 +8,7 @@ import { saveScores } from '@/data/repos/duels'
 import { refinementsForOrder } from '@/domain/duels'
 import { bucketBase, starsLabel } from '@/domain/rating'
 import { displayArtist, type Track } from '@/domain/track'
+import { $t } from '@/i18n'
 
 /**
  * Одна группа звёзд в режиме уточнения: перетаскиваешь треки — меняется их порядок
@@ -70,7 +71,7 @@ watch(root, (el) => (scrollEl.value = findScroller(el)))
         </span>
         <span
           class="handle"
-          aria-label="Перетащить"
+          :aria-label="$t('Перетащить')"
           @pointerdown="drag.start($event, i)"
           @pointermove="drag.move"
           @pointerup="drag.end"

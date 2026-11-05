@@ -24,6 +24,7 @@ import { useLongPress } from '@/composables/useLongPress'
 import { createGroupDialog, openGroupMenu, openPlaylistMenu } from './playlistMenu'
 import type { PlaylistRow } from '@/data/repos/playlists'
 import { onPageShown } from '@/app/paging'
+import { $t, $tp } from '@/i18n'
 
 const playlists = usePlaylists()
 const ui = useUi()
@@ -47,12 +48,12 @@ function create() {
 
 const sub = (p: PlaylistRow) =>
   p.kind === 'smart'
-    ? 'умный, собирается сам'
-    : `${p.kind === 'mix' ? 'микс · ' : ''}${countLabel(p.count, ['трек', 'трека', 'треков'])}`
+    ? $t('умный, собирается сам')
+    : `${p.kind === 'mix' ? $t('микс · ') : ''}${countLabel(p.count, $tp('трек|трека|треков'))}`
 
 async function highlights() {
   const n = await radio.startHighlights()
-  if (!n) ui.toast('Отметь в треках «лучшие моменты» (звезда в метках), и здесь они зазвучат подряд', undefined, 5000)
+  if (!n) ui.toast($t('Отметь в треках «лучшие моменты» (звезда в метках), и здесь они зазвучат подряд'), undefined, 5000)
   else ui.fullPlayer = true
 }
 </script>
@@ -61,19 +62,21 @@ async function highlights() {
   <div ref="scrollEl" class="scroll screen">
     <HeadSpace />
 
-    <div class="section-title"><span>Мои плейлисты</span></div>
+    <div class="section-title">
+      <span>{{ $t('Мои плейлисты') }}</span>
+    </div>
     <!-- На компьютере «мои плейлисты» — сетка плашек; группы и подписи занимают строку целиком -->
     <div class="tile-grid mine">
       <button type="button" class="row" @click="create">
-        <span class="ic add"><IconAdd /></span><span class="t">Создать</span>
+        <span class="ic add"><IconAdd /></span><span class="t">{{ $t('Создать') }}</span>
       </button>
       <button type="button" class="row" @click="createGroupDialog()">
-        <span class="ic add"><IconFolderAdd /></span><span class="t">Новая группа</span>
+        <span class="ic add"><IconFolderAdd /></span><span class="t">{{ $t('Новая группа') }}</span>
       </button>
 
       <!-- Закреплённые: сверху, своим порядком. Порядок — «Выше» / «Ниже» в меню по удержанию -->
       <template v-if="playlists.tree.pinned.length">
-        <div class="sub-head"><IconPin />Закреплённые</div>
+        <div class="sub-head"><IconPin />{{ $t('Закреплённые') }}</div>
         <button
           v-for="p in playlists.tree.pinned"
           :key="p.id"
@@ -109,7 +112,7 @@ async function highlights() {
             /></span>
             <span class="text">
               <span class="t ellipsis">{{ n.group.name }}</span>
-              <span class="s">{{ countLabel(n.items.length, ['плейлист', 'плейлиста', 'плейлистов']) }}</span>
+              <span class="s">{{ countLabel(n.items.length, $tp('плейлист|плейлиста|плейлистов')) }}</span>
             </span>
             <IconChevron class="chev" />
           </button>
@@ -131,7 +134,7 @@ async function highlights() {
                 <span class="s">{{ sub(p) }}</span>
               </span>
             </button>
-            <p v-if="!n.items.length" class="note muted">Пусто: удержи плейлист → «В группу…»</p>
+            <p v-if="!n.items.length" class="note muted">{{ $t('Пусто: удержи плейлист → «В группу…»') }}</p>
           </div>
         </template>
         <button
@@ -153,10 +156,13 @@ async function highlights() {
       </template>
     </div>
     <p v-if="playlists.loaded && !playlists.list.length" class="note muted">
-      Плейлист можно собрать из любого списка: долгое нажатие на трек → «Добавить в плейлист».
+      {{ $t('Плейлист можно собрать из любого списка: долгое нажатие на трек → «Добавить в плейлист».') }}
     </p>
 
-    <div class="section-title"><span>Подборки</span><span class="muted hint">собираются сами</span></div>
+    <div class="section-title">
+      <span>{{ $t('Подборки') }}</span
+      ><span class="muted hint">{{ $t('собираются сами') }}</span>
+    </div>
     <div class="autos">
       <button
         v-for="a in AUTO_PLAYLISTS"
@@ -174,8 +180,8 @@ async function highlights() {
     <button type="button" class="row" @click="highlights">
       <span class="ic hl"><IconStar /></span>
       <span class="text">
-        <span class="t">Лучшие моменты</span>
-        <span class="s">Отмеченные отрывки подряд, с переходами</span>
+        <span class="t">{{ $t('Лучшие моменты') }}</span>
+        <span class="s">{{ $t('Отмеченные отрывки подряд, с переходами') }}</span>
       </span>
     </button>
     <div class="bottom-space" />

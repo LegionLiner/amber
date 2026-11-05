@@ -13,6 +13,9 @@ import { boot } from './app/boot'
 import { bootState } from './app/boot-state'
 import { installTapGuard } from './composables/tapGuard'
 import { installMorphTracking, installRouteMotion } from './app/motion'
+import { lang } from './i18n'
+
+document.documentElement.lang = lang
 
 installTapGuard()
 installMorphTracking()

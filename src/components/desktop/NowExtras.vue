@@ -12,6 +12,7 @@ import { savedLyrics } from '@/data/repos/tags'
 import { lineAt, parseLrc, type LyricLine } from '@/domain/lyrics'
 import { lrclibId } from '@/domain/lrclib'
 import { formatDuration } from '@/domain/format'
+import { $t } from '@/i18n'
 
 /**
  * То, что на компьютере показывается рядом с играющим треком — и в панели «Сейчас играет»,
@@ -82,18 +83,18 @@ const showLyrics = () => (props.openLyrics ? props.openLyrics() : ui.openSheet(L
 
 <template>
   <div class="extras">
-    <button v-if="lines" type="button" class="lyrics" aria-label="Открыть текст песни" @click="showLyrics">
+    <button v-if="lines" type="button" class="lyrics" :aria-label="$t('Открыть текст песни')" @click="showLyrics">
       <span v-for="l in shown" :key="l.i" class="ll" :class="{ now: l.i === cur, past: l.i < cur }">{{ l.line || '♪' }}</span>
     </button>
     <button v-else type="button" class="ghost" @click="showLyrics">
-      <IconText />{{ hasPlain ? 'Текст песни' : 'Найти текст' }}
+      <IconText />{{ hasPlain ? $t('Текст песни') : $t('Найти текст') }}
     </button>
 
     <section class="next">
       <div class="next-head">
-        <span class="label">Далее</span>
+        <span class="label">{{ $t('Далее') }}</span>
         <button type="button" class="more" @click="ui.queueOpen = true">
-          <IconQueue />{{ player.upcoming.length ? `Вся очередь · ${player.upcoming.length}` : 'Очередь' }}
+          <IconQueue />{{ player.upcoming.length ? $t('Вся очередь · {0}', player.upcoming.length) : $t('Очередь') }}
         </button>
       </div>
       <button v-for="(q, i) in upNext" :key="q.qid" type="button" class="nrow" @click="player.jump(player.index + 1 + i)">
@@ -104,7 +105,7 @@ const showLyrics = () => (props.openLyrics ? props.openLyrics() : ui.openSheet(L
         </span>
         <span class="nd num">{{ formatDuration(q.durationMs) }}</span>
       </button>
-      <p v-if="!upNext.length" class="empty-next">Дальше тишина. Добавь треки в очередь из любого списка.</p>
+      <p v-if="!upNext.length" class="empty-next">{{ $t('Дальше тишина. Добавь треки в очередь из любого списка.') }}</p>
     </section>
   </div>
 </template>

@@ -2,6 +2,7 @@
 import IconUp from '~icons/solar/arrow-up-linear'
 import IconDown from '~icons/solar/arrow-down-linear'
 import type { SortPref } from '@/stores/settings'
+import { $t } from '@/i18n'
 
 /** Выбор сортировки. Повторный тап по текущему пункту меняет направление. */
 const props = defineProps<{
@@ -20,7 +21,7 @@ function pick(o: { key: string; dir: 'asc' | 'desc' }) {
 
 <template>
   <div class="scroll body">
-    <h3 class="head">Сортировка</h3>
+    <h3 class="head">{{ $t('Сортировка') }}</h3>
     <button v-for="o in options" :key="o.key" type="button" class="opt" :class="{ on: o.key === value.key }" @click="pick(o)">
       <span>{{ o.label }}</span>
       <template v-if="o.key === value.key">

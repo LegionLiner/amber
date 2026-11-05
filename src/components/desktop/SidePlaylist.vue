@@ -2,6 +2,7 @@
 import IconPin from '~icons/solar/pin-bold'
 import CoverArt from '@/components/CoverArt.vue'
 import type { PlaylistRow } from '@/data/repos/playlists'
+import { $t } from '@/i18n'
 
 /** Содержимое строки плейлиста в боковом меню: обложка, название, вид и число треков */
 defineProps<{ p: PlaylistRow; pinned?: boolean }>()
@@ -12,7 +13,7 @@ defineProps<{ p: PlaylistRow; pinned?: boolean }>()
   <span class="text">
     <span class="ellipsis">{{ p.name }}</span>
     <small
-      ><IconPin v-if="pinned" class="pin" />{{ p.kind === 'mix' ? 'микс · ' : p.kind === 'smart' ? 'умный · ' : ''
+      ><IconPin v-if="pinned" class="pin" />{{ p.kind === 'mix' ? $t('микс · ') : p.kind === 'smart' ? $t('умный · ') : ''
       }}{{ p.count }}</small
     >
   </span>

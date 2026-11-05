@@ -4,6 +4,7 @@ import IconWarn from '~icons/solar/danger-triangle-linear'
 import { useLibrary } from '@/stores/library'
 import { useUi } from '@/stores/ui'
 import { countLabel } from '@/domain/format'
+import { $t, $tp } from '@/i18n'
 
 /**
  * Файлы, испорченные старой записью тегов: у них расширение .mp3, внутри MP4/AAC,
@@ -19,13 +20,13 @@ async function repair() {
   try {
     const r = await library.repairDamaged()
     if (r.written && !r.failed)
-      ui.toast(`Починено: ${countLabel(r.written, ['файл', 'файла', 'файлов'])}. Названия сохранены`, undefined, 5000)
-    else if (r.written) ui.toast(`Починено ${r.written}, не вышло ${r.failed}`, undefined, 5000)
-    else ui.toast('Не получилось починить. Попробуй ещё раз', undefined, 5000)
+      ui.toast($t('Починено: {0}. Названия сохранены', countLabel(r.written, $tp('файл|файла|файлов'))), undefined, 5000)
+    else if (r.written) ui.toast($t('Починено {0}, не вышло {1}', r.written, r.failed), undefined, 5000)
+    else ui.toast($t('Не получилось починить. Попробуй ещё раз'), undefined, 5000)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     ui.toast(
-      /cancel|отмен|разреш/i.test(msg) ? 'Без разрешения Android файлы не изменить' : `Не получилось: ${msg}`,
+      /cancel|отмен|разреш/i.test(msg) ? $t('Без разрешения Android файлы не изменить') : $t('Не получилось: {0}', msg),
       undefined,
       5000,
     )
@@ -39,12 +40,18 @@ async function repair() {
   <div v-if="library.damaged.length" class="dmg">
     <IconWarn class="ic" />
     <div class="text">
-      <b>{{ countLabel(library.damaged.length, ['файл перестал', 'файла перестали', 'файлов перестали']) }} играть</b>
+      <b>{{ $t('{0} играть', countLabel(library.damaged.length, $tp('файл перестал|файла перестали|файлов перестали'))) }}</b>
       <p>
-        Прошлая версия записала в них теги как в mp3, хотя внутри формат MP4. Починка вернёт звук и сохранит твоё переименование.
+        {{
+          $t(
+            'Прошлая версия записала в них теги как в mp3, хотя внутри формат MP4. Починка вернёт звук и сохранит твоё переименование.',
+          )
+        }}
       </p>
       <small class="ellipsis">{{ library.damaged.map((d) => d.name).join(', ') }}</small>
-      <button type="button" class="btn primary" :disabled="busy" @click="repair">{{ busy ? 'Чиню…' : 'Починить' }}</button>
+      <button type="button" class="btn primary" :disabled="busy" @click="repair">
+        {{ busy ? $t('Чиню…') : $t('Починить') }}
+      </button>
     </div>
   </div>
 </template>

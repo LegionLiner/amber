@@ -4,6 +4,7 @@ import IconStar from '~icons/solar/star-bold'
 import IconStarEmpty from '~icons/solar/star-linear'
 import { haptic } from '@/native/haptics'
 import { touchStoppedScroll } from '@/composables/tapGuard'
+import { $t } from '@/i18n'
 
 /**
  * Звёзды с половинками. Значение 1..10 (7 = 3½★), null = без оценки.
@@ -190,7 +191,7 @@ function key(e: KeyboardEvent) {
     :style="{ '--s': `${size}px` }"
     role="slider"
     :tabindex="readonly ? -1 : 0"
-    aria-label="Оценка"
+    :aria-label="$t('Оценка')"
     aria-valuemin="0"
     aria-valuemax="10"
     :aria-valuenow="modelValue ?? 0"
@@ -204,6 +205,7 @@ function key(e: KeyboardEvent) {
     @keydown="key"
   >
     <span v-for="i in 5" :key="i" class="star">
+      <IconStar class="star-base" />
       <IconStarEmpty class="star-empty" />
       <span class="fill" :style="{ width: fill(i) }"><IconStar /></span>
     </span>
@@ -241,8 +243,18 @@ function key(e: KeyboardEvent) {
   height: var(--s);
   display: block;
 }
+/*
+ * Пустая звезда: контур и лёгкая заливка — от основного цвета текста, а не от самого блёклого (--ink-3).
+ * Основной текст контрастен в любой теме и на цветном фоне плеера, поэтому звёзды видны везде
+ */
+.star-base {
+  position: absolute;
+  inset: 0;
+  color: color-mix(in srgb, var(--ink) 9%, transparent);
+}
 .star-empty {
-  color: var(--ink-3);
+  position: relative;
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
 }
 .fill {
   position: absolute;

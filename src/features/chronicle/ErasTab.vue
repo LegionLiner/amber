@@ -15,6 +15,7 @@ import { formatListen } from '@/domain/format'
 import { todayKey } from '@/domain/streaks'
 import { onPageShown } from '@/app/paging'
 import { stampedLoad } from '@/app/data-rev'
+import { $t } from '@/i18n'
 
 /**
  * Эпохи: сезоны собираются сами из истории, свои эпохи задаются датами.
@@ -66,19 +67,19 @@ function menu(e: EraRow) {
     title: e.title,
     actions: [
       {
-        label: 'Открыть',
+        label: $t('Открыть'),
         icon: IconOpen,
         run: () => {
           ui.closeSheet()
           void router.push(`/era/c-${e.id}`)
         },
       },
-      { label: 'Изменить', icon: IconPen, run: () => ui.openSheet(EraEditSheet, { era: e, onSaved: () => load() }) },
+      { label: $t('Изменить'), icon: IconPen, run: () => ui.openSheet(EraEditSheet, { era: e, onSaved: () => load() }) },
     ],
-    deleteNote: 'История прослушиваний останется.',
+    deleteNote: $t('История прослушиваний останется.'),
     onDelete: async () => {
       await deleteEra(e.id)
-      ui.toast(`Эпоха «${e.title}» удалена`)
+      ui.toast($t('Эпоха «{0}» удалена', e.title))
       await load()
     },
   })
@@ -91,7 +92,9 @@ function create() {
 
 <template>
   <section>
-    <div class="section-title"><span>Твои эпохи</span></div>
+    <div class="section-title">
+      <span>{{ $t('Твои эпохи') }}</span>
+    </div>
     <!-- .era-grid на телефоне «прозрачная» (карточки столбцом), на компьютере — сетка -->
     <div v-if="mine.length" class="era-grid">
       <button
@@ -105,12 +108,14 @@ function create() {
       >
         <b>{{ x.e.title }}</b>
         <small>{{ dayLabel(x.e.startDay, true) }} — {{ dayLabel(x.e.endDay, true) }}</small>
-        <span class="stat">{{ x.plays ? `${formatListen(x.ms)} · ${x.plays} прослуш.` : 'пока без музыки' }}</span>
+        <span class="stat">{{ x.plays ? $t('{0} · {1} прослуш.', formatListen(x.ms), x.plays) : $t('пока без музыки') }}</span>
       </button>
     </div>
-    <button type="button" class="add" @click="create"><IconAdd />Своя эпоха</button>
+    <button type="button" class="add" @click="create"><IconAdd />{{ $t('Своя эпоха') }}</button>
 
-    <div class="section-title"><span>Сезоны</span></div>
+    <div class="section-title">
+      <span>{{ $t('Сезоны') }}</span>
+    </div>
     <div v-if="seasons.length" class="era-grid">
       <button
         v-for="x in seasons"
@@ -123,13 +128,15 @@ function create() {
         <b>{{ x.s.title }}</b>
         <small>{{
           x.s.id === currentSeason.id
-            ? `идёт сейчас, до ${dayLabel(x.s.endDay)}`
+            ? $t('идёт сейчас, до {0}', dayLabel(x.s.endDay))
             : `${dayLabel(x.s.startDay)} — ${dayLabel(x.s.endDay)}`
         }}</small>
-        <span class="stat">{{ x.plays ? `${formatListen(x.ms)} · ${x.plays} прослуш.` : 'пока тихо' }}</span>
+        <span class="stat">{{ x.plays ? $t('{0} · {1} прослуш.', formatListen(x.ms), x.plays) : $t('пока тихо') }}</span>
       </button>
     </div>
-    <p v-if="!seasons.length" class="lead muted">Сезоны появятся, когда накопится история. Сегодня {{ dayLabel(today) }}.</p>
+    <p v-if="!seasons.length" class="lead muted">
+      {{ $t('Сезоны появятся, когда накопится история. Сегодня {0}.', dayLabel(today)) }}
+    </p>
   </section>
 </template>
 

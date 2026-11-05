@@ -8,6 +8,7 @@ import { useSync } from './sync'
 import { toQueueItem, usePlayer } from './player'
 import { useLibrary } from './library'
 import { useUi } from './ui'
+import { $t } from '@/i18n'
 
 /** Другое устройство и момент (по нашим часам), к которому относится позиция в его состоянии */
 export interface RemoteDevice extends LiveDevice {
@@ -211,7 +212,7 @@ export const useRemote = defineStore('remote', () => {
         if (await startFrom(st, st.positionMs)) {
           // Заиграло здесь — то устройство замолкает (а если не заиграло, пусть играет дальше)
           void send(e.from.id, 'pause', undefined, true)
-          ui.toast(`Продолжаю то, что играло на «${e.from.name}»`)
+          ui.toast($t('Продолжаю то, что играло на «{0}»', e.from.name))
         }
         break
       }
@@ -236,10 +237,10 @@ export const useRemote = defineStore('remote', () => {
       items.push(toQueueItem(t, source))
     })
     if (!items.length || start < 0) {
-      ui.toast('Этих треков нет на этом устройстве')
+      ui.toast($t('Этих треков нет на этом устройстве'))
       return false
     }
-    if (st.queue[st.index] && !library.byKey.has(st.queue[st.index]!)) ui.toast('Этого трека здесь нет — играет следующий')
+    if (st.queue[st.index] && !library.byKey.has(st.queue[st.index]!)) ui.toast($t('Этого трека здесь нет — играет следующий'))
     await player.setQueue(items, start, true, pos || undefined)
     return true
   }
@@ -252,7 +253,7 @@ export const useRemote = defineStore('remote', () => {
       await sync.client().command(to, cmd, args)
       return true
     } catch (e) {
-      if (!quiet) ui.toast(e instanceof ApiError ? e.message : 'Устройство не ответило')
+      if (!quiet) ui.toast(e instanceof ApiError ? e.message : $t('Устройство не ответило'))
       return false
     }
   }
@@ -293,7 +294,7 @@ export const useRemote = defineStore('remote', () => {
   async function sendTo(d: RemoteDevice) {
     const st = stateNow()
     if (!st) return
-    if (await send(d.id, 'takeover', { state: { ...st, playing: true } })) ui.toast(`Переношу на «${d.name}»`)
+    if (await send(d.id, 'takeover', { state: { ...st, playing: true } })) ui.toast($t('Переношу на «{0}»', d.name))
   }
 
   function dismiss(d: RemoteDevice) {

@@ -5,6 +5,7 @@ import IconRefresh from '~icons/solar/refresh-linear'
 import ChipTabs from './ChipTabs.vue'
 import { useLibrary } from '@/stores/library'
 import { PAGES, SECTION_TABS, SECTION_TITLES, TAB_LABELS, pageLocation, type TabbedSection } from '@/app/paging'
+import { $t } from '@/i18n'
 
 /**
  * Общий заголовок раздела с подвкладками: название и чипсы. Стоит на месте, пока листаются вкладки
@@ -34,14 +35,14 @@ function select(tab: string) {
           type="button"
           class="icon-btn"
           :class="{ spin: library.scanning }"
-          aria-label="Обновить библиотеку"
+          :aria-label="$t('Обновить библиотеку')"
           @click="library.scan(false)"
         >
           <IconRefresh />
         </button>
       </div>
       <p v-if="section === 'library' && library.scanning" class="scan muted">
-        Ищу изменения{{ library.progress ? ` · ${library.progress.done} из ${library.progress.total}` : '…' }}
+        {{ $t('Ищу изменения{0}', library.progress ? $t(' · {0} из {1}', library.progress.done, library.progress.total) : '…') }}
       </p>
     </header>
     <ChipTabs :items="items" :model-value="active" :pos="pos" :ms="ms" @update:model-value="select" />

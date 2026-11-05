@@ -5,6 +5,7 @@ import { desktop } from '@/native/desktop/bridge'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
+import { lang } from '@/i18n'
 import { router } from './router'
 
 /**
@@ -42,6 +43,7 @@ export function toggleMute() {
 export function setupDesktop(): void {
   if (!desktop) return
   document.documentElement.classList.add('desktop')
+  desktop.setLang(lang)
 
   // Кнопки окна (свернуть, развернуть, закрыть) рисует Windows: красим их под тему
   const syncTitleBar = () => {
@@ -51,7 +53,11 @@ export function setupDesktop(): void {
       ink: cs.getPropertyValue('--ink').trim() || '#f5f1ea',
     })
   }
-  new MutationObserver(syncTitleBar).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  // Тема, акцент и фон меняют атрибуты и переменные на <html>
+  new MutationObserver(syncTitleBar).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'data-backdrop', 'style'],
+  })
   syncTitleBar()
 
   void MusicCoreWeb.setVolume({ volume: volume.value })

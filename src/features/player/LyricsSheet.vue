@@ -17,6 +17,7 @@ import { AUTO_MAX, lrclibId, score, toSaved, type LrclibRecord } from '@/domain/
 import { lrclibFind } from '@/data/lrclib'
 import { formatDuration } from '@/domain/format'
 import { saveLyrics, savedLyrics } from '@/data/repos/tags'
+import { $t } from '@/i18n'
 
 /**
  * Текст песни. Берётся из самого файла (USLT/SYLT), из вставленного тобой или из открытой базы LRCLIB:
@@ -34,7 +35,7 @@ const settings = useSettings()
 const ui = useUi()
 
 const loading = ref(true)
-const loadingText = ref('Ищу текст…')
+const loadingText = ref($t('Ищу текст…'))
 const synced = ref<LyricLine[] | null>(null)
 const plain = ref('')
 const source = ref<'file' | 'mine' | 'lrclib' | null>(null)
@@ -51,10 +52,10 @@ const taEl = ref<HTMLTextAreaElement | null>(null)
 const item = computed(() => player.current)
 const emptyText = computed(() =>
   source.value === 'lrclib'
-    ? 'Текст убран.'
+    ? $t('Текст убран.')
     : settings.s.lrclib && item.value && lrclibMissing.has(item.value.key)
-      ? 'Текста нет ни в файле, ни в LRCLIB.'
-      : 'В файле нет текста.',
+      ? $t('Текста нет ни в файле, ни в LRCLIB.')
+      : $t('В файле нет текста.'),
 )
 
 function show(text: string) {
@@ -74,7 +75,7 @@ async function load() {
   editing.value = false
   if (!it) return
   loading.value = true
-  loadingText.value = 'Ищу текст…'
+  loadingText.value = $t('Ищу текст…')
   try {
     const mine = await savedLyrics(it.key)
     if (mine) {
@@ -92,7 +93,7 @@ async function load() {
       return
     }
     if (settings.s.lrclib && !lrclibMissing.has(it.key)) {
-      loadingText.value = 'Ищу текст в LRCLIB…'
+      loadingText.value = $t('Ищу текст в LRCLIB…')
       await findOnline(true)
     }
   } finally {
@@ -120,7 +121,7 @@ async function findOnline(auto = false) {
     variants.value = list
     if (!list.length) {
       lrclibMissing.add(it.key)
-      if (!auto) searchError.value = 'В LRCLIB этого трека нет'
+      if (!auto) searchError.value = $t('В LRCLIB этого трека нет')
       return
     }
     // Сам подставляем только явно тот же трек; сомнительные варианты — в список по кнопке поиска
@@ -128,7 +129,7 @@ async function findOnline(auto = false) {
       if (score(list[0]!, q) <= AUTO_MAX) await choose(list[0]!, true)
     } else picking.value = true
   } catch {
-    if (!auto) searchError.value = 'Не получилось связаться с LRCLIB — нет сети?'
+    if (!auto) searchError.value = $t('Не получилось связаться с LRCLIB — нет сети?')
   } finally {
     searching.value = false
   }
@@ -143,11 +144,11 @@ async function choose(r: LrclibRecord, silent = false) {
   source.value = 'lrclib'
   currentId.value = r.id
   picking.value = false
-  if (!silent) ui.toast('Текст заменён')
+  if (!silent) ui.toast($t('Текст заменён'))
 }
 
 function variantLine(r: LrclibRecord) {
-  const kind = r.syncedLyrics ? 'синхронный' : r.instrumental ? 'без слов' : 'текст'
+  const kind = r.syncedLyrics ? $t('синхронный') : r.instrumental ? $t('без слов') : $t('текст')
   return [r.albumName, formatDuration(r.duration * 1000), kind].filter(Boolean).join(' · ')
 }
 const peek = (r: LrclibRecord) =>
@@ -192,7 +193,7 @@ async function save() {
   // Стёр текст целиком — значит, он не нужен: метка «#0» не даёт LRCLIB подставить его снова
   const empty = !draft.value.trim()
   await saveLyrics(it.key, empty && settings.s.lrclib ? '[re:LRCLIB #0]' : draft.value)
-  ui.toast(empty ? 'Текст убран' : 'Текст сохранён')
+  ui.toast(empty ? $t('Текст убран') : $t('Текст сохранён'))
   await load()
 }
 /** Поставить метку времени текущей позиции в начало строки под курсором — так текст синхронизируется вручную */
@@ -213,36 +214,38 @@ function stamp() {
   <div class="form lyr" :class="props.inline ? 'inline' : 'sheet-body'">
     <header class="top">
       <div class="names">
-        <h3 class="sheet-head ellipsis">{{ item?.title ?? 'Текст' }}</h3>
+        <h3 class="sheet-head ellipsis">{{ item?.title ?? $t('Текст') }}</h3>
         <small class="muted ellipsis"
-          >{{ item?.artist }}<template v-if="source === 'mine'"> · твой текст</template
-          ><template v-else-if="source === 'lrclib' && currentId"> · из LRCLIB</template></small
+          >{{ item?.artist }}<template v-if="source === 'mine'"> {{ $t('· твой текст') }}</template
+          ><template v-else-if="source === 'lrclib' && currentId"> {{ $t('· из LRCLIB') }}</template></small
         >
       </div>
       <button
         v-if="!editing"
         type="button"
         class="icon-btn"
-        aria-label="Варианты из LRCLIB"
-        title="Варианты из LRCLIB"
+        :aria-label="$t('Варианты из LRCLIB')"
+        :title="$t('Варианты из LRCLIB')"
         :disabled="searching"
         @click="variants && variants.length ? (picking = !picking) : findOnline()"
       >
         <IconFind />
       </button>
-      <button v-if="!editing" type="button" class="icon-btn" aria-label="Изменить текст" @click="startEdit"><IconEdit /></button>
+      <button v-if="!editing" type="button" class="icon-btn" :aria-label="$t('Изменить текст')" @click="startEdit">
+        <IconEdit />
+      </button>
       <button
         v-if="props.inline"
         type="button"
         class="icon-btn"
-        aria-label="Скрыть текст"
-        title="Скрыть текст"
+        :aria-label="$t('Скрыть текст')"
+        :title="$t('Скрыть текст')"
         @click="emit('close')"
       >
         <IconClose />
       </button>
     </header>
-    <p v-if="searching && !loading" class="muted note">Ищу в LRCLIB…</p>
+    <p v-if="searching && !loading" class="muted note">{{ $t('Ищу в LRCLIB…') }}</p>
     <p v-else-if="searchError" class="muted note">{{ searchError }}</p>
 
     <template v-if="editing">
@@ -251,18 +254,20 @@ function stamp() {
         ref="taEl"
         v-model="draft"
         class="field ta"
-        placeholder="Вставь текст. Можно в формате LRC: [01:23.45]строка"
+        :placeholder="$t('Вставь текст. Можно в формате LRC: [01:23.45]строка')"
       />
-      <p class="note">Чтобы синхронизировать вручную: слушай и нажимай «Метка» в начале каждой строки.</p>
+      <p class="note">{{ $t('Чтобы синхронизировать вручную: слушай и нажимай «Метка» в начале каждой строки.') }}</p>
       <div class="btns">
-        <button type="button" class="btn" @mousedown.prevent @click="stamp">Метка {{ fmt(player.position).slice(0, 5) }}</button>
-        <button type="button" class="btn primary" @click="save">Сохранить</button>
+        <button type="button" class="btn" @mousedown.prevent @click="stamp">
+          {{ $t('Метка {0}', fmt(player.position).slice(0, 5)) }}
+        </button>
+        <button type="button" class="btn primary" @click="save">{{ $t('Сохранить') }}</button>
       </div>
-      <button type="button" class="btn block" @click="editing = false">Отмена</button>
+      <button type="button" class="btn block" @click="editing = false">{{ $t('Отмена') }}</button>
     </template>
 
     <div v-else-if="picking && variants" class="variants">
-      <p class="muted note">Варианты из LRCLIB, лучший сверху. Не подошёл ни один — карандаш и свой текст.</p>
+      <p class="muted note">{{ $t('Варианты из LRCLIB, лучший сверху. Не подошёл ни один — карандаш и свой текст.') }}</p>
       <button
         v-for="v in variants"
         :key="v.id"
@@ -275,7 +280,7 @@ function stamp() {
         <small class="ellipsis">{{ variantLine(v) }}</small>
         <span class="peek">{{ peek(v) }}</span>
       </button>
-      <button type="button" class="btn block" @click="picking = false">Назад к тексту</button>
+      <button type="button" class="btn block" @click="picking = false">{{ $t('Назад к тексту') }}</button>
     </div>
     <div v-else-if="loading" class="muted pad">{{ loadingText }}</div>
     <div v-else-if="synced" ref="listEl" class="lines">
@@ -295,8 +300,8 @@ function stamp() {
     <div v-else class="empty-l">
       <p>{{ emptyText }}</p>
       <div class="btns">
-        <button type="button" class="btn" :disabled="searching" @click="findOnline()">Найти в LRCLIB</button>
-        <button type="button" class="btn" @click="startEdit">Добавить свой</button>
+        <button type="button" class="btn" :disabled="searching" @click="findOnline()">{{ $t('Найти в LRCLIB') }}</button>
+        <button type="button" class="btn" @click="startEdit">{{ $t('Добавить свой') }}</button>
       </div>
     </div>
   </div>

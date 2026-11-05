@@ -1,5 +1,6 @@
 package app.yantar.player.playback
 
+import app.yantar.player.core.Lang
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
@@ -21,6 +22,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        Lang.init(this)
         PlayerHub.init(this)
         val player = PlayerHub.player()
         val launch = packageManager.getLaunchIntentForPackage(packageName) ?: Intent()
@@ -104,7 +106,7 @@ class PlaybackService : MediaSessionService() {
 
         fun heartButton(favorite: Boolean): CommandButton =
             CommandButton.Builder(if (favorite) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED)
-                .setDisplayName(if (favorite) "Убрать из избранного" else "В избранное")
+                .setDisplayName(if (favorite) Lang.t("Убрать из избранного", "Remove from Favorites") else Lang.t("В избранное", "Add to Favorites"))
                 .setSessionCommand(FAVORITE)
                 .setSlots(CommandButton.SLOT_OVERFLOW)
                 .build()

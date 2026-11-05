@@ -5,6 +5,7 @@ import ColorPicker from '@/components/ColorPicker.vue'
 import { TINTS } from '@/domain/palette'
 import { deleteEra, saveEra, type EraRow } from '@/data/repos/eras'
 import { todayKey } from '@/domain/streaks'
+import { $t } from '@/i18n'
 
 /** Своя эпоха: название и даты. Цвет — для карточки и историй. */
 const props = defineProps<{ era?: EraRow | null; onSaved?: (id: number | null) => void }>()
@@ -21,8 +22,8 @@ const form = reactive({
 const confirmDelete = ref(false)
 
 async function save() {
-  if (!form.title.trim()) return ui.toast('Дай эпохе название')
-  if (form.endDay < form.startDay) return ui.toast('Конец раньше начала')
+  if (!form.title.trim()) return ui.toast($t('Дай эпохе название'))
+  if (form.endDay < form.startDay) return ui.toast($t('Конец раньше начала'))
   const id = await saveEra({
     id: props.era?.id,
     title: form.title.trim(),
@@ -44,20 +45,26 @@ async function remove() {
 
 <template>
   <div class="sheet-body form">
-    <h3 class="sheet-head">{{ era ? 'Эпоха' : 'Новая эпоха' }}</h3>
-    <input id="era-title" v-model="form.title" class="field" placeholder="Например, «Переезд в Питер»" maxlength="60" />
+    <h3 class="sheet-head">{{ era ? $t('Эпоха') : $t('Новая эпоха') }}</h3>
+    <input id="era-title" v-model="form.title" class="field" :placeholder="$t('Например, «Переезд в Питер»')" maxlength="60" />
     <div class="dates">
-      <label><span>С</span><input id="era-from" v-model="form.startDay" type="date" class="field" /></label>
-      <label><span>По</span><input id="era-to" v-model="form.endDay" type="date" class="field" /></label>
+      <label
+        ><span>{{ $t('С') }}</span
+        ><input id="era-from" v-model="form.startDay" type="date" class="field"
+      /></label>
+      <label
+        ><span>{{ $t('По') }}</span
+        ><input id="era-to" v-model="form.endDay" type="date" class="field"
+      /></label>
     </div>
     <ColorPicker v-model="form.color" />
-    <textarea id="era-note" v-model="form.note" class="field" placeholder="Пара слов о том времени" />
+    <textarea id="era-note" v-model="form.note" class="field" :placeholder="$t('Пара слов о том времени')" />
     <div class="btns">
       <template v-if="era">
-        <button v-if="!confirmDelete" type="button" class="btn" @click="confirmDelete = true">Удалить</button>
-        <button v-else type="button" class="btn danger" @click="remove">Точно удалить</button>
+        <button v-if="!confirmDelete" type="button" class="btn" @click="confirmDelete = true">{{ $t('Удалить') }}</button>
+        <button v-else type="button" class="btn danger" @click="remove">{{ $t('Точно удалить') }}</button>
       </template>
-      <button type="button" class="btn primary" @click="save">Сохранить</button>
+      <button type="button" class="btn primary" @click="save">{{ $t('Сохранить') }}</button>
     </div>
   </div>
 </template>

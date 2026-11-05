@@ -1,3 +1,4 @@
+import { $t } from '@/i18n'
 /**
  * Перемешивание. Три шага:
  * 1) порядок: равные шансы (Фишер–Йейтс) или веса (Эфраимидис–Спиракис);
@@ -11,11 +12,11 @@ export type Rnd = () => number
 export type ShuffleKind = 'smart' | 'normal' | 'favorites' | 'fresh' | 'fair'
 
 export const SHUFFLE_KINDS: { id: ShuffleKind; label: string; hint: string }[] = [
-  { id: 'smart', label: 'Умное', hint: 'Чаще любимое, реже недавнее и пропускаемое' },
-  { id: 'normal', label: 'Обычное', hint: 'Все треки на равных' },
-  { id: 'favorites', label: 'Любимое', hint: 'Избранное и высокие оценки впереди' },
-  { id: 'fresh', label: 'Забытое', hint: 'Давно не звучавшее и почти не игравшее' },
-  { id: 'fair', label: 'По кругу', hint: 'Каждый трек прозвучит, прежде чем повторится' },
+  { id: 'smart', label: $t('Умное'), hint: $t('Чаще любимое, реже недавнее и пропускаемое') },
+  { id: 'normal', label: $t('Обычное'), hint: $t('Все треки на равных') },
+  { id: 'favorites', label: $t('Любимое'), hint: $t('Избранное и высокие оценки впереди') },
+  { id: 'fresh', label: $t('Забытое'), hint: $t('Давно не звучавшее и почти не игравшее') },
+  { id: 'fair', label: $t('По кругу'), hint: $t('Каждый трек прозвучит, прежде чем повторится') },
 ]
 
 export function mulberry32(seed: number): Rnd {

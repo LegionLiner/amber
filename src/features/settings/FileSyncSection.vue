@@ -9,6 +9,7 @@ import { desktop, isDesktop } from '@/native/desktop/bridge'
 import { isNative } from '@/native/paths'
 import { MusicCore } from '@/native/music-core'
 import { countLabel, formatBytes } from '@/domain/format'
+import { LOCALE, $t, $tp } from '@/i18n'
 
 /**
  * Настройки → Папка по Wi-Fi: компьютер раздаёт папку с музыкой, телефон забирает новое и отдаёт своё,
@@ -33,13 +34,13 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(tick))
 
 function ago(ts: number | null) {
-  if (!ts) return 'ещё не было'
+  if (!ts) return $t('ещё не было')
   const m = Math.round((now.value - ts) / 60_000)
-  if (m < 1) return 'только что'
-  if (m < 60) return `${m} мин назад`
+  if (m < 1) return $t('только что')
+  if (m < 60) return $t('{0} мин назад', m)
   const h = Math.round(m / 60)
-  if (h < 24) return `${h} ч назад`
-  return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+  if (h < 24) return $t('{0} ч назад', h)
+  return new Date(ts).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' })
 }
 
 /* ---------------- компьютер ---------------- */
@@ -54,14 +55,15 @@ async function showCode() {
   code.value = await desktop!.fileSyncPair()
 }
 async function chooseOther() {
-  const p = await desktop!.chooseFolder('Папка для телефона')
+  const p = await desktop!.chooseFolder($t('Папка для телефона'))
   if (p) await fs.setPc({ folder: p })
 }
 const activityText = computed(() => {
   const a = fs.activity
   if (!a) return ''
   const name = a.path?.split(/[\\/]/).pop() ?? ''
-  const what = { pull: 'забрал', push: 'прислал', trash: 'убрал в корзину', pair: 'подключился', list: '' }[a.op] ?? ''
+  const what =
+    { pull: $t('забрал'), push: $t('прислал'), trash: $t('убрал в корзину'), pair: $t('подключился'), list: '' }[a.op] ?? ''
   return `${a.device} ${what}${name ? ` «${name}»` : ''} · ${ago(a.at)}`
 })
 
@@ -79,7 +81,7 @@ async function search() {
   try {
     found.value = await fs.discover()
     if (found.value.length === 1) address.value = `${found.value[0]!.host}:${found.value[0]!.port}`
-    if (!found.value.length) formError.value = 'Компьютер не найден. Он включён и в той же сети? Можно ввести адрес вручную.'
+    if (!found.value.length) formError.value = $t('Компьютер не найден. Он включён и в той же сети? Можно ввести адрес вручную.')
   } finally {
     searching.value = false
   }
@@ -90,7 +92,7 @@ async function connect() {
   try {
     await fs.pair(address.value, pairCode.value)
     pairCode.value = ''
-    ui.toast(`Подключено к «${fs.link?.pcName}»`)
+    ui.toast($t('Подключено к «{0}»', fs.link?.pcName))
     void fs.syncNow()
   } catch (e) {
     formError.value = e instanceof Error ? e.message : String(e)
@@ -101,34 +103,40 @@ async function connect() {
 
 const progressText = computed(() => {
   const p = fs.progress
-  if (!p) return 'Сверяю папки…'
-  const bytes = p.bytesTotal ? ` · ${formatBytes(p.bytesDone)} из ${formatBytes(p.bytesTotal)}` : ''
-  return `${p.done} из ${p.total}${bytes}${p.current ? ` · ${p.current.split('/').pop()}` : ''}`
+  if (!p) return $t('Сверяю папки…')
+  const bytes = p.bytesTotal ? $t(' · {0} из {1}', formatBytes(p.bytesDone), formatBytes(p.bytesTotal)) : ''
+  return $t('{0} из {1}{2}{3}', p.done, p.total, bytes, p.current ? ` · ${p.current.split('/').pop()}` : '')
 })
 const reportText = computed(() => {
   const r = fs.report
   if (!r) return ''
   const parts: string[] = []
-  if (r.pulled) parts.push(`получено ${r.pulled}`)
-  if (r.pushed) parts.push(`отправлено ${r.pushed}`)
-  if (r.trashedLocal || r.trashedRemote) parts.push(`в корзину ${r.trashedLocal + r.trashedRemote}`)
-  if (!parts.length) parts.push('всё совпадает')
+  if (r.pulled) parts.push($t('получено {0}', r.pulled))
+  if (r.pushed) parts.push($t('отправлено {0}', r.pushed))
+  if (r.trashedLocal || r.trashedRemote) parts.push($t('в корзину {0}', r.trashedLocal + r.trashedRemote))
+  if (!parts.length) parts.push($t('всё совпадает'))
   return parts.join(', ')
 })
 </script>
 
 <template>
   <section class="group fsync">
-    <h2 class="gtitle">Папка по Wi-Fi</h2>
+    <h2 class="gtitle">{{ $t('Папка по Wi-Fi') }}</h2>
 
     <!-- Компьютер: раздаёт -->
     <template v-if="isDesktop && fs.pc">
       <p class="note">
-        Телефон забирает отсюда новую музыку и присылает свою, когда вы в одной сети, — как Syncthing, только внутри Amber. Замена
-        и удаление на другой стороне ничего не стирают насовсем: прежние версии уходят в корзину.
+        {{
+          $t(
+            'Телефон забирает отсюда новую музыку и присылает свою, когда вы в одной сети, — как Syncthing, только внутри Amber. Замена и удаление на другой стороне ничего не стирают насовсем: прежние версии уходят в корзину.',
+          )
+        }}
       </p>
       <label class="row">
-        <span><b>Раздавать папку телефону</b><small>Windows может спросить разрешение для частной сети — разреши</small></span>
+        <span
+          ><b>{{ $t('Раздавать папку телефону') }}</b
+          ><small>{{ $t('Windows может спросить разрешение для частной сети — разреши') }}</small></span
+        >
         <input
           id="opt-fsync"
           type="checkbox"
@@ -139,7 +147,7 @@ const reportText = computed(() => {
       </label>
       <template v-if="fs.pc.enabled">
         <div class="pick">
-          <span class="lbl">Папка</span>
+          <span class="lbl">{{ $t('Папка') }}</span>
           <button
             v-for="f in folders"
             :key="f"
@@ -158,32 +166,32 @@ const reportText = computed(() => {
           >
             <IconFolder />{{ fs.pc.folder }}
           </button>
-          <button type="button" class="link" @click="chooseOther">Другая папка…</button>
+          <button type="button" class="link" @click="chooseOther">{{ $t('Другая папка…') }}</button>
         </div>
         <p v-if="fs.pc.error" class="err">{{ fs.pc.error }}</p>
         <div v-else-if="fs.pc.running" class="state">
           <IconWifi />
           <span>
-            <b>Раздаю «{{ fs.pc.folder?.split(/[\\/]/).pop() }}»</b>
-            <small>{{ fs.pc.addresses.map((a) => `${a}:${fs.pc!.port}`).join(', ') || 'нет сети' }}</small>
+            <b>{{ $t('Раздаю «{0}»', fs.pc.folder?.split(/[\\/]/).pop()) }}</b>
+            <small>{{ fs.pc.addresses.map((a) => `${a}:${fs.pc!.port}`).join(', ') || $t('нет сети') }}</small>
           </span>
         </div>
         <p v-if="activityText" class="tiny">{{ activityText }}</p>
 
         <div v-if="code && codeLeft !== '0:00'" class="code">
-          <small>Код для телефона · {{ codeLeft }}</small>
+          <small>{{ $t('Код для телефона · {0}', codeLeft) }}</small>
           <b class="display num">{{ code.code.slice(0, 3) }} {{ code.code.slice(3) }}</b>
-          <small>В Amber на телефоне: Настройки → Папка по Wi-Fi → Найти компьютер</small>
+          <small>{{ $t('В Amber на телефоне: Настройки → Папка по Wi-Fi → Найти компьютер') }}</small>
         </div>
-        <button v-else type="button" class="btn" @click="showCode">Подключить телефон</button>
+        <button v-else type="button" class="btn" @click="showCode">{{ $t('Подключить телефон') }}</button>
 
         <div v-if="fs.pc.devices.length" class="devices">
           <div v-for="d in fs.pc.devices" :key="d.id" class="device">
             <span>
               <b>{{ d.name }}</b>
-              <small>{{ d.lastSeenAt ? `на связи ${ago(d.lastSeenAt)}` : `подключён ${ago(d.pairedAt)}` }}</small>
+              <small>{{ d.lastSeenAt ? $t('на связи {0}', ago(d.lastSeenAt)) : $t('подключён {0}', ago(d.pairedAt)) }}</small>
             </span>
-            <button type="button" class="link danger" @click="fs.unpairPc(d.id)">Отключить</button>
+            <button type="button" class="link danger" @click="fs.unpairPc(d.id)">{{ $t('Отключить') }}</button>
           </div>
         </div>
       </template>
@@ -192,13 +200,16 @@ const reportText = computed(() => {
     <!-- Телефон: забирает и отдаёт -->
     <template v-else-if="isNative">
       <p class="note">
-        Новая музыка с компьютера приходит сюда, а своя уходит туда, когда телефон и компьютер в одной сети. Работает, пока Amber
-        открыт; прежние версии и удалённое уходят в корзину, а не пропадают.
+        {{
+          $t(
+            'Новая музыка с компьютера приходит сюда, а своя уходит туда, когда телефон и компьютер в одной сети. Работает, пока Amber открыт; прежние версии и удалённое уходят в корзину, а не пропадают.',
+          )
+        }}
       </p>
 
       <div v-if="!fs.access" class="warn">
-        <span>Нужен доступ ко всем файлам: без него Amber не сможет записывать в папку с музыкой.</span>
-        <button type="button" class="btn small" @click="requestAccess">Разрешить</button>
+        <span>{{ $t('Нужен доступ ко всем файлам: без него Amber не сможет записывать в папку с музыкой.') }}</span>
+        <button type="button" class="btn small" @click="requestAccess">{{ $t('Разрешить') }}</button>
       </div>
 
       <template v-if="fs.paired">
@@ -210,7 +221,7 @@ const reportText = computed(() => {
               fs.status === 'running'
                 ? progressText
                 : fs.status === 'offline'
-                  ? 'Компьютер не в сети — синхронизирую, когда появится'
+                  ? $t('Компьютер не в сети — синхронизирую, когда появится')
                   : fs.status === 'error'
                     ? fs.error
                     : `${reportText} · ${ago(fs.lastAt)}`
@@ -220,7 +231,7 @@ const reportText = computed(() => {
             type="button"
             class="icon-btn"
             :class="{ spin: fs.status === 'running' }"
-            aria-label="Синхронизировать сейчас"
+            :aria-label="$t('Синхронизировать сейчас')"
             :disabled="!fs.access"
             @click="fs.status === 'running' ? fs.cancel() : fs.syncNow()"
           >
@@ -232,36 +243,40 @@ const reportText = computed(() => {
         </div>
 
         <div v-if="fs.report?.held" class="warn">
-          <span
-            >На другой стороне удалили {{ countLabel(fs.report.held, ['файл', 'файла', 'файлов']) }} — больше, чем обычно. Удалить
-            и здесь? Они уйдут в корзину.</span
-          >
-          <button type="button" class="btn small" @click="fs.syncNow({ confirmDeletes: true })">Удалить</button>
+          <span>{{
+            $t(
+              'На другой стороне удалили {0} — больше, чем обычно. Удалить и здесь? Они уйдут в корзину.',
+              countLabel(fs.report.held, $tp('файл|файла|файлов')),
+            )
+          }}</span>
+          <button type="button" class="btn small" @click="fs.syncNow({ confirmDeletes: true })">{{ $t('Удалить') }}</button>
         </div>
         <p v-if="fs.report?.conflicts.length" class="tiny">
-          Изменены с обеих сторон, оставлены более новые: {{ fs.report.conflicts.slice(0, 3).join(', ') }}
+          {{ $t('Изменены с обеих сторон, оставлены более новые: {0}', fs.report.conflicts.slice(0, 3).join(', ')) }}
         </p>
         <p v-if="fs.report?.errors.length" class="tiny err">
-          Не получилось:
           {{
-            fs.report.errors
-              .slice(0, 3)
-              .map((e) => `${e.p.split('/').pop()} (${e.why})`)
-              .join(', ')
+            $t(
+              'Не получилось: {0}',
+              fs.report.errors
+                .slice(0, 3)
+                .map((e) => `${e.p.split('/').pop()} (${e.why})`)
+                .join(', '),
+            )
           }}
         </p>
 
         <div class="pick">
-          <span class="lbl">Папка на телефоне</span>
+          <span class="lbl">{{ $t('Папка на телефоне') }}</span>
           <span class="path ellipsis">{{ fs.root }}</span>
-          <button type="button" class="link" @click="fs.chooseRoot()">Другая…</button>
+          <button type="button" class="link" @click="fs.chooseRoot()">{{ $t('Другая…') }}</button>
         </div>
-        <button type="button" class="link danger" @click="fs.unpair()">Отключить компьютер</button>
+        <button type="button" class="link danger" @click="fs.unpair()">{{ $t('Отключить компьютер') }}</button>
       </template>
 
       <template v-else>
         <button type="button" class="btn" :disabled="searching" @click="search">
-          {{ searching ? 'Ищу компьютер…' : 'Найти компьютер' }}
+          {{ searching ? $t('Ищу компьютер…') : $t('Найти компьютер') }}
         </button>
         <div v-if="found.length > 1" class="devices">
           <button
@@ -279,11 +294,11 @@ const reportText = computed(() => {
           </button>
         </div>
         <label class="fl">
-          <span>Адрес компьютера</span>
+          <span>{{ $t('Адрес компьютера') }}</span>
           <input id="fsync-address" v-model="address" class="field" inputmode="url" placeholder="192.168.1.5" />
         </label>
         <label class="fl">
-          <span>Код с экрана компьютера</span>
+          <span>{{ $t('Код с экрана компьютера') }}</span>
           <input
             id="fsync-code"
             v-model="pairCode"
@@ -301,7 +316,7 @@ const reportText = computed(() => {
           :disabled="busy || !address || pairCode.replace(/\D/g, '').length !== 6"
           @click="connect"
         >
-          {{ busy ? 'Подключаюсь…' : 'Подключить' }}
+          {{ busy ? $t('Подключаюсь…') : $t('Подключить') }}
         </button>
       </template>
     </template>

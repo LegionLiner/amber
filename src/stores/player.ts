@@ -3,7 +3,7 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import { MusicCore } from '@/native/music-core'
 import type { OutputsEvent, PlayerSnapshot, PlayerStateEvent, PlaySource, QueueEdit, QueueItem, RepeatMode } from '@/native/types'
 import { coverFileUri } from '@/native/paths'
-import { displayArtist, type Track } from '@/domain/track'
+import { displayArtist, relabelUnknown, type Track } from '@/domain/track'
 import { orderFor, shuffle, type ShuffleKind } from '@/domain/shuffle'
 import { useLibrary } from './library'
 import { useSettings } from './settings'
@@ -125,7 +125,10 @@ export const usePlayer = defineStore('player', () => {
   }
 
   function applySnapshot(s: PlayerSnapshot) {
-    queue.value = s.queue
+    queue.value = s.queue.map((q) => {
+      const artist = relabelUnknown(q.artist)
+      return artist === q.artist ? q : { ...q, artist }
+    })
     rev.value = s.rev
     applyState(s)
   }

@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('amberDesktop', {
   setTitleBar: (c: { bg: string; ink: string }) => ipcRenderer.send('app:titlebar', c),
   nowPlaying: (s: { playing: boolean; title: string; artist: string }) => ipcRenderer.send('app:nowPlaying', s),
   onCommand: (cb: (cmd: string) => void) => void ipcRenderer.on('command', (_e, cmd: string) => cb(cmd)),
+  setLang: (l: 'ru' | 'en') => ipcRenderer.send('app:lang', l),
   quit: () => ipcRenderer.send('app:quit'),
 
   ytInfo: (url: string) => invoke('yt:info', url),

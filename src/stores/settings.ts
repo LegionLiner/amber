@@ -5,8 +5,12 @@ import { DEFAULT_COUNTING } from '@/domain/counting'
 import type { AudioSettings, CountingRule, RepeatMode } from '@/native/types'
 import type { SoundPreset } from '@/domain/effects'
 import type { ShuffleKind } from '@/domain/shuffle'
+import type { AccentId, BackdropId } from '@/domain/themes'
+import { cleanTools, DEFAULT_PLAYER_TOOLS, type PlayerToolId } from '@/domain/player-tools'
+import type { CalColor, CalScale } from '@/domain/calendar'
+import { $t } from '@/i18n'
 
-export type ThemeMode = 'dark' | 'light' | 'amoled' | 'system'
+export type ThemeMode = 'dark' | 'light' | 'system'
 export type SortDir = 'asc' | 'desc'
 export interface SortPref {
   key: string
@@ -33,6 +37,11 @@ export interface RadioDials {
 export interface AppSettings {
   onboarded: boolean
   theme: ThemeMode
+  /** Акцентный цвет и фон (domain/themes.ts) */
+  accent: AccentId
+  backdrop: BackdropId
+  /** Телефон: быстрые кнопки внизу экрана плеера, по порядку */
+  playerTools: PlayerToolId[]
   glass: 'full' | 'low'
   motion: 'full' | 'reduced'
   counting: CountingRule
@@ -47,6 +56,8 @@ export interface AppSettings {
   albumFromFolder: boolean
   /** Сортировка для каждого экрана отдельно */
   sorts: Record<string, SortPref>
+  /** Календарь «Каждый день» в хронике: масштаб и раскраска */
+  dailyView: { scale: CalScale; color: CalColor }
   /** После скольких прослушиваний без оценки попросить оценить (0 = не просить) */
   askRatingAfterPlays: number
   recentSearches: string[]
@@ -78,12 +89,12 @@ export interface AppSettings {
 }
 
 export const EQ_PRESETS: Record<string, { label: string; bands: number[]; preampDb: number }> = {
-  flat: { label: 'Ровно', bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], preampDb: 0 },
-  bass: { label: 'Бас', bands: [5, 4, 3, 1.5, 0, 0, 0, 0, 0, 0], preampDb: -4 },
-  vocal: { label: 'Голос', bands: [-2, -1.5, -1, 0, 1.5, 3, 3, 2, 0, -1], preampDb: -3 },
-  night: { label: 'Ночь', bands: [2, 1.5, 1, 0, 0, 0, -1, -2, -3, -4], preampDb: -2 },
-  bright: { label: 'Ярко', bands: [0, 0, 0, 0, 0, 0.5, 1.5, 3, 4, 4], preampDb: -4 },
-  loudness: { label: 'Громкость', bands: [4, 3, 1, 0, -1, -1, 0, 1, 3, 4], preampDb: -4 },
+  flat: { label: $t('Ровно'), bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], preampDb: 0 },
+  bass: { label: $t('Бас'), bands: [5, 4, 3, 1.5, 0, 0, 0, 0, 0, 0], preampDb: -4 },
+  vocal: { label: $t('Голос'), bands: [-2, -1.5, -1, 0, 1.5, 3, 3, 2, 0, -1], preampDb: -3 },
+  night: { label: $t('Ночь'), bands: [2, 1.5, 1, 0, 0, 0, -1, -2, -3, -4], preampDb: -2 },
+  bright: { label: $t('Ярко'), bands: [0, 0, 0, 0, 0, 0.5, 1.5, 3, 4, 4], preampDb: -4 },
+  loudness: { label: $t('Громкость'), bands: [4, 3, 1, 0, -1, -1, 0, 1, 3, 4], preampDb: -4 },
 }
 
 export const DEFAULT_AUDIO: AudioSettings = {
@@ -97,6 +108,9 @@ export const DEFAULT_AUDIO: AudioSettings = {
 export const DEFAULT_SETTINGS: AppSettings = {
   onboarded: false,
   theme: 'dark',
+  accent: 'amber',
+  backdrop: 'warm',
+  playerTools: DEFAULT_PLAYER_TOOLS,
   glass: 'full',
   motion: 'full',
   counting: DEFAULT_COUNTING,
@@ -116,6 +130,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   albumFromFolder: true,
   sorts: {},
+  dailyView: { scale: '18w', color: 'time' },
   askRatingAfterPlays: 5,
   recentSearches: [],
   audio: DEFAULT_AUDIO,
@@ -160,7 +175,14 @@ export const useSettings = defineStore('settings', () => {
         }
         s.backup = { ...DEFAULT_SETTINGS.backup, ...saved.backup }
         s.radio = { ...DEFAULT_SETTINGS.radio, ...saved.radio }
+        s.dailyView = { ...DEFAULT_SETTINGS.dailyView, ...saved.dailyView }
         s.soundPresets = Array.isArray(saved.soundPresets) ? saved.soundPresets : []
+        s.playerTools = Array.isArray(saved.playerTools) ? cleanTools(saved.playerTools) : [...DEFAULT_PLAYER_TOOLS]
+        // Была тема «AMOLED» — теперь это тёмная тема с чёрным фоном
+        if ((saved.theme as string) === 'amoled') {
+          s.theme = 'dark'
+          if (!saved.backdrop) s.backdrop = 'black'
+        }
         // Настройки свайпа влево больше нет
         delete (s as unknown as Record<string, unknown>).swipeLeft
       } catch {

@@ -12,17 +12,18 @@ import IconChron from '~icons/solar/history-linear'
 import IconChronOn from '~icons/solar/history-bold'
 import type { TabId } from '@/app/router'
 import { haptic } from '@/native/haptics'
+import { $t } from '@/i18n'
 
 const route = useRoute()
 const router = useRouter()
 const emit = defineEmits<{ reselect: [tab: TabId] }>()
 
 const tabs: { id: TabId; to: string; label: string; icon: Component; on: Component }[] = [
-  { id: 'home', to: '/', label: 'Главная', icon: IconHome, on: IconHomeOn },
-  { id: 'library', to: '/library', label: 'Медиатека', icon: IconLib, on: IconLibOn },
-  { id: 'search', to: '/search', label: 'Поиск', icon: IconSearch, on: IconSearch },
-  { id: 'top', to: '/top', label: 'Топ', icon: IconTop, on: IconTopOn },
-  { id: 'chronicle', to: '/chronicle', label: 'Хроника', icon: IconChron, on: IconChronOn },
+  { id: 'home', to: '/', label: $t('Главная'), icon: IconHome, on: IconHomeOn },
+  { id: 'library', to: '/library', label: $t('Медиатека'), icon: IconLib, on: IconLibOn },
+  { id: 'search', to: '/search', label: $t('Поиск'), icon: IconSearch, on: IconSearch },
+  { id: 'top', to: '/top', label: $t('Топ'), icon: IconTop, on: IconTopOn },
+  { id: 'chronicle', to: '/chronicle', label: $t('Хроника'), icon: IconChron, on: IconChronOn },
 ]
 
 const active = computed(() => route.meta.tab ?? 'home')
@@ -47,7 +48,7 @@ function go(t: (typeof tabs)[number]) {
 </script>
 
 <template>
-  <nav class="nav glass" aria-label="Разделы" :style="{ '--i': activeIndex }">
+  <nav class="nav glass" :aria-label="$t('Разделы')" :style="{ '--i': activeIndex }">
     <i class="tab-mark" aria-hidden="true" />
     <button
       v-for="t in tabs"

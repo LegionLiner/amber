@@ -2,6 +2,7 @@
  * Недели по ISO 8601: понедельник — первый день, неделя принадлежит году, в который попадает её четверг.
  * Ключ недели — '2026-W39'. Всё по местным датам, как local_day в play_events.
  */
+import { dayMonth, dayRange } from './format'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -53,31 +54,13 @@ export function nextWeek(key: string): string {
   return weekKey(monday)
 }
 
-const MONTHS_GEN = [
-  'января',
-  'февраля',
-  'марта',
-  'апреля',
-  'мая',
-  'июня',
-  'июля',
-  'августа',
-  'сентября',
-  'октября',
-  'ноября',
-  'декабря',
-]
-
-/** «15–21 сентября» или «29 сентября – 5 октября» */
+/** «15–21 сентября» или «29 сентября – 5 октября» (на английском — «September 15–21») */
 export function weekLabel(key: string): string {
   const { from, to } = weekRange(key)
-  const a = parseDay(from)
-  const b = parseDay(to)
-  if (a.getMonth() === b.getMonth()) return `${a.getDate()}–${b.getDate()} ${MONTHS_GEN[b.getMonth()]}`
-  return `${a.getDate()} ${MONTHS_GEN[a.getMonth()]} – ${b.getDate()} ${MONTHS_GEN[b.getMonth()]}`
+  return dayRange(parseDay(from), parseDay(to))
 }
 
+/** «12 октября», с годом — «12 октября 2026» (на английском — «October 12, 2026») */
 export function dayLabel(day: string, withYear = false): string {
-  const d = parseDay(day)
-  return `${d.getDate()} ${MONTHS_GEN[d.getMonth()]}${withYear ? ` ${d.getFullYear()}` : ''}`
+  return dayMonth(parseDay(day), withYear)
 }

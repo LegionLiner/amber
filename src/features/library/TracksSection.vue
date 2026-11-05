@@ -15,6 +15,7 @@ import { useUi } from '@/stores/ui'
 import { sortTracks, TRACK_SORTS, type TrackSortKey } from '@/domain/sort'
 import { countLabel } from '@/domain/format'
 import type { PlaySource } from '@/native/types'
+import { $t, $tp } from '@/i18n'
 
 const library = useLibrary()
 const player = usePlayer()
@@ -29,7 +30,7 @@ const meta = computed(() => metaFor(pref.value.key))
 /** Окно компьютера: список — таблицей с альбомом и колонкой по текущей сортировке */
 const detail = computed(() => (isDesktop ? detailFor(pref.value.key) : null))
 const sortLabel = computed(() => TRACK_SORTS.find((s) => s.key === pref.value.key)?.label ?? '')
-const source: PlaySource = { type: 'library', title: 'Все треки' }
+const source: PlaySource = { type: 'library', title: $t('Все треки') }
 
 const list = ref<InstanceType<typeof TrackList> | null>(null)
 /** Алфавит работает, когда список отсортирован по имени, исполнителю или альбому */
@@ -58,7 +59,7 @@ function openSort() {
 }
 
 function shuffleAll() {
-  void player.playTracks(library.tracks, -1, { type: 'library', title: 'Все треки' }, { shuffle: true })
+  void player.playTracks(library.tracks, -1, { type: 'library', title: $t('Все треки') }, { shuffle: true })
 }
 </script>
 
@@ -76,16 +77,16 @@ function shuffleAll() {
       <HeadSpace />
       <div class="toolbar">
         <button type="button" class="btn primary small" :disabled="!library.tracks.length" @click="shuffleAll">
-          <IconShuffle />Перемешать
+          <IconShuffle />{{ $t('Перемешать') }}
         </button>
-        <span class="count muted">{{ countLabel(library.tracks.length, ['трек', 'трека', 'треков']) }}</span>
+        <span class="count muted">{{ countLabel(library.tracks.length, $tp('трек|трека|треков')) }}</span>
         <button type="button" class="sort" @click="openSort"><IconSort />{{ sortLabel }}</button>
       </div>
     </template>
     <template #footer>
       <div v-if="library.loaded && !library.tracks.length" class="empty">
-        <h3>Треков не найдено</h3>
-        <p>Проверь разрешение на доступ к музыке и папки-исключения в настройках.</p>
+        <h3>{{ $t('Треков не найдено') }}</h3>
+        <p>{{ $t('Проверь разрешение на доступ к музыке и папки-исключения в настройках.') }}</p>
       </div>
     </template>
   </TrackList>

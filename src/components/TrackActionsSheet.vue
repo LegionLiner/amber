@@ -31,6 +31,7 @@ import { albumIdOf, artistIdOf } from '@/domain/groups'
 import { upsertTrackUser } from '@/data/repos/library'
 import { haptic } from '@/native/haptics'
 import { deleteTracks } from '@/app/delete-tracks'
+import { $t } from '@/i18n'
 
 const props = defineProps<{ trackKey: string; source: PlaySource }>()
 const emit = defineEmits<{ close: [] }>()
@@ -55,25 +56,25 @@ const actions = computed(() => {
   return [
     {
       icon: IconNext,
-      label: 'Играть следующим',
+      label: $t('Играть следующим'),
       run: () =>
         run(async () => {
           await player.playNext([track], props.source)
-          ui.toast('Сыграет следующим')
+          ui.toast($t('Сыграет следующим'))
         }),
     },
     {
       icon: IconQueue,
-      label: 'Добавить в очередь',
+      label: $t('Добавить в очередь'),
       run: () =>
         run(async () => {
           await player.addToQueue([track], props.source)
-          ui.toast('Добавлено в очередь')
+          ui.toast($t('Добавлено в очередь'))
         }),
     },
     {
       icon: track.favoriteAt ? IconHeartOn : IconHeart,
-      label: track.favoriteAt ? 'Убрать из избранного' : 'В избранное',
+      label: track.favoriteAt ? $t('Убрать из избранного') : $t('В избранное'),
       accent: !!track.favoriteAt,
       run: () =>
         run(async () => {
@@ -83,42 +84,42 @@ const actions = computed(() => {
     },
     {
       icon: IconAddList,
-      label: 'Добавить в плейлист',
+      label: $t('Добавить в плейлист'),
       run: () => ui.openSheet(AddToPlaylistSheet, { keys: [track.key] }),
     },
     {
       icon: IconRadio,
-      label: 'Радио по этому треку',
+      label: $t('Радио по этому треку'),
       run: () =>
         run(async () => {
           await radio.start([track])
-          ui.toast('Радио: дальше похожее из твоей музыки')
+          ui.toast($t('Радио: дальше похожее из твоей музыки'))
         }),
     },
     {
       icon: IconTags,
-      label: 'Изменить теги',
+      label: $t('Изменить теги'),
       run: () => ui.openSheet(TagEditorSheet, { keys: [track.key] }),
     },
     ...(props.source.type === 'playlist' && props.source.id
       ? [
           {
             icon: IconRemove,
-            label: 'Убрать из этого плейлиста',
+            label: $t('Убрать из этого плейлиста'),
             run: () =>
               run(async () => {
                 await playlists.removeTrack(Number(props.source.id), track.key)
-                ui.toast('Убрано из плейлиста')
+                ui.toast($t('Убрано из плейлиста'))
               }),
           },
         ]
       : []),
-    { icon: IconCard, label: 'Карточка трека', run: () => run(() => router.push(`/track/${track.key}`)) },
+    { icon: IconCard, label: $t('Карточка трека'), run: () => run(() => router.push(`/track/${track.key}`)) },
     ...(track.album
       ? [
           {
             icon: IconAlbum,
-            label: 'Альбом',
+            label: $t('Альбом'),
             run: () => run(() => router.push(`/album/${encodeURIComponent(albumIdOf(track))}`)),
           },
         ]
@@ -128,10 +129,14 @@ const actions = computed(() => {
       label: name,
       run: () => run(() => router.push(`/artist/${encodeURIComponent(artistIdOf(name))}`)),
     })),
-    { icon: IconFolder, label: 'Папка', run: () => run(() => router.push({ path: '/folder', query: { path: track.folder } })) },
+    {
+      icon: IconFolder,
+      label: $t('Папка'),
+      run: () => run(() => router.push({ path: '/folder', query: { path: track.folder } })),
+    },
     {
       icon: track.noShuffle ? IconShow : IconHide,
-      label: track.noShuffle ? 'Вернуть в перемешивание' : 'Не играть в перемешивании',
+      label: track.noShuffle ? $t('Вернуть в перемешивание') : $t('Не играть в перемешивании'),
       run: () =>
         run(async () => {
           const noShuffle = !track.noShuffle
@@ -152,13 +157,13 @@ async function removeFile() {
   try {
     const n = await deleteTracks([track])
     if (n) {
-      ui.toast(`«${track.title}» удалён`)
+      ui.toast($t('«{0}» удалён', track.title))
       emit('close')
       // Удаляли с карточки этого трека — её больше нечем показывать
       if (router.currentRoute.value.path === `/track/${track.key}`) router.back()
     }
   } catch (e) {
-    ui.toast(`Не получилось удалить: ${e instanceof Error ? e.message : String(e)}`)
+    ui.toast($t('Не получилось удалить: {0}', e instanceof Error ? e.message : String(e)))
   } finally {
     deleting.value = false
     confirmDelete.value = false
@@ -181,7 +186,7 @@ function rate(v: number | null) {
     </div>
     <div class="rate">
       <RatingStars :model-value="t.rating" :size="30" @update:model-value="rate" />
-      <span class="hint">{{ t.plays ? `${t.plays} прослуш.` : 'ещё не слушал' }}</span>
+      <span class="hint">{{ t.plays ? $t('{0} прослуш.', t.plays) : $t('ещё не слушал') }}</span>
     </div>
     <div class="list">
       <button v-for="a in actions" :key="a.label" type="button" class="act" :class="{ accent: a.accent }" @click="a.run()">
@@ -190,15 +195,22 @@ function rate(v: number | null) {
       </button>
       <button v-if="!confirmDelete" type="button" class="act danger" @click="confirmDelete = true">
         <IconTrash />
-        <span class="ellipsis">Удалить файл</span>
+        <span class="ellipsis">{{ $t('Удалить файл') }}</span>
       </button>
     </div>
     <div v-if="confirmDelete" class="confirm">
-      <p>Удалить «{{ t.title }}» с телефона? Файл пропадёт из памяти, а история прослушиваний и оценка останутся в статистике.</p>
+      <p>
+        {{
+          $t(
+            'Удалить «{0}» с телефона? Файл пропадёт из памяти, а история прослушиваний и оценка останутся в статистике.',
+            t.title,
+          )
+        }}
+      </p>
       <div class="btns">
-        <button type="button" class="btn" :disabled="deleting" @click="confirmDelete = false">Отмена</button>
+        <button type="button" class="btn" :disabled="deleting" @click="confirmDelete = false">{{ $t('Отмена') }}</button>
         <button type="button" class="btn danger-btn" :disabled="deleting" @click="removeFile">
-          {{ deleting ? 'Удаляю…' : 'Удалить' }}
+          {{ deleting ? $t('Удаляю…') : $t('Удалить') }}
         </button>
       </div>
     </div>

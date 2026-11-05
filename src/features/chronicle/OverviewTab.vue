@@ -4,25 +4,27 @@ import ChipTabs from '@/components/ChipTabs.vue'
 import CoverArt from '@/components/CoverArt.vue'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
-import { activeDays, artistPlays, byHour, daily, periodTotals, topTracks, type PeriodTotals } from '@/data/repos/stats'
+import { activeDays, artistPlays, byHour, periodTotals, topTracks, type PeriodTotals } from '@/data/repos/stats'
+import DailyCalendar from './DailyCalendar.vue'
 import { splitArtists } from '@/domain/names'
 import { computeStreaks, todayKey } from '@/domain/streaks'
 import { dayKey, parseDay } from '@/domain/weeks'
-import { countLabel, formatListen, MONTHS } from '@/domain/format'
+import { countLabel, formatListen } from '@/domain/format'
 import { displayArtist, type Track } from '@/domain/track'
 import { onPageShown } from '@/app/paging'
 import { stampedLoad } from '@/app/data-rev'
+import { LOCALE, $t, $tp } from '@/i18n'
 
 /** Обзор: время, прослушивания, серия, календарь на 18 недель, часы, топ треков и исполнителей */
 type Period = '7' | '30' | '90' | '180' | '365' | 'all' | 'custom'
 const PERIODS: { id: Period; label: string }[] = [
-  { id: '7', label: '7 дней' },
-  { id: '30', label: '30 дней' },
-  { id: '90', label: '3 месяца' },
-  { id: '180', label: '6 месяцев' },
-  { id: '365', label: 'Год' },
-  { id: 'all', label: 'Всё время' },
-  { id: 'custom', label: 'Свой период' },
+  { id: '7', label: $t('7 дней') },
+  { id: '30', label: $t('30 дней') },
+  { id: '90', label: $t('3 месяца') },
+  { id: '180', label: $t('6 месяцев') },
+  { id: '365', label: $t('Год') },
+  { id: 'all', label: $t('Всё время') },
+  { id: 'custom', label: $t('Свой период') },
 ]
 
 const library = useLibrary()
@@ -52,18 +54,15 @@ function range(now: number): { since: number; until: number; span: number } | nu
 const totals = ref<PeriodTotals | null>(null)
 const prevTotals = ref<PeriodTotals | null>(null)
 const streak = ref({ current: 0, longest: 0 })
-const days = shallowRef<Map<string, number>>(new Map())
 const hours = shallowRef<number[]>(Array(24).fill(0))
 const top = shallowRef<{ track: Track; plays: number; listenedMs: number }[]>([])
 /** Исполнители периода: по всем трекам, а не только по первой десятке */
 const artists = shallowRef<[string, number][]>([])
-const selectedDay = ref<string | null>(null)
 const selectedHour = ref<number | null>(null)
 
-/** Нажатие мимо дня или часа снимает выделение (и подсказка возвращается к «нажми на день») */
+/** Нажатие мимо часа снимает выделение (и подсказка возвращается к «чаще всего»); календарь — в DailyCalendar */
 function clearOnOutside(e: PointerEvent) {
   const t = e.target as Element | null
-  if (selectedDay.value && !t?.closest('.heat .cell, .caption .open')) selectedDay.value = null
   if (selectedHour.value != null && !t?.closest('.hours .hbar')) selectedHour.value = null
 }
 onMounted(() => document.addEventListener('pointerdown', clearOnOutside, true))
@@ -75,14 +74,13 @@ const load = stampedLoad(async () => {
   const r = range(now)
   if (!r) return
   const { since, until, span } = r
-  const [t, p, h, tt, ad, cal, ap] = await Promise.all([
+  const [t, p, h, tt, ad, ap] = await Promise.all([
     periodTotals(since, until),
     // Сравнение — с таким же по длине отрезком прямо перед периодом
     span ? periodTotals(since - span, since) : Promise.resolve(null),
     byHour(since, until),
     topTracks(since, 10, until),
     activeDays(),
-    daily(now - 18 * 7 * DAY),
     artistPlays(since, until),
   ])
   totals.value = t
@@ -102,7 +100,6 @@ const load = stampedLoad(async () => {
   }
   artists.value = [...am.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
   streak.value = computeStreaks(ad, todayKey())
-  days.value = new Map(cal.map((r) => [r.day, r.listenedMs]))
 })
 
 onMounted(() => void load())
@@ -118,7 +115,7 @@ watch(
 function delta(cur: number, prev: number | undefined): { text: string; dir: 'up' | 'down' | 'same' } | null {
   if (prev == null || prev === 0) return null
   const pct = Math.round(((cur - prev) / prev) * 100)
-  if (pct === 0) return { text: 'как раньше', dir: 'same' }
+  if (pct === 0) return { text: $t('как раньше'), dir: 'same' }
   return { text: `${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}%`, dir: pct > 0 ? 'up' : 'down' }
 }
 const timeDelta = computed(() =>
@@ -126,57 +123,13 @@ const timeDelta = computed(() =>
 )
 const playsDelta = computed(() => (totals.value && prevTotals.value ? delta(totals.value.plays, prevTotals.value.plays) : null))
 
-/* ---- календарь: 18 недель, столбец = неделя, строка = день недели ---- */
-const calendar = computed(() => {
-  const cells: { day: string; ms: number; level: number; future: boolean }[] = []
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const dow = (today.getDay() + 6) % 7
-  const start = new Date(today.getTime() - (17 * 7 + dow) * DAY)
-  const values = [...days.value.values()].filter((v) => v > 0).sort((a, b) => a - b)
-  const q = (f: number) => values[Math.floor(f * (values.length - 1))] ?? 0
-  const t1 = q(0.25)
-  const t2 = q(0.5)
-  const t3 = q(0.8)
-  for (let i = 0; i < 18 * 7; i++) {
-    const d = new Date(start.getTime() + i * DAY)
-    const key = todayKey(d)
-    const ms = days.value.get(key) ?? 0
-    const level = ms <= 0 ? 0 : ms <= t1 ? 1 : ms <= t2 ? 2 : ms <= t3 ? 3 : 4
-    cells.push({ day: key, ms, level, future: d > today })
-  }
-  return cells
-})
-const monthsAxis = computed(() => {
-  const out: { col: number; label: string }[] = []
-  let last = -1
-  calendar.value.forEach((c, i) => {
-    if (i % 7 !== 0) return
-    const m = Number(c.day.slice(5, 7)) - 1
-    const col = i / 7
-    const prev = out[out.length - 1]
-    if (m !== last) {
-      // Подпись месяца ставим, только если есть место: иначе «май» и «июн» слипаются
-      if (!prev || col - prev.col >= 3) out.push({ col, label: MONTHS[m]!.slice(0, 3).toLowerCase() })
-      last = m
-    }
-  })
-  return out
-})
-const selectedDayText = computed(() => {
-  if (!selectedDay.value) return 'Нажми на день, чтобы увидеть время'
-  const ms = days.value.get(selectedDay.value) ?? 0
-  const [y, m, d] = selectedDay.value.split('-')
-  return `${Number(d)} ${MONTHS[Number(m) - 1]!.toLowerCase()} ${y}: ${ms ? formatListen(ms) : 'тишина'}`
-})
-
 const hourMax = computed(() => Math.max(1, ...hours.value))
 const peakHour = computed(() => hours.value.indexOf(Math.max(...hours.value)))
 const hourText = computed(() => {
   const h = selectedHour.value ?? peakHour.value
   const ms = hours.value[h] ?? 0
-  if (!ms) return 'Пока нет данных'
-  return `${selectedHour.value == null ? 'Чаще всего' : 'В'} ${h}:00–${h + 1}:00 · ${formatListen(ms)}`
+  if (!ms) return $t('Пока нет данных')
+  return `${selectedHour.value == null ? $t('Чаще всего') : $t('В')} ${h}:00–${h + 1}:00 · ${formatListen(ms)}`
 })
 
 const topArtists = artists
@@ -187,57 +140,45 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
   <section class="ov">
     <ChipTabs v-model="period" :items="PERIODS" class="periods" />
     <div v-if="period === 'custom'" class="range">
-      <label><span>С</span><input v-model="from" type="date" class="field" :max="today" aria-label="Начало периода" /></label>
-      <label><span>По</span><input v-model="to" type="date" class="field" :max="today" aria-label="Конец периода" /></label>
+      <label
+        ><span>{{ $t('С') }}</span
+        ><input v-model="from" type="date" class="field" :max="today" :aria-label="$t('Начало периода')"
+      /></label>
+      <label
+        ><span>{{ $t('По') }}</span
+        ><input v-model="to" type="date" class="field" :max="today" :aria-label="$t('Конец периода')"
+      /></label>
     </div>
     <div v-if="totals" class="tiles">
       <div class="tile">
-        <small>Время</small><b>{{ formatListen(totals.listenedMs) }}</b>
+        <small>{{ $t('Время') }}</small
+        ><b>{{ formatListen(totals.listenedMs) }}</b>
         <i v-if="timeDelta" :class="timeDelta.dir">{{ timeDelta.text }}</i>
       </div>
       <div class="tile">
-        <small>Прослушивания</small><b>{{ totals.plays.toLocaleString('ru-RU') }}</b>
+        <small>{{ $t('Прослушивания') }}</small
+        ><b>{{ totals.plays.toLocaleString(LOCALE) }}</b>
         <i v-if="playsDelta" :class="playsDelta.dir">{{ playsDelta.text }}</i>
       </div>
       <div class="tile">
-        <small>Разных треков</small><b>{{ totals.uniqueTracks }}</b>
+        <small>{{ $t('Разных треков') }}</small
+        ><b>{{ totals.uniqueTracks }}</b>
       </div>
       <div class="tile">
-        <small>Серия</small><b>{{ countLabel(streak.current, ['день', 'дня', 'дней']) }}</b>
-        <i class="plain">рекорд {{ streak.longest }}</i>
+        <small>{{ $t('Серия') }}</small
+        ><b>{{ countLabel(streak.current, $tp('день|дня|дней')) }}</b>
+        <i class="plain">{{ $t('рекорд {0}', streak.longest) }}</i>
       </div>
     </div>
 
     <!-- .blk — блок целиком: на компьютере блоки расходятся по двум колонкам и не рвутся между ними -->
-    <div class="blk">
-      <div class="section-title"><span>Каждый день</span><span class="muted small">18 недель</span></div>
-      <div class="card">
-        <div class="months">
-          <span v-for="m in monthsAxis" :key="m.col" :style="{ gridColumn: `${m.col + 1}` }">{{ m.label }}</span>
-        </div>
-        <div class="heat" role="img" aria-label="Календарь прослушиваний за 18 недель">
-          <button
-            v-for="c in calendar"
-            :key="c.day"
-            type="button"
-            class="cell"
-            :class="[`l${c.level}`, { future: c.future, sel: selectedDay === c.day }]"
-            :aria-label="c.day"
-            @click="selectedDay = c.day"
-            @dblclick="c.ms && $router.push(`/day/${c.day}`)"
-          />
-        </div>
-        <p class="caption">
-          {{ selectedDayText }}
-          <RouterLink v-if="selectedDay && days.get(selectedDay)" :to="`/day/${selectedDay}`" class="open"
-            >открыть день</RouterLink
-          >
-        </p>
-      </div>
-    </div>
+    <DailyCalendar />
 
     <div class="blk">
-      <div class="section-title"><span>Когда слушаешь</span><span class="muted small">по часам</span></div>
+      <div class="section-title">
+        <span>{{ $t('Когда слушаешь') }}</span
+        ><span class="muted small">{{ $t('по часам') }}</span>
+      </div>
       <div class="card">
         <div class="hours">
           <button
@@ -258,7 +199,9 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
     </div>
 
     <div v-if="top.length" class="blk">
-      <div class="section-title"><span>Топ треков</span></div>
+      <div class="section-title">
+        <span>{{ $t('Топ треков') }}</span>
+      </div>
       <button
         v-for="(r, i) in top"
         :key="r.track.key"
@@ -268,7 +211,7 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
           player.playTracks(
             top.map((x) => x.track),
             i,
-            { type: 'top', id: `period-${period}`, title: 'Топ периода' },
+            { type: 'top', id: `period-${period}`, title: $t('Топ периода') },
             { shuffle: false },
           )
         "
@@ -284,7 +227,9 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
     </div>
 
     <div v-if="topArtists.length" class="blk">
-      <div class="section-title"><span>Исполнители</span></div>
+      <div class="section-title">
+        <span>{{ $t('Исполнители') }}</span>
+      </div>
       <div class="card artists">
         <div v-for="[name, n] in topArtists" :key="name" class="arow">
           <span class="ellipsis">{{ name }}</span>
@@ -295,8 +240,8 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
     </div>
 
     <div v-if="totals && !totals.starts" class="empty">
-      <h3>История начнётся с первого трека</h3>
-      <p>Каждое прослушивание записывается, даже при выключенном экране.</p>
+      <h3>{{ $t('История начнётся с первого трека') }}</h3>
+      <p>{{ $t('Каждое прослушивание записывается, даже при выключенном экране.') }}</p>
     </div>
   </section>
 </template>
@@ -437,55 +382,10 @@ const artistMax = computed(() => Math.max(1, ...topArtists.value.map((a) => a[1]
   border-radius: 16px;
   background: var(--surface);
 }
-.months {
-  display: grid;
-  grid-template-columns: repeat(18, 1fr);
-  font-size: 10px;
-  color: var(--ink-3);
-  height: 14px;
-}
-.months span {
-  white-space: nowrap;
-}
-.heat {
-  display: grid;
-  grid-template-rows: repeat(7, 1fr);
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 3px;
-}
-.cell {
-  aspect-ratio: 1;
-  border-radius: 3px;
-  background: var(--surface-2);
-}
-.cell.l1 {
-  background: rgba(var(--amber-rgb), 0.25);
-}
-.cell.l2 {
-  background: rgba(var(--amber-rgb), 0.45);
-}
-.cell.l3 {
-  background: rgba(var(--amber-rgb), 0.7);
-}
-.cell.l4 {
-  background: rgb(var(--amber-rgb));
-}
-.cell.future {
-  opacity: 0.25;
-}
-.cell.sel {
-  outline: 2px solid var(--ink);
-  outline-offset: 1px;
-}
 .caption {
   margin-top: 10px;
   font-size: 12.5px;
   color: var(--ink-2);
-}
-.open {
-  margin-left: 8px;
-  color: var(--amber-ink);
 }
 .hours {
   height: 80px;

@@ -18,6 +18,7 @@ import { weekKey } from '@/domain/weeks'
 import type { Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
 import { onPageShown } from '@/app/paging'
+import { $t } from '@/i18n'
 
 /**
  * Мой рейтинг: все оценённые треки по местам. Стрелки — движение с начала недели.
@@ -35,7 +36,7 @@ const ranked = computed(() =>
     'desc',
   ),
 )
-const source: PlaySource = { type: 'top', id: 'rank', title: 'Мой рейтинг' }
+const source: PlaySource = { type: 'top', id: 'rank', title: $t('Мой рейтинг') }
 const baseline = shallowRef(new Map<string, number>())
 const refining = ref(false)
 const skip = shallowRef(new Set<string>())
@@ -63,7 +64,7 @@ const suggestions = computed(() =>
 
 async function acceptSuggestion(key: string, to: number) {
   await library.setRating(key, to)
-  ui.toast(`Теперь ${starsLabel(to)}`)
+  ui.toast($t('Теперь {0}', starsLabel(to)))
 }
 async function rejectSuggestion(key: string, to: number) {
   await dismiss('suggest', [`${key}:${to}`])
@@ -93,19 +94,19 @@ function more(t: Track) {
 <template>
   <section>
     <div v-if="ranked.length" class="bar-row">
-      <span class="muted">{{ ranked.length }} с оценкой</span>
+      <span class="muted">{{ $t('{0} с оценкой', ranked.length) }}</span>
       <span class="acts">
         <button type="button" class="btn small" :class="{ on: refining }" @click="refining = !refining">
-          <IconSort />{{ refining ? 'Готово' : 'Уточнить' }}
+          <IconSort />{{ refining ? $t('Готово') : $t('Уточнить') }}
         </button>
         <button type="button" class="btn primary small" @click="player.playTracks(ranked, 0, source, { shuffle: false })">
-          <IconPlay />По порядку
+          <IconPlay />{{ $t('По порядку') }}
         </button>
       </span>
     </div>
 
     <div v-if="suggestions.length && !refining" class="suggest">
-      <h3>Оценка расходится с тем, как ты слушаешь</h3>
+      <h3>{{ $t('Оценка расходится с тем, как ты слушаешь') }}</h3>
       <div v-for="s in suggestions" :key="s.key" class="srow">
         <span class="text">
           <b class="ellipsis">{{ s.track.title }}</b>
@@ -114,12 +115,12 @@ function more(t: Track) {
         <button type="button" class="btn small" @click="acceptSuggestion(s.key, s.to)">
           <component :is="s.to > s.from ? IconUp : IconDown" />{{ starsLabel(s.to) }}
         </button>
-        <button type="button" class="x" aria-label="Не то" @click="rejectSuggestion(s.key, s.to)">×</button>
+        <button type="button" class="x" :aria-label="$t('Не то')" @click="rejectSuggestion(s.key, s.to)">×</button>
       </div>
     </div>
 
     <template v-if="refining">
-      <p class="lead muted">Перетаскивай за ручку внутри группы. Звёзды не меняются, меняется порядок мест.</p>
+      <p class="lead muted">{{ $t('Перетаскивай за ручку внутри группы. Звёзды не меняются, меняется порядок мест.') }}</p>
       <RefineBucket v-for="b in buckets" :key="b.rating" :rating="b.rating" :tracks="b.tracks" :start-pos="b.start" />
     </template>
     <template v-else>
@@ -138,9 +139,9 @@ function more(t: Track) {
     </template>
 
     <div v-if="!ranked.length" class="empty">
-      <h3>Рейтинг пока пуст</h3>
-      <p>Поставь звёзды трекам: в плеере, в карточке или во вкладке «Оценить». Места появятся сами.</p>
-      <button type="button" class="btn primary" @click="emit('rate')">Оценить треки</button>
+      <h3>{{ $t('Рейтинг пока пуст') }}</h3>
+      <p>{{ $t('Поставь звёзды трекам: в плеере, в карточке или во вкладке «Оценить». Места появятся сами.') }}</p>
+      <button type="button" class="btn primary" @click="emit('rate')">{{ $t('Оценить треки') }}</button>
     </div>
   </section>
 </template>

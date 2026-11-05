@@ -16,6 +16,7 @@ import { dayLabel } from '@/domain/weeks'
 import { formatListen } from '@/domain/format'
 import { displayArtist, type Track } from '@/domain/track'
 import type { PlaySource } from '@/native/types'
+import { $t } from '@/i18n'
 
 /**
  * Эпоха: сколько и что звучало, фирменное звучание (что в этот период играло заметно чаще обычного),
@@ -80,33 +81,40 @@ function edit() {
   <div class="scroll screen">
     <ScreenHeader v-if="era" :title="era.title" :subtitle="`${dayLabel(era.from, true)} — ${dayLabel(era.to, true)}`" back>
       <template #actions>
-        <button v-if="era.custom" type="button" class="icon-btn" aria-label="Изменить" @click="edit"><IconPen /></button>
+        <button v-if="era.custom" type="button" class="icon-btn" :aria-label="$t('Изменить')" @click="edit"><IconPen /></button>
       </template>
     </ScreenHeader>
     <template v-if="stats && era">
       <div class="tiles">
         <div class="tile">
-          <small>Время</small><b>{{ formatListen(stats.listenedMs) }}</b>
+          <small>{{ $t('Время') }}</small
+          ><b>{{ formatListen(stats.listenedMs) }}</b>
         </div>
         <div class="tile">
-          <small>Прослушивания</small><b>{{ stats.plays }}</b>
+          <small>{{ $t('Прослушивания') }}</small
+          ><b>{{ stats.plays }}</b>
         </div>
         <div class="tile">
-          <small>Разных треков</small><b>{{ stats.tracks }}</b>
+          <small>{{ $t('Разных треков') }}</small
+          ><b>{{ stats.tracks }}</b>
         </div>
         <div class="tile">
-          <small>Новых открытий</small><b>{{ discoveries.length }}</b>
+          <small>{{ $t('Новых открытий') }}</small
+          ><b>{{ discoveries.length }}</b>
         </div>
       </div>
       <p v-if="era.custom?.note" class="note">{{ era.custom.note }}</p>
       <div class="pad">
         <button type="button" class="btn primary block" :disabled="!top.length" @click="timeMachine">
-          <IconPlay />Машина времени
+          <IconPlay />{{ $t('Машина времени') }}
         </button>
       </div>
 
       <template v-if="signature.length">
-        <div class="section-title"><span>Фирменное звучание</span><span class="muted small">чаще, чем обычно</span></div>
+        <div class="section-title">
+          <span>{{ $t('Фирменное звучание') }}</span
+          ><span class="muted small">{{ $t('чаще, чем обычно') }}</span>
+        </div>
         <button
           v-for="(x, i) in signature"
           :key="x.t.key"
@@ -131,7 +139,9 @@ function edit() {
       </template>
 
       <template v-if="top.length">
-        <div class="section-title"><span>Топ периода</span></div>
+        <div class="section-title">
+          <span>{{ $t('Топ периода') }}</span>
+        </div>
         <button
           v-for="(x, i) in top"
           :key="x.t.key"
@@ -156,7 +166,10 @@ function edit() {
       </template>
 
       <template v-if="discoveries.length">
-        <div class="section-title"><span>Открытия</span><span class="muted small">впервые в этот период</span></div>
+        <div class="section-title">
+          <span>{{ $t('Открытия') }}</span
+          ><span class="muted small">{{ $t('впервые в этот период') }}</span>
+        </div>
         <div class="disc hscroll">
           <button
             v-for="(t, i) in discoveries.slice(0, 20)"
@@ -170,9 +183,13 @@ function edit() {
           </button>
         </div>
       </template>
-      <div v-if="!stats.plays" class="empty"><h3>В этот период музыки не было</h3></div>
+      <div v-if="!stats.plays" class="empty">
+        <h3>{{ $t('В этот период музыки не было') }}</h3>
+      </div>
     </template>
-    <div v-else-if="!era" class="empty"><h3>Эпоха не найдена</h3></div>
+    <div v-else-if="!era" class="empty">
+      <h3>{{ $t('Эпоха не найдена') }}</h3>
+    </div>
     <div class="bottom-space" />
   </div>
 </template>

@@ -12,6 +12,7 @@ import { readCoverImage, saveCoverImage } from '@/sync/covers'
 import { useSettings, type AppSettings } from './settings'
 import { useLibrary } from './library'
 import { usePlaylists } from './playlists'
+import { $t } from '@/i18n'
 
 /**
  * Синхронизация с твоим сервером Amber (server/). Работает молча и сразу:
@@ -70,9 +71,9 @@ async function setStates(values: Record<string, string | null>) {
 }
 
 function deviceName(): { name: string; platform: string } {
-  if (isDesktop) return { name: 'Компьютер', platform: 'desktop' }
-  if (isNative) return { name: 'Телефон', platform: 'android' }
-  return { name: 'Браузер', platform: 'web' }
+  if (isDesktop) return { name: $t('Компьютер'), platform: 'desktop' }
+  if (isNative) return { name: $t('Телефон'), platform: 'android' }
+  return { name: $t('Браузер'), platform: 'web' }
 }
 
 export const useSync = defineStore('sync', () => {
@@ -126,7 +127,7 @@ export const useSync = defineStore('sync', () => {
   /** Вход или регистрация. После — всё, что есть на устройстве, отправляется на сервер */
   async function signIn(serverUrl: string, mail: string, password: string, create: boolean, code?: string) {
     const base = normalizeUrl(serverUrl)
-    if (!base) throw new Error('Укажи адрес сервера')
+    if (!base) throw new Error($t('Укажи адрес сервера'))
     const a = new SyncApi(base)
     await a.health()
     const r = create ? await a.register(mail, password, deviceName(), code) : await a.login(mail, password, deviceName())

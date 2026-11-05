@@ -1,6 +1,7 @@
 import { normKey } from './names'
 import { sortTracks, type TrackSortKey } from './sort'
 import type { Track } from './track'
+import { $t } from '@/i18n'
 
 /**
  * Умные плейлисты: набор условий, по которым плейлист собирается сам и обновляется
@@ -34,21 +35,21 @@ export const DEFAULT_RULES: SmartRules = {
 }
 
 export const FIELD_LABEL: Record<Condition['field'], string> = {
-  title: 'Название',
-  artist: 'Исполнитель',
-  album: 'Альбом',
-  genre: 'Жанр',
-  folder: 'Папка',
-  rating: 'Оценка',
-  plays: 'Прослушивания',
-  skips: 'Пропуски',
-  year: 'Год',
-  duration: 'Длительность, мин',
-  bpm: 'Темп, BPM',
-  energy: 'Энергия, %',
-  favorite: 'Избранное',
-  added: 'Добавлен',
-  lastPlayed: 'Звучал',
+  title: $t('Название'),
+  artist: $t('Исполнитель'),
+  album: $t('Альбом'),
+  genre: $t('Жанр'),
+  folder: $t('Папка'),
+  rating: $t('Оценка'),
+  plays: $t('Прослушивания'),
+  skips: $t('Пропуски'),
+  year: $t('Год'),
+  duration: $t('Длительность, мин'),
+  bpm: $t('Темп, BPM'),
+  energy: $t('Энергия, %'),
+  favorite: $t('Избранное'),
+  added: $t('Добавлен'),
+  lastPlayed: $t('Звучал'),
 }
 
 const DAY = 86_400_000
@@ -131,24 +132,24 @@ export function describe(c: Condition): string {
   const f = FIELD_LABEL[c.field]
   switch (c.op) {
     case 'contains':
-      return `${f} содержит «${c.value}»`
+      return $t('{0} содержит «{1}»', f, c.value)
     case 'is':
-      return c.field === 'favorite' ? 'В избранном' : `${f}: ${(c as { value: string }).value}`
+      return c.field === 'favorite' ? $t('В избранном') : `${f}: ${(c as { value: string }).value}`
     case 'not':
-      return c.field === 'favorite' ? 'Не в избранном' : `${f} без «${(c as { value: string }).value}»`
+      return c.field === 'favorite' ? $t('Не в избранном') : $t('{0} без «{1}»', f, (c as { value: string }).value)
     case 'unrated':
-      return 'Без оценки'
+      return $t('Без оценки')
     case 'never':
-      return 'Ни разу не звучал'
+      return $t('Ни разу не звучал')
     case 'within':
-      return `${f} за последние ${c.days} дн.`
+      return $t('{0} за последние {1} дн.', f, c.days)
     case 'notWithin':
-      return `${f} больше ${c.days} дн. назад или никогда`
+      return $t('{0} больше {1} дн. назад или никогда', f, c.days)
     case 'gte':
-      return c.field === 'rating' ? `Оценка от ${c.value / 2}★` : `${f} от ${c.value}`
+      return c.field === 'rating' ? $t('Оценка от {0}★', c.value / 2) : $t('{0} от {1}', f, c.value)
     case 'lte':
-      return c.field === 'rating' ? `Оценка до ${c.value / 2}★` : `${f} до ${c.value}`
+      return c.field === 'rating' ? $t('Оценка до {0}★', c.value / 2) : $t('{0} до {1}', f, c.value)
     case 'eq':
-      return c.field === 'rating' ? `Оценка ${c.value / 2}★` : `${f} = ${c.value}`
+      return c.field === 'rating' ? $t('Оценка {0}★', c.value / 2) : `${f} = ${c.value}`
   }
 }

@@ -8,6 +8,7 @@ import type { PlaySource, QueueItem } from '@/native/types'
 import { toQueueItem, usePlayer } from './player'
 import { useLibrary } from './library'
 import { useSettings } from './settings'
+import { $t } from '@/i18n'
 
 const WEEK = 7 * 86_400_000
 
@@ -59,7 +60,7 @@ export const useRadio = defineStore('radio', () => {
     busy.value = true
     try {
       seeds.value = seedTracks.slice(0, 5).map((t) => t.key)
-      title.value = name ?? `Радио: ${seedTracks[0]!.title}`
+      title.value = name ?? $t('Радио: {0}', seedTracks[0]!.title)
       const first = seedTracks[0]!
       // Исключаем только то, что звучит первым: остальные зёрна — самое любимое, им место в эфире
       const picks = await pick(24, [first.key], new Set([first.key]))
@@ -79,7 +80,7 @@ export const useRadio = defineStore('radio', () => {
     const top = list.slice(0, 12)
     const shuffled = top.sort(() => Math.random() - 0.5).slice(0, 5)
     const seedsList = shuffled.length ? shuffled : library.tracks.slice(0, 5)
-    await start(seedsList, 'Моё радио')
+    await start(seedsList, $t('Моё радио'))
   }
 
   async function topUp() {
@@ -112,7 +113,7 @@ export const useRadio = defineStore('radio', () => {
       const from = Math.max(0, b.positionMs - 2000)
       const to = Math.min(t.durationMs, b.endMs ?? b.positionMs + 40_000)
       if (to - from < 8000) continue
-      const item = toQueueItem(t, { type: 'smart', id: 'highlights', title: 'Лучшие моменты' })
+      const item = toQueueItem(t, { type: 'smart', id: 'highlights', title: $t('Лучшие моменты') })
       item.trimStartMs = from
       item.trimEndMs = to
       item.transitionIn = { type: 'crossfade', durationMs: 3000, curve: 'equalPower' }

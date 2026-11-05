@@ -25,6 +25,7 @@ import DesktopNowPanel from '@/components/desktop/DesktopNowPanel.vue'
 import { isDesktop } from '@/native/desktop/bridge'
 import { useSettings } from '@/stores/settings'
 import { useMediaQuery } from '@vueuse/core'
+import { $t } from '@/i18n'
 
 const route = useRoute()
 const ui = useUi()
@@ -56,7 +57,7 @@ function viewKey(r: RouteLocationNormalizedLoaded): string {
     <DesktopTitleBar v-if="isDesktop && !bare" />
     <DesktopSidebar v-if="isDesktop && !bare" />
     <div v-if="bootState.error" class="boot-error">
-      <h3>Не удалось запустить</h3>
+      <h3>{{ $t('Не удалось запустить') }}</h3>
       <p>{{ bootState.error }}</p>
     </div>
     <div class="pages">

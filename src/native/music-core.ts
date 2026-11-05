@@ -122,6 +122,9 @@ export interface MusicCorePlugin {
   /** Телефон: движок перечитывает вход в синхронизацию и переподключает свой поток событий (после входа и выхода) */
   remoteLink(): Promise<void>
 
+  /** Телефон: «Сцена» — экран поворачивается за телефоном, без системных полос, не гаснет; off — обратно портрет */
+  setStage(options: { on: boolean }): Promise<void>
+
   // вывод звука
   getOutputs(): Promise<OutputsEvent>
   setOutput(options: { deviceId: number | null }): Promise<void>

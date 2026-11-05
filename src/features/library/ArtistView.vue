@@ -9,6 +9,7 @@ import { useUi } from '@/stores/ui'
 import { sortTracks } from '@/domain/sort'
 import { formatListen, countLabel } from '@/domain/format'
 import { metaFor, tableFor } from './rowMeta'
+import { $t, $tp } from '@/i18n'
 
 const route = useViewRoute()
 const library = useLibrary()
@@ -22,8 +23,8 @@ const subtitle = computed(() => {
   const a = artist.value
   if (!a) return ''
   const ms = a.tracks.reduce((s, t) => s + t.listenedMs, 0)
-  const parts = [countLabel(a.tracks.length, ['трек', 'трека', 'треков'])]
-  if (a.plays) parts.push(`${a.plays} прослуш.`, `${formatListen(ms)} вместе`)
+  const parts = [countLabel(a.tracks.length, $tp('трек|трека|треков'))]
+  if (a.plays) parts.push($t('{0} прослуш.', a.plays), $t('{0} вместе', formatListen(ms)))
   return parts.join(' · ')
 })
 
@@ -31,7 +32,7 @@ const subtitle = computed(() => {
 async function startRadio() {
   const a = artist.value
   if (!a) return
-  await radio.start(tracks.value.slice(0, 5), `Радио: ${a.name}`)
+  await radio.start(tracks.value.slice(0, 5), $t('Радио: {0}', a.name))
   ui.fullPlayer = true
 }
 </script>
@@ -39,7 +40,7 @@ async function startRadio() {
 <template>
   <CollectionPage
     v-if="artist"
-    kind="Исполнитель"
+    :kind="$t('Исполнитель')"
     :title="artist.name"
     :subtitle="subtitle"
     :art="artist.art"
@@ -52,8 +53,10 @@ async function startRadio() {
     round
   >
     <template #actions>
-      <button type="button" class="icon-btn" aria-label="Радио исполнителя" @click="startRadio"><IconRadio /></button>
+      <button type="button" class="icon-btn" :aria-label="$t('Радио исполнителя')" @click="startRadio"><IconRadio /></button>
     </template>
   </CollectionPage>
-  <div v-else class="empty"><h3>Исполнитель не найден</h3></div>
+  <div v-else class="empty">
+    <h3>{{ $t('Исполнитель не найден') }}</h3>
+  </div>
 </template>

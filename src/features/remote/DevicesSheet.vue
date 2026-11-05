@@ -16,6 +16,7 @@ import { formatDuration } from '@/domain/format'
 import { isDesktop } from '@/native/desktop/bridge'
 import { isNative } from '@/native/paths'
 import { deviceIcon } from './device'
+import { $t } from '@/i18n'
 
 /**
  * Устройства аккаунта на связи: что на каждом играет, управление им, «Слушать здесь» и «Перенести туда».
@@ -29,7 +30,7 @@ const library = useLibrary()
 const router = useRouter()
 
 const selfIcon = deviceIcon(isDesktop ? 'desktop' : isNative ? 'android' : 'web')
-const selfName = isDesktop ? 'Этот компьютер' : isNative ? 'Этот телефон' : 'Этот браузер'
+const selfName = isDesktop ? $t('Этот компьютер') : isNative ? $t('Этот телефон') : $t('Этот браузер')
 
 function artOf(d: RemoteDevice) {
   return d.state ? (library.byKey.get(d.state.key)?.art ?? null) : null
@@ -39,8 +40,8 @@ function frac(d: RemoteDevice) {
   return dur > 0 ? Math.min(1, remote.positionOf(d) / dur) : 0
 }
 function statusOf(d: RemoteDevice) {
-  if (!d.state) return 'Ничего не играет'
-  return d.state.playing ? 'Играет' : 'На паузе'
+  if (!d.state) return $t('Ничего не играет')
+  return d.state.playing ? $t('Играет') : $t('На паузе')
 }
 
 /** Клик по полосе — перемотка того устройства */
@@ -77,26 +78,28 @@ function toSettings() {
 
 <template>
   <div class="body">
-    <h3 class="head">Устройства</h3>
+    <h3 class="head">{{ $t('Устройства') }}</h3>
 
     <div class="me">
       <component :is="selfIcon" class="dic" />
       <span class="who">
         <b>{{ selfName }}</b>
         <small class="ellipsis">{{
-          player.current ? `${player.playing ? 'Играет' : 'На паузе'}: ${player.current.title}` : 'Ничего не играет'
+          player.current ? `${player.playing ? $t('Играет') : $t('На паузе')}: ${player.current.title}` : $t('Ничего не играет')
         }}</small>
       </span>
     </div>
 
     <p v-if="hint === 'signin'" class="note">
-      Управлять музыкой на других устройствах и переносить её между ними можно со входом в синхронизацию.
-      <button type="button" class="link" @click="toSettings">Настройки → Синхронизация</button>
+      {{ $t('Управлять музыкой на других устройствах и переносить её между ними можно со входом в синхронизацию.') }}
+      <button type="button" class="link" @click="toSettings">{{ $t('Настройки → Синхронизация') }}</button>
     </p>
-    <p v-else-if="hint === 'old'" class="note">Сервер старой версии и не знает о других устройствах. Обнови сервер.</p>
-    <p v-else-if="hint === 'offline'" class="note">Нет связи с сервером синхронизации.</p>
+    <p v-else-if="hint === 'old'" class="note">
+      {{ $t('Сервер старой версии и не знает о других устройствах. Обнови сервер.') }}
+    </p>
+    <p v-else-if="hint === 'offline'" class="note">{{ $t('Нет связи с сервером синхронизации.') }}</p>
     <p v-else-if="hint === 'alone'" class="note">
-      Других устройств на связи нет. Открой Amber на телефоне или компьютере с тем же аккаунтом — оно появится здесь.
+      {{ $t('Других устройств на связи нет. Открой Amber на телефоне или компьютере с тем же аккаунтом — оно появится здесь.') }}
     </p>
 
     <section v-for="d in remote.devices" :key="d.id" class="dev" :class="{ on: d.state?.playing }">
@@ -116,7 +119,7 @@ function toSettings() {
             <small class="ellipsis">{{ d.state.artist }}</small>
           </span>
         </div>
-        <div class="seek" role="slider" aria-label="Перемотка на том устройстве" @click="seekAt(d, $event)">
+        <div class="seek" role="slider" :aria-label="$t('Перемотка на том устройстве')" @click="seekAt(d, $event)">
           <i :style="{ width: `${frac(d) * 100}%` }" />
         </div>
         <div class="times num">
@@ -124,26 +127,30 @@ function toSettings() {
           <span>{{ formatDuration(d.state.durationMs) }}</span>
         </div>
         <div class="ctl">
-          <button type="button" class="icon-btn" aria-label="Предыдущий" @click="remote.control(d, 'prev')"><IconPrev /></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Предыдущий')" @click="remote.control(d, 'prev')">
+            <IconPrev />
+          </button>
           <button
             type="button"
             class="icon-btn play"
-            :aria-label="d.state.playing ? 'Пауза' : 'Играть'"
+            :aria-label="d.state.playing ? $t('Пауза') : $t('Играть')"
             @click="remote.control(d, 'toggle')"
           >
             <IconPause v-if="d.state.playing" /><IconPlay v-else />
           </button>
-          <button type="button" class="icon-btn" aria-label="Следующий" @click="remote.control(d, 'next')"><IconNext /></button>
+          <button type="button" class="icon-btn" :aria-label="$t('Следующий')" @click="remote.control(d, 'next')">
+            <IconNext />
+          </button>
         </div>
       </template>
 
       <div class="acts">
-        <button v-if="d.state" type="button" class="btn small" @click="here(d)"><IconHere />Слушать здесь</button>
+        <button v-if="d.state" type="button" class="btn small" @click="here(d)"><IconHere />{{ $t('Слушать здесь') }}</button>
         <button v-if="player.current && d.ui" type="button" class="btn small" @click="there(d)">
-          <IconThere />Перенести туда
+          <IconThere />{{ $t('Перенести туда') }}
         </button>
       </div>
-      <p v-if="player.current && !d.ui" class="tiny">Перенести музыку туда можно, когда на нём открыт Amber.</p>
+      <p v-if="player.current && !d.ui" class="tiny">{{ $t('Перенести музыку туда можно, когда на нём открыт Amber.') }}</p>
     </section>
   </div>
 </template>

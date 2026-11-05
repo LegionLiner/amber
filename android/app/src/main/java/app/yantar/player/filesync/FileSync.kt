@@ -1,5 +1,6 @@
 package app.yantar.player.filesync
 
+import app.yantar.player.core.Lang
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.net.wifi.WifiManager
@@ -65,9 +66,9 @@ object FileSync {
 
     /** Путь из плана → файл внутри корня. Выйти за пределы папки нельзя */
     fun resolve(root: File, p: String): File {
-        require(p.isNotEmpty() && !p.contains('\\') && p.split('/').none { it == ".." || it.isEmpty() }) { "Недопустимый путь" }
+        require(p.isNotEmpty() && !p.contains('\\') && p.split('/').none { it == ".." || it.isEmpty() }) { Lang.t("Недопустимый путь", "Invalid path") }
         val f = File(root, p)
-        require(f.canonicalPath.startsWith(root.canonicalPath + File.separator)) { "Недопустимый путь" }
+        require(f.canonicalPath.startsWith(root.canonicalPath + File.separator)) { Lang.t("Недопустимый путь", "Invalid path") }
         return f
     }
 
@@ -84,7 +85,7 @@ object FileSync {
                 else if (f.isFile) out.put(JSONObject().put("p", p).put("s", f.length()).put("m", f.lastModified()))
             }
         }
-        require(root.isDirectory) { "Папки ${root.path} нет" }
+        require(root.isDirectory) { Lang.t("Папки ${root.path} нет", "Folder ${root.path} doesn't exist") }
         walk(root, "")
         return out
     }
@@ -113,7 +114,7 @@ object FileSync {
         // Та же версия уже в корзине сегодня — рядом с отметкой времени, ничего не затираем
         if (target.exists()) target = File(target.parentFile, "${System.currentTimeMillis()}-${target.name}")
         target.parentFile?.mkdirs()
-        if (!f.renameTo(target)) throw IOException("Не удалось убрать «${f.name}» в корзину")
+        if (!f.renameTo(target)) throw IOException(Lang.t("Не удалось убрать «${f.name}» в корзину", "Couldn't move “${f.name}” to the trash"))
         scan(ctx, f)
     }
 
@@ -149,6 +150,7 @@ object FileSync {
             readTimeout = readMs
             useCaches = false
             if (token != null) setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Accept-Language", Lang.tag)
         }
 
     private fun readBody(c: HttpURLConnection): String {
@@ -160,7 +162,7 @@ object FileSync {
         val code = c.responseCode
         val body = readBody(c)
         val j = runCatching { JSONObject(body) }.getOrNull() ?: JSONObject()
-        if (code !in 200..299) throw HttpFail(code, j.optString("why").ifEmpty { null }, j.optString("error").ifEmpty { "Компьютер ответил $code" })
+        if (code !in 200..299) throw HttpFail(code, j.optString("why").ifEmpty { null }, j.optString("error").ifEmpty { Lang.t("Компьютер ответил $code", "The computer responded $code") })
         return j
     }
 
@@ -200,18 +202,18 @@ object FileSync {
             target.parentFile?.mkdirs()
             part = File(target.parentFile, ".${target.name}.amber-part")
             c.inputStream.use { input -> part.outputStream().use { input.copyTo(it, 1 shl 16) } }
-            if (part.length() != from.s) return fail("error", "Файл пришёл не целиком")
+            if (part.length() != from.s) return fail("error", Lang.t("Файл пришёл не целиком", "The file arrived incomplete"))
             // Пока качали, файл здесь могли поменять
             if (!matches(target, expect)) return fail("changed")
             if (expect != null) moveToTrash(ctx, root, target)
-            if (!part.renameTo(target)) return fail("error", "Не удалось сохранить «${target.name}»")
+            if (!part.renameTo(target)) return fail("error", Lang.t("Не удалось сохранить «${target.name}»", "Couldn't save “${target.name}”"))
             part = null
             // Время файла — как на компьютере (не везде получается: тогда запоминаем, какое есть)
             target.setLastModified(from.m)
             scan(ctx, target)
             return JSONObject().put("ok", true).put("l", statOf(target)!!.json()).put("r", r.json())
         } catch (e: SocketTimeoutException) {
-            return fail("error", "Компьютер не отвечает")
+            return fail("error", Lang.t("Компьютер не отвечает", "The computer doesn't respond"))
         } finally {
             part?.delete()
             c.disconnect()
@@ -231,9 +233,9 @@ object FileSync {
             val code = c.responseCode
             val j = runCatching { JSONObject(readBody(c)) }.getOrNull() ?: JSONObject()
             if (code == 200) return JSONObject().put("ok", true).put("l", from.json()).put("r", Stat(j.optLong("s"), j.optLong("m")).json())
-            return fail(j.optString("why").ifEmpty { "error" }, j.optString("error").ifEmpty { "Компьютер ответил $code" })
+            return fail(j.optString("why").ifEmpty { "error" }, j.optString("error").ifEmpty { Lang.t("Компьютер ответил $code", "The computer responded $code") })
         } catch (e: SocketTimeoutException) {
-            return fail("error", "Компьютер не отвечает")
+            return fail("error", Lang.t("Компьютер не отвечает", "The computer doesn't respond"))
         } finally {
             c.disconnect()
         }

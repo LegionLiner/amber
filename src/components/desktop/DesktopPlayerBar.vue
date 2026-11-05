@@ -32,6 +32,7 @@ import { setVolume, toggleMute, volume } from '@/app/desktop'
 import { voice } from '@/app/voice'
 import { useCoverGlow } from '@/app/cover-colors'
 import { useSettings } from '@/stores/settings'
+import { $t } from '@/i18n'
 
 /**
  * Панель плеера внизу окна: что играет, управление и перемотка посередине, звук, очередь и громкость справа.
@@ -46,14 +47,14 @@ const router = useRouter()
 /** Микрофон — переключатель голосовых команд: выключены — серый, включены — янтарный */
 const micTitle = computed(() =>
   !settings.s.voice
-    ? 'Голосовые команды выключены. Нажми, чтобы включить'
+    ? $t('Голосовые команды выключены. Нажми, чтобы включить')
     : voice.state === 'listening'
-      ? 'Слушаю: «Эмбер, стоп / дальше / назад / тише / громче». Нажми, чтобы выключить'
+      ? $t('Слушаю: «Эмбер, стоп / дальше / назад / тише / громче». Нажми, чтобы выключить')
       : voice.state === 'loading'
         ? `${voice.stage}…`
         : voice.state === 'error'
-          ? `Голосовые команды: ${voice.error}`
-          : 'Голосовые команды',
+          ? $t('Голосовые команды: {0}', voice.error)
+          : $t('Голосовые команды'),
 )
 
 const item = computed(() => player.current)
@@ -95,7 +96,7 @@ function favorite() {
   <footer class="pbar" :class="{ empty: !item }" :style="{ '--c1': colors[0] }">
     <div class="now">
       <template v-if="item">
-        <button type="button" class="cover" aria-label="Открыть плеер" @click="ui.fullPlayer = true">
+        <button type="button" class="cover" :aria-label="$t('Открыть плеер')" @click="ui.fullPlayer = true">
           <CoverArt :art="track?.art" :seed="item.title" :label="item.title" size="s" radius="12px" />
           <span class="expand"><IconExpand /></span>
         </button>
@@ -112,14 +113,14 @@ function favorite() {
           type="button"
           class="icon-btn heart"
           :class="{ on: track?.favoriteAt }"
-          :aria-label="track?.favoriteAt ? 'Убрать из избранного' : 'В избранное'"
-          title="В избранное (Ctrl+L)"
+          :aria-label="track?.favoriteAt ? $t('Убрать из избранного') : $t('В избранное')"
+          :title="$t('В избранное (Ctrl+L)')"
           @click="favorite"
         >
           <IconHeartOn v-if="track?.favoriteAt" /><IconHeart v-else />
         </button>
       </template>
-      <span v-else class="idle">Выбери трек — он заиграет здесь</span>
+      <span v-else class="idle">{{ $t('Выбери трек — он заиграет здесь') }}</span>
     </div>
 
     <div class="mid">
@@ -128,8 +129,8 @@ function favorite() {
           type="button"
           class="icon-btn small"
           :class="{ on: player.shuffleMode !== 'off' }"
-          aria-label="Перемешивание"
-          title="Перемешивание"
+          :aria-label="$t('Перемешивание')"
+          :title="$t('Перемешивание')"
           :disabled="!item"
           @click="player.toggleShuffle()"
         >
@@ -138,8 +139,8 @@ function favorite() {
         <button
           type="button"
           class="icon-btn"
-          aria-label="Предыдущий"
-          title="Предыдущий (Ctrl+←)"
+          :aria-label="$t('Предыдущий')"
+          :title="$t('Предыдущий (Ctrl+←)')"
           :disabled="!item"
           @click="player.prev()"
         >
@@ -148,8 +149,8 @@ function favorite() {
         <button
           type="button"
           class="play"
-          :aria-label="player.playing ? 'Пауза' : 'Играть'"
-          title="Пауза / играть (пробел)"
+          :aria-label="player.playing ? $t('Пауза') : $t('Играть')"
+          :title="$t('Пауза / играть (пробел)')"
           :disabled="!item"
           @click="player.toggle()"
         >
@@ -158,8 +159,8 @@ function favorite() {
         <button
           type="button"
           class="icon-btn"
-          aria-label="Следующий"
-          title="Следующий (Ctrl+→)"
+          :aria-label="$t('Следующий')"
+          :title="$t('Следующий (Ctrl+→)')"
           :disabled="!item"
           @click="player.next()"
         >
@@ -169,8 +170,10 @@ function favorite() {
           type="button"
           class="icon-btn small"
           :class="{ on: player.repeat !== 'off' }"
-          :aria-label="player.repeat === 'one' ? 'Повтор трека' : player.repeat === 'all' ? 'Повтор очереди' : 'Повтор выключен'"
-          title="Повтор"
+          :aria-label="
+            player.repeat === 'one' ? $t('Повтор трека') : player.repeat === 'all' ? $t('Повтор очереди') : $t('Повтор выключен')
+          "
+          :title="$t('Повтор')"
           :disabled="!item"
           @click="player.cycleRepeat()"
         >
@@ -182,7 +185,7 @@ function favorite() {
         <BarSlider
           class="seekbar"
           :value="frac"
-          label="Перемотка"
+          :label="$t('Перемотка')"
           :wheel-step="0.02"
           @input="(v: number) => (seekDraft = v)"
           @change="seekTo"
@@ -196,8 +199,8 @@ function favorite() {
         type="button"
         class="icon-btn opt"
         :class="{ on: soundOn }"
-        aria-label="Звук: пресеты, скорость и эффекты"
-        title="Звук: пресеты, скорость и эффекты"
+        :aria-label="$t('Звук: пресеты, скорость и эффекты')"
+        :title="$t('Звук: пресеты, скорость и эффекты')"
         @click="ui.openSheet(SpeedSheet)"
       >
         <IconTune />
@@ -205,8 +208,8 @@ function favorite() {
       <button
         type="button"
         class="icon-btn"
-        aria-label="Карточка трека"
-        title="Карточка трека"
+        :aria-label="$t('Карточка трека')"
+        :title="$t('Карточка трека')"
         :disabled="!item"
         @click="openCard"
       >
@@ -216,8 +219,8 @@ function favorite() {
         type="button"
         class="icon-btn"
         :class="{ on: ui.queueOpen }"
-        aria-label="Очередь"
-        title="Очередь"
+        :aria-label="$t('Очередь')"
+        :title="$t('Очередь')"
         @click="ui.queueOpen = !ui.queueOpen"
       >
         <IconQueue />
@@ -225,8 +228,8 @@ function favorite() {
       <button
         type="button"
         class="icon-btn opt"
-        aria-label="Сцена: только обложка на весь экран (F11)"
-        title="Сцена: только обложка на весь экран (F11)"
+        :aria-label="$t('Сцена: только обложка на весь экран (F11)')"
+        :title="$t('Сцена: только обложка на весь экран (F11)')"
         :disabled="!item"
         @click="ui.zen = true"
       >
@@ -247,13 +250,13 @@ function favorite() {
         <button
           type="button"
           class="icon-btn"
-          :aria-label="volume > 0 ? 'Выключить звук' : 'Включить звук'"
-          title="Громкость (Ctrl+↑/↓)"
+          :aria-label="volume > 0 ? $t('Выключить звук') : $t('Включить звук')"
+          :title="$t('Громкость (Ctrl+↑/↓)')"
           @click="toggleMute"
         >
           <IconMute v-if="volume === 0" /><IconVolumeLow v-else-if="volume < 0.5" /><IconVolume v-else />
         </button>
-        <BarSlider class="volbar" :value="volume" label="Громкость" @input="setVolume" @change="setVolume" />
+        <BarSlider class="volbar" :value="volume" :label="$t('Громкость')" @input="setVolume" @change="setVolume" />
       </div>
     </div>
   </footer>

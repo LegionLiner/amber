@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import IconBack from '~icons/solar/alt-arrow-left-linear'
+import { $t } from '@/i18n'
 
 /** Шапка экрана: стрелка назад (если нужна), крупный заголовок Unbounded и действия — в одну строку */
 defineProps<{ title: string; subtitle?: string; back?: boolean }>()
@@ -10,7 +11,9 @@ const router = useRouter()
 <template>
   <header class="hdr">
     <div class="top">
-      <button v-if="back" type="button" class="icon-btn back" aria-label="Назад" @click="router.back()"><IconBack /></button>
+      <button v-if="back" type="button" class="icon-btn back" :aria-label="$t('Назад')" @click="router.back()">
+        <IconBack />
+      </button>
       <h1 class="display title">{{ title }}</h1>
       <div class="actions"><slot name="actions" /></div>
     </div>

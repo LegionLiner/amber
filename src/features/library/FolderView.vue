@@ -8,6 +8,7 @@ import { useLibrary } from '@/stores/library'
 import { allTracksIn, findFolder } from '@/domain/groups'
 import { countLabel } from '@/domain/format'
 import { tableFor } from './rowMeta'
+import { $t, $tp } from '@/i18n'
 
 const route = useViewRoute()
 const router = useRouter()
@@ -22,9 +23,9 @@ const tracks = computed(() => (node.value ? allTracksIn(node.value) : []))
 <template>
   <CollectionPage
     v-if="node"
-    kind="Папка"
+    :kind="$t('Папка')"
     :title="node.name"
-    :subtitle="`${node.path || '/'} · ${countLabel(node.total, ['трек', 'трека', 'треков'])}`"
+    :subtitle="`${node.path || '/'} · ${countLabel(node.total, $tp('трек|трека|треков'))}`"
     :tracks="tracks"
     :source="{ type: 'folder', id: node.path, title: node.name }"
     :detail="table?.of"
@@ -46,7 +47,9 @@ const tracks = computed(() => (node.value ? allTracksIn(node.value) : []))
       </div>
     </template>
   </CollectionPage>
-  <div v-else class="empty"><h3>Папка не найдена</h3></div>
+  <div v-else class="empty">
+    <h3>{{ $t('Папка не найдена') }}</h3>
+  </div>
 </template>
 
 <style scoped>

@@ -6,8 +6,11 @@ import { BeatFollower, type Beat } from '@/app/beat'
 import { audioLevels } from '@/native/web/audio-graph'
 import { motionReduced } from '@/app/motion'
 import { isDesktop } from '@/native/desktop/bridge'
+import { isNative } from '@/native/paths'
+import { MusicCore } from '@/native/music-core'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
+import { $t } from '@/i18n'
 
 /**
  * «Сцена»: на весь экран — только обложка, вокруг неё свет и цвет из её же красок.
@@ -314,6 +317,8 @@ onMounted(() => {
     document.addEventListener('fullscreenchange', onFullscreen)
     document.documentElement.requestFullscreen?.().catch(() => {})
   }
+  // Телефон: экран поворачивается за телефоном (лёжа обложка разворачивается), без системных полос и не гаснет
+  if (isNative) void MusicCore.setStage({ on: true }).catch(() => {})
 })
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
@@ -323,6 +328,7 @@ onBeforeUnmount(() => {
     document.removeEventListener('fullscreenchange', onFullscreen)
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
   }
+  if (isNative) void MusicCore.setStage({ on: false }).catch(() => {})
 })
 </script>
 
@@ -332,7 +338,7 @@ onBeforeUnmount(() => {
     class="zen"
     :class="{ idle }"
     role="dialog"
-    aria-label="Сцена: обложка на весь экран. Щелчок мимо обложки — выход"
+    :aria-label="$t('Сцена: обложка на весь экран. Щелчок мимо обложки — выход')"
     @click="close"
     @pointermove="stir"
   >
@@ -419,6 +425,12 @@ onBeforeUnmount(() => {
   transform: scale(1.02);
 }
 
+/* Телефон лёжа: экран низкий — обложка почти во всю высоту */
+@media (orientation: landscape) and (max-height: 520px) {
+  .art {
+    width: 84vmin;
+  }
+}
 @media (orientation: portrait) {
   .art {
     width: min(86vw, 780px);

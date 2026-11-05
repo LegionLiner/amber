@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { $t } from '@/i18n'
 
 /** Шторка с одним полем: имя плейлиста, название метки и т.п. */
 const props = defineProps<{
@@ -30,11 +31,11 @@ function done() {
       id="name-sheet-input"
       ref="input"
       v-model="value"
-      :placeholder="placeholder ?? 'Название'"
+      :placeholder="placeholder ?? $t('Название')"
       maxlength="80"
       enterkeyhint="done"
     />
-    <button type="submit" class="btn primary block" :disabled="!value.trim()">{{ confirm ?? 'Готово' }}</button>
+    <button type="submit" class="btn primary block" :disabled="!value.trim()">{{ confirm ?? $t('Готово') }}</button>
   </form>
 </template>
 

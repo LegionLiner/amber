@@ -2,6 +2,7 @@
 import { ref, type Component } from 'vue'
 import IconPen from '~icons/solar/pen-linear'
 import IconTrash from '~icons/solar/trash-bin-minimalistic-linear'
+import { $t } from '@/i18n'
 
 const props = defineProps<{
   name: string
@@ -27,13 +28,15 @@ function remove() {
     <button v-for="a in actions ?? []" :key="a.label" type="button" class="act" @click="a.run()">
       <component :is="a.icon" />{{ a.label }}
     </button>
-    <button type="button" class="act" @click="props.onRename()"><IconPen />Переименовать</button>
-    <button v-if="!confirmDelete" type="button" class="act danger" @click="confirmDelete = true"><IconTrash />Удалить</button>
+    <button type="button" class="act" @click="props.onRename()"><IconPen />{{ $t('Переименовать') }}</button>
+    <button v-if="!confirmDelete" type="button" class="act danger" @click="confirmDelete = true">
+      <IconTrash />{{ $t('Удалить') }}
+    </button>
     <div v-else class="confirm">
-      <p>Удалить «{{ name }}»? {{ deleteNote ?? 'Треки останутся в библиотеке.' }}</p>
+      <p>{{ $t('Удалить «{0}»? {1}', name, deleteNote ?? $t('Треки останутся в библиотеке.')) }}</p>
       <div class="btns">
-        <button type="button" class="btn" @click="emit('close')">Отмена</button>
-        <button type="button" class="btn danger-btn" @click="remove">Удалить</button>
+        <button type="button" class="btn" @click="emit('close')">{{ $t('Отмена') }}</button>
+        <button type="button" class="btn danger-btn" @click="remove">{{ $t('Удалить') }}</button>
       </div>
     </div>
   </div>

@@ -1,3 +1,4 @@
+import { $t } from '../i18n'
 /**
  * Синхронизация папки с музыкой между телефоном и компьютером по Wi-Fi: что делать с каждым файлом.
  *
@@ -113,7 +114,7 @@ function index(list: FileEntry[], skipped: Plan['skipped']): Map<string, FileEnt
   }
   // Два файла, которые различаются только регистром: на другой стороне это один файл — не трогаем оба
   for (const k of clash) {
-    skipped.push({ p: out.get(k)!.p, why: 'есть файл с тем же именем в другом регистре' })
+    skipped.push({ p: out.get(k)!.p, why: $t('есть файл с тем же именем в другом регистре') })
     out.delete(k)
   }
   return out
@@ -163,7 +164,7 @@ export function makePlan(
       }
     } else if (l) {
       if (badOnWindows(l.p)) {
-        skipped.push({ p: l.p, why: 'имя недопустимо в Windows' })
+        skipped.push({ p: l.p, why: $t('имя недопустимо в Windows') })
         continue
       }
       if (b && same(l, b.l)) deletes.push({ op: 'trashLocal', lp: l.p, expect: l })

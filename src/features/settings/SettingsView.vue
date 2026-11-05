@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, ref } from 'vue'
+import { computed, onActivated, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ScreenHeader from '@/components/ScreenHeader.vue'
 import RangeSlider from '@/components/RangeSlider.vue'
@@ -56,7 +56,9 @@ function pickMic(id: string) {
 }
 if (isDesktop) {
   void refreshMics()
-  navigator.mediaDevices?.addEventListener('devicechange', () => void refreshMics())
+  const onDevices = () => void refreshMics()
+  navigator.mediaDevices?.addEventListener('devicechange', onDevices)
+  onBeforeUnmount(() => navigator.mediaDevices?.removeEventListener('devicechange', onDevices))
 }
 
 /** Названия языков — каждое на своём языке, чтобы найти нужный, не понимая текущий */

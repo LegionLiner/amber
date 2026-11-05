@@ -91,12 +91,24 @@ export interface AppSettings {
 }
 
 export const EQ_PRESETS: Record<string, { label: string; bands: number[]; preampDb: number }> = {
-  flat: { label: $t('Ровно'), bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], preampDb: 0 },
-  bass: { label: $t('Бас'), bands: [5, 4, 3, 1.5, 0, 0, 0, 0, 0, 0], preampDb: -4 },
-  vocal: { label: $t('Голос'), bands: [-2, -1.5, -1, 0, 1.5, 3, 3, 2, 0, -1], preampDb: -3 },
-  night: { label: $t('Ночь'), bands: [2, 1.5, 1, 0, 0, 0, -1, -2, -3, -4], preampDb: -2 },
-  bright: { label: $t('Ярко'), bands: [0, 0, 0, 0, 0, 0.5, 1.5, 3, 4, 4], preampDb: -4 },
-  loudness: { label: $t('Громкость'), bands: [4, 3, 1, 0, -1, -1, 0, 1, 3, 4], preampDb: -4 },
+  get flat() {
+    return { label: $t('Ровно'), bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], preampDb: 0 }
+  },
+  get bass() {
+    return { label: $t('Бас'), bands: [5, 4, 3, 1.5, 0, 0, 0, 0, 0, 0], preampDb: -4 }
+  },
+  get vocal() {
+    return { label: $t('Голос'), bands: [-2, -1.5, -1, 0, 1.5, 3, 3, 2, 0, -1], preampDb: -3 }
+  },
+  get night() {
+    return { label: $t('Ночь'), bands: [2, 1.5, 1, 0, 0, 0, -1, -2, -3, -4], preampDb: -2 }
+  },
+  get bright() {
+    return { label: $t('Ярко'), bands: [0, 0, 0, 0, 0, 0.5, 1.5, 3, 4, 4], preampDb: -4 }
+  },
+  get loudness() {
+    return { label: $t('Громкость'), bands: [4, 3, 1, 0, -1, -1, 0, 1, 3, 4], preampDb: -4 }
+  },
 }
 
 export const DEFAULT_AUDIO: AudioSettings = {

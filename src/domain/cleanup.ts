@@ -22,11 +22,21 @@ export interface Fix {
 }
 
 export const REASON_LABEL: Record<Fix['reason'], string> = {
-  junk: $t('Мусор сайта'),
-  number: $t('Номер в названии'),
-  caps: $t('Капслок'),
-  fromFile: $t('Из имени файла'),
-  spaces: $t('Пробелы'),
+  get junk() {
+    return $t('Мусор сайта')
+  },
+  get number() {
+    return $t('Номер в названии')
+  },
+  get caps() {
+    return $t('Капслок')
+  },
+  get fromFile() {
+    return $t('Из имени файла')
+  },
+  get spaces() {
+    return $t('Пробелы')
+  },
 }
 
 const hasLetters = (s: string) => /\p{L}{3,}/u.test(s)

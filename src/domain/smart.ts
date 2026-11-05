@@ -35,21 +35,51 @@ export const DEFAULT_RULES: SmartRules = {
 }
 
 export const FIELD_LABEL: Record<Condition['field'], string> = {
-  title: $t('Название'),
-  artist: $t('Исполнитель'),
-  album: $t('Альбом'),
-  genre: $t('Жанр'),
-  folder: $t('Папка'),
-  rating: $t('Оценка'),
-  plays: $t('Прослушивания'),
-  skips: $t('Пропуски'),
-  year: $t('Год'),
-  duration: $t('Длительность, мин'),
-  bpm: $t('Темп, BPM'),
-  energy: $t('Энергия, %'),
-  favorite: $t('Избранное'),
-  added: $t('Добавлен'),
-  lastPlayed: $t('Звучал'),
+  get title() {
+    return $t('Название')
+  },
+  get artist() {
+    return $t('Исполнитель')
+  },
+  get album() {
+    return $t('Альбом')
+  },
+  get genre() {
+    return $t('Жанр')
+  },
+  get folder() {
+    return $t('Папка')
+  },
+  get rating() {
+    return $t('Оценка')
+  },
+  get plays() {
+    return $t('Прослушивания')
+  },
+  get skips() {
+    return $t('Пропуски')
+  },
+  get year() {
+    return $t('Год')
+  },
+  get duration() {
+    return $t('Длительность, мин')
+  },
+  get bpm() {
+    return $t('Темп, BPM')
+  },
+  get energy() {
+    return $t('Энергия, %')
+  },
+  get favorite() {
+    return $t('Избранное')
+  },
+  get added() {
+    return $t('Добавлен')
+  },
+  get lastPlayed() {
+    return $t('Звучал')
+  },
 }
 
 const DAY = 86_400_000

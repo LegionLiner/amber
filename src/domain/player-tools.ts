@@ -6,16 +6,66 @@ import { $t } from '@/i18n'
 export type PlayerToolId = 'sound' | 'lyrics' | 'sleep' | 'queue' | 'marks' | 'playlist' | 'tags' | 'card' | 'radio' | 'stage'
 
 export const PLAYER_TOOLS: { id: PlayerToolId; label: string }[] = [
-  { id: 'sound', label: $t('Звук и эффекты') },
-  { id: 'lyrics', label: $t('Текст песни') },
-  { id: 'sleep', label: $t('Сон-таймер') },
-  { id: 'queue', label: $t('Очередь') },
-  { id: 'marks', label: $t('Метки и лучшие моменты') },
-  { id: 'playlist', label: $t('В плейлист') },
-  { id: 'tags', label: $t('Изменить теги') },
-  { id: 'card', label: $t('Карточка трека') },
-  { id: 'radio', label: $t('Радио по треку') },
-  { id: 'stage', label: $t('Сцена') },
+  {
+    id: 'sound',
+    get label() {
+      return $t('Звук и эффекты')
+    },
+  },
+  {
+    id: 'lyrics',
+    get label() {
+      return $t('Текст песни')
+    },
+  },
+  {
+    id: 'sleep',
+    get label() {
+      return $t('Сон-таймер')
+    },
+  },
+  {
+    id: 'queue',
+    get label() {
+      return $t('Очередь')
+    },
+  },
+  {
+    id: 'marks',
+    get label() {
+      return $t('Метки и лучшие моменты')
+    },
+  },
+  {
+    id: 'playlist',
+    get label() {
+      return $t('В плейлист')
+    },
+  },
+  {
+    id: 'tags',
+    get label() {
+      return $t('Изменить теги')
+    },
+  },
+  {
+    id: 'card',
+    get label() {
+      return $t('Карточка трека')
+    },
+  },
+  {
+    id: 'radio',
+    get label() {
+      return $t('Радио по треку')
+    },
+  },
+  {
+    id: 'stage',
+    get label() {
+      return $t('Сцена')
+    },
+  },
 ]
 
 /** Как было до настройки */

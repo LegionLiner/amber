@@ -5,7 +5,7 @@ import { desktop } from '@/native/desktop/bridge'
 import { useLibrary } from '@/stores/library'
 import { usePlayer } from '@/stores/player'
 import { useUi } from '@/stores/ui'
-import { lang } from '@/i18n'
+import { lang, onLangChange } from '@/i18n'
 import { router } from './router'
 
 /**
@@ -44,6 +44,8 @@ export function setupDesktop(): void {
   if (!desktop) return
   document.documentElement.classList.add('desktop')
   desktop.setLang(lang)
+  // Трей, кнопки на панели задач и системные окна — на новом языке сразу
+  onLangChange((l) => desktop!.setLang(l))
 
   // Кнопки окна (свернуть, развернуть, закрыть) рисует Windows: красим их под тему
   const syncTitleBar = () => {

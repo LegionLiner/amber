@@ -19,20 +19,104 @@ export type TrackSortKey =
   | 'random'
 
 export const TRACK_SORTS: { key: TrackSortKey; label: string; dir: 'asc' | 'desc' }[] = [
-  { key: 'rating', label: $t('Оценка и место'), dir: 'desc' },
-  { key: 'plays', label: $t('Прослушивания'), dir: 'desc' },
-  { key: 'title', label: $t('Название'), dir: 'asc' },
-  { key: 'artist', label: $t('Исполнитель'), dir: 'asc' },
-  { key: 'album', label: $t('Альбом'), dir: 'asc' },
-  { key: 'added', label: $t('Дата добавления'), dir: 'desc' },
-  { key: 'lastPlayed', label: $t('Последнее прослушивание'), dir: 'desc' },
-  { key: 'listened', label: $t('Время прослушивания'), dir: 'desc' },
-  { key: 'duration', label: $t('Длительность'), dir: 'desc' },
-  { key: 'skips', label: $t('Пропуски'), dir: 'desc' },
-  { key: 'year', label: $t('Год'), dir: 'desc' },
-  { key: 'fileName', label: $t('Имя файла'), dir: 'asc' },
-  { key: 'folder', label: $t('Папка'), dir: 'asc' },
-  { key: 'random', label: $t('Случайно'), dir: 'asc' },
+  {
+    key: 'rating',
+    get label() {
+      return $t('Оценка и место')
+    },
+    dir: 'desc',
+  },
+  {
+    key: 'plays',
+    get label() {
+      return $t('Прослушивания')
+    },
+    dir: 'desc',
+  },
+  {
+    key: 'title',
+    get label() {
+      return $t('Название')
+    },
+    dir: 'asc',
+  },
+  {
+    key: 'artist',
+    get label() {
+      return $t('Исполнитель')
+    },
+    dir: 'asc',
+  },
+  {
+    key: 'album',
+    get label() {
+      return $t('Альбом')
+    },
+    dir: 'asc',
+  },
+  {
+    key: 'added',
+    get label() {
+      return $t('Дата добавления')
+    },
+    dir: 'desc',
+  },
+  {
+    key: 'lastPlayed',
+    get label() {
+      return $t('Последнее прослушивание')
+    },
+    dir: 'desc',
+  },
+  {
+    key: 'listened',
+    get label() {
+      return $t('Время прослушивания')
+    },
+    dir: 'desc',
+  },
+  {
+    key: 'duration',
+    get label() {
+      return $t('Длительность')
+    },
+    dir: 'desc',
+  },
+  {
+    key: 'skips',
+    get label() {
+      return $t('Пропуски')
+    },
+    dir: 'desc',
+  },
+  {
+    key: 'year',
+    get label() {
+      return $t('Год')
+    },
+    dir: 'desc',
+  },
+  {
+    key: 'fileName',
+    get label() {
+      return $t('Имя файла')
+    },
+    dir: 'asc',
+  },
+  {
+    key: 'folder',
+    get label() {
+      return $t('Папка')
+    },
+    dir: 'asc',
+  },
+  {
+    key: 'random',
+    get label() {
+      return $t('Случайно')
+    },
+    dir: 'asc',
+  },
 ]
 
 const coll = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' })

@@ -8,6 +8,7 @@ import { orderFor, shuffle, type ShuffleKind } from '@/domain/shuffle'
 import { useLibrary } from './library'
 import { useSettings } from './settings'
 import { cleanEffects, type Effects, type Sound } from '@/domain/effects'
+import { onLangChange } from '@/i18n'
 
 let qidSeq = 0
 export function newQid(): string {
@@ -123,6 +124,14 @@ export const usePlayer = defineStore('player', () => {
     now.value = Date.now()
     ensureLoop()
   }
+
+  // Язык сменили на ходу — «Неизвестный исполнитель» в очереди тоже на новом
+  onLangChange(() => {
+    queue.value = queue.value.map((q) => {
+      const artist = relabelUnknown(q.artist)
+      return artist === q.artist ? q : { ...q, artist }
+    })
+  })
 
   function applySnapshot(s: PlayerSnapshot) {
     queue.value = s.queue.map((q) => {

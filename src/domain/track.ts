@@ -211,13 +211,14 @@ export function toTrack(r: TrackRow, opts: TrackOptions): Track {
   }
 }
 
-export const UNKNOWN_ARTIST = $t('Неизвестный исполнитель')
+/** «Неизвестный исполнитель» на текущем языке */
+export const unknownArtist = () => $t('Неизвестный исполнитель')
 
 /** Подпись очереди, сохранённая на другом языке (очередь пережила смену языка): показать на текущем */
 export function relabelUnknown(artist: string): string {
-  return artist === 'Неизвестный исполнитель' || artist === 'Unknown artist' ? UNKNOWN_ARTIST : artist
+  return artist === 'Неизвестный исполнитель' || artist === 'Unknown artist' ? unknownArtist() : artist
 }
 
 export function displayArtist(t: Pick<Track, 'artist'>): string {
-  return t.artist || UNKNOWN_ARTIST
+  return t.artist || unknownArtist()
 }

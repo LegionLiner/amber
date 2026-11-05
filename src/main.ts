@@ -1,4 +1,4 @@
-import { createApp } from 'vue'
+import { createApp, h, ref } from 'vue'
 import { createPinia } from 'pinia'
 import '@fontsource-variable/unbounded'
 import '@fontsource-variable/onest'
@@ -13,7 +13,7 @@ import { boot } from './app/boot'
 import { bootState } from './app/boot-state'
 import { installTapGuard } from './composables/tapGuard'
 import { installMorphTracking, installRouteMotion } from './app/motion'
-import { lang } from './i18n'
+import { lang, onLangChange } from './i18n'
 
 document.documentElement.lang = lang
 
@@ -21,7 +21,13 @@ installTapGuard()
 installMorphTracking()
 installRouteMotion(router)
 
-const app = createApp(App)
+/**
+ * Язык сменили в настройках — интерфейс собирается заново на новом языке, без перезапуска: данные, плеер,
+ * очередь и открытый экран остаются (сторы и адрес живут вне App). Ключ корня — номер смены языка
+ */
+const langRev = ref(0)
+onLangChange(() => langRev.value++)
+const app = createApp({ render: () => h(App, { key: langRev.value }) })
 app.use(createPinia())
 app.use(router)
 app.mount('#app')

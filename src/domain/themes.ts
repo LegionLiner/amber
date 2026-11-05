@@ -30,37 +30,49 @@ export interface Accent {
 export const ACCENTS: Accent[] = [
   {
     id: 'amber',
-    label: $t('Янтарь'),
+    get label() {
+      return $t('Янтарь')
+    },
     dark: { amber: '#ffb23e', ember: '#ff7a2f', ink: '#ffb23e', on: '#1a1206' },
     light: { amber: '#ee9412', ember: '#e4602b', ink: '#9e5300', on: '#ffffff' },
   },
   {
     id: 'rose',
-    label: $t('Роза'),
+    get label() {
+      return $t('Роза')
+    },
     dark: { amber: '#ff7fa6', ember: '#ff4f7b', ink: '#ff8fb1', on: '#2a0714' },
     light: { amber: '#e0457a', ember: '#d02f5f', ink: '#a3164c', on: '#ffffff' },
   },
   {
     id: 'violet',
-    label: $t('Аметист'),
+    get label() {
+      return $t('Аметист')
+    },
     dark: { amber: '#b49cff', ember: '#8a6cff', ink: '#bba6ff', on: '#160e33' },
     light: { amber: '#7c5cf0', ember: '#6a48e8', ink: '#5134c4', on: '#ffffff' },
   },
   {
     id: 'ocean',
-    label: $t('Океан'),
+    get label() {
+      return $t('Океан')
+    },
     dark: { amber: '#5cc8ff', ember: '#3a8dff', ink: '#6fd0ff', on: '#03172a' },
     light: { amber: '#1a8fd6', ember: '#1f6fe0', ink: '#0b5f99', on: '#ffffff' },
   },
   {
     id: 'mint',
-    label: $t('Мята'),
+    get label() {
+      return $t('Мята')
+    },
     dark: { amber: '#5fe0b0', ember: '#22b884', ink: '#6fe6b9', on: '#04261a' },
     light: { amber: '#1f9e72', ember: '#178a63', ink: '#0f6b4c', on: '#ffffff' },
   },
   {
     id: 'graphite',
-    label: $t('Графит'),
+    get label() {
+      return $t('Графит')
+    },
     dark: { amber: '#e9e5de', ember: '#a9a39a', ink: '#f1ede6', on: '#141311' },
     light: { amber: '#3b3833', ember: '#5a554e', ink: '#2a2724', on: '#ffffff' },
   },
@@ -135,12 +147,36 @@ const NEUTRAL_LIGHT: Base = {
 }
 
 export const BACKDROPS: Backdrop[] = [
-  { id: 'warm', label: $t('Тёплый'), hint: $t('как бумага и янтарь'), dark: WARM_DARK, light: WARM_LIGHT },
-  { id: 'neutral', label: $t('Графит'), hint: $t('чистый серый'), dark: NEUTRAL_DARK, light: NEUTRAL_LIGHT },
+  {
+    id: 'warm',
+    get label() {
+      return $t('Тёплый')
+    },
+    get hint() {
+      return $t('как бумага и янтарь')
+    },
+    dark: WARM_DARK,
+    light: WARM_LIGHT,
+  },
+  {
+    id: 'neutral',
+    get label() {
+      return $t('Графит')
+    },
+    get hint() {
+      return $t('чистый серый')
+    },
+    dark: NEUTRAL_DARK,
+    light: NEUTRAL_LIGHT,
+  },
   {
     id: 'cool',
-    label: $t('Ночь'),
-    hint: $t('с синевой'),
+    get label() {
+      return $t('Ночь')
+    },
+    get hint() {
+      return $t('с синевой')
+    },
     dark: {
       bg: '#0b0d12',
       surface: '#141821',
@@ -165,11 +201,25 @@ export const BACKDROPS: Backdrop[] = [
     },
   },
   // Собирается из графита с каплей акцента — см. themeVars
-  { id: 'tinted', label: $t('В цвет акцента'), hint: $t('фон подкрашен'), dark: NEUTRAL_DARK, light: NEUTRAL_LIGHT },
+  {
+    id: 'tinted',
+    get label() {
+      return $t('В цвет акцента')
+    },
+    get hint() {
+      return $t('фон подкрашен')
+    },
+    dark: NEUTRAL_DARK,
+    light: NEUTRAL_LIGHT,
+  },
   {
     id: 'black',
-    label: $t('Чёрный'),
-    hint: $t('для AMOLED, экономит заряд'),
+    get label() {
+      return $t('Чёрный')
+    },
+    get hint() {
+      return $t('для AMOLED, экономит заряд')
+    },
     dark: {
       ...WARM_DARK,
       bg: '#000000',

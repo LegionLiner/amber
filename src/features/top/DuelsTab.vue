@@ -39,7 +39,10 @@ async function load() {
 onMounted(load)
 onPageShown(load)
 onPageHidden(stop)
-onBeforeUnmount(stop)
+onBeforeUnmount(() => {
+  void stop()
+  void endHandle?.remove()
+})
 
 function next() {
   picked.value = null

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import IconFolder from '~icons/solar/folder-open-linear'
 import { MusicCore, MusicCoreWeb, type WebFolderInfo } from '@/native/music-core'
 import { useLibrary } from '@/stores/library'
@@ -17,10 +17,13 @@ const info = ref<WebFolderInfo | null>(null)
 async function refresh() {
   info.value = await MusicCoreWeb.folderInfo()
 }
+// Слушатель снимается вместе с баннером: интерфейс пересобирается при смене языка
+let off: { remove(): Promise<void> } | null = null
 onMounted(async () => {
   await refresh()
-  await MusicCore.addListener('folderAccess', () => void refresh())
+  off = await MusicCore.addListener('folderAccess', () => void refresh())
 })
+onBeforeUnmount(() => void off?.remove())
 
 async function restore() {
   const r = await MusicCoreWeb.restoreFolder().catch(() => ({ count: 0 }))

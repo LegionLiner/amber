@@ -8,15 +8,16 @@ import { EN } from './en'
  * Подстановки — по номерам: t('Слушаю через «{0}»', name).
  * Формы числа: tp('трек|трека|треков') → три формы для plural() (в английском — одна и две одинаковые «многие»).
  *
- * Язык выбирается один раз при запуске: сохранённый выбор (настройки → язык), иначе язык системы.
- * Смена языка перезапускает интерфейс — поэтому строки можно переводить и в константах модулей.
+ * Язык при запуске — сохранённый выбор (настройки → язык), иначе язык системы. Сменить его можно на ходу,
+ * без перезапуска (setLang): lang, isEn и LOCALE — живые привязки, тексты в постоянных модулей берутся при чтении
+ * (геттеры), а интерфейс перерисовывается заново (main.ts слушает onLangChange).
  */
 export type Lang = 'ru' | 'en'
 
 const KEY = 'amber.lang'
 
 function detect(): Lang {
-  // Тесты проверяют русские строки
+  // Тесты проверяют русские строки.
   // Через process, а не import.meta: модуль попадает и в главный процесс компьютерной версии (CommonJS)
   if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.VITEST) return 'ru'
   try {
@@ -29,10 +30,10 @@ function detect(): Lang {
   return /^ru\b/i.test(sys) ? 'ru' : 'en'
 }
 
-export const lang: Lang = detect()
-export const isEn = lang === 'en'
+export let lang: Lang = detect()
+export let isEn = lang === 'en'
 /** Для toLocaleString / Intl */
-export const LOCALE = isEn ? 'en-US' : 'ru-RU'
+export let LOCALE = isEn ? 'en-US' : 'ru-RU'
 
 type Arg = string | number | null | undefined
 
@@ -52,14 +53,27 @@ export function tp(forms: string): [string, string, string] {
   return [a, b, c]
 }
 
-/** Сменить язык: запоминается на этом устройстве, интерфейс перезапускается */
+const listeners = new Set<(l: Lang) => void>()
+
+/** Язык сменился: перерисовать интерфейс, сообщить движку телефона и окну компьютера */
+export function onLangChange(fn: (l: Lang) => void): () => void {
+  listeners.add(fn)
+  return () => listeners.delete(fn)
+}
+
+/** Сменить язык: запоминается на этом устройстве и применяется сразу, без перезапуска */
 export function setLang(l: Lang): void {
   try {
     globalThis.localStorage?.setItem(KEY, l)
   } catch {
-    /* не сохранилось — язык вернётся к системному */
+    /* не сохранилось — после перезапуска язык вернётся к системному */
   }
-  location.reload()
+  if (l === lang) return
+  lang = l
+  isEn = l === 'en'
+  LOCALE = isEn ? 'en-US' : 'ru-RU'
+  if (typeof document !== 'undefined') document.documentElement.lang = l
+  for (const fn of listeners) fn(l)
 }
 
 /** Короткие имена для кода и шаблонов: t — частое имя переменной трека, поэтому с $ */

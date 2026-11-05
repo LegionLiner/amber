@@ -15,27 +15,65 @@ export const CHRON_TABS = ['overview', 'diary', 'eras', 'contexts', 'recap'] as 
 export const TABBED = ['library', 'top', 'chronicle'] as const
 export type TabbedSection = (typeof TABBED)[number]
 export const SECTION_TITLES: Record<TabbedSection, string> = {
-  library: $t('Медиатека'),
-  top: $t('Топ'),
-  chronicle: $t('Хроника'),
+  get library() {
+    return $t('Медиатека')
+  },
+  get top() {
+    return $t('Топ')
+  },
+  get chronicle() {
+    return $t('Хроника')
+  },
 }
 export const TAB_LABELS: Record<string, string> = {
-  tracks: $t('Треки'),
-  playlists: $t('Плейлисты'),
-  albums: $t('Альбомы'),
-  artists: $t('Исполнители'),
-  folders: $t('Папки'),
-  genres: $t('Жанры'),
-  favorites: $t('Избранное'),
-  rank: $t('Мой рейтинг'),
-  duels: $t('Дуэли'),
-  charts: $t('Чарты'),
-  rate: $t('Оценить'),
-  overview: $t('Обзор'),
-  diary: $t('Дневник'),
-  eras: $t('Эпохи'),
-  contexts: $t('Контексты'),
-  recap: $t('Итоги'),
+  get tracks() {
+    return $t('Треки')
+  },
+  get playlists() {
+    return $t('Плейлисты')
+  },
+  get albums() {
+    return $t('Альбомы')
+  },
+  get artists() {
+    return $t('Исполнители')
+  },
+  get folders() {
+    return $t('Папки')
+  },
+  get genres() {
+    return $t('Жанры')
+  },
+  get favorites() {
+    return $t('Избранное')
+  },
+  get rank() {
+    return $t('Мой рейтинг')
+  },
+  get duels() {
+    return $t('Дуэли')
+  },
+  get charts() {
+    return $t('Чарты')
+  },
+  get rate() {
+    return $t('Оценить')
+  },
+  get overview() {
+    return $t('Обзор')
+  },
+  get diary() {
+    return $t('Дневник')
+  },
+  get eras() {
+    return $t('Эпохи')
+  },
+  get contexts() {
+    return $t('Контексты')
+  },
+  get recap() {
+    return $t('Итоги')
+  },
 }
 export const SECTION_TABS: Record<TabbedSection, readonly string[]> = {
   library: LIB_SECTIONS,

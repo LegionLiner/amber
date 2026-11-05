@@ -20,11 +20,21 @@ export interface MixTransition {
 export const DEFAULT_MIX_TRANSITION: MixTransition = { type: 'crossfade', durationMs: 8000, curve: 'equalPower' }
 
 export const TRANSITION_LABEL: Record<TransitionType, string> = {
-  gapless: $t('Встык'),
-  crossfade: $t('Кроссфейд'),
-  overlay: $t('Наложение'),
-  fadeOutIn: $t('Затухание'),
-  cut: $t('Резко'),
+  get gapless() {
+    return $t('Встык')
+  },
+  get crossfade() {
+    return $t('Кроссфейд')
+  },
+  get overlay() {
+    return $t('Наложение')
+  },
+  get fadeOutIn() {
+    return $t('Затухание')
+  },
+  get cut() {
+    return $t('Резко')
+  },
 }
 
 export function parseTransition(json: string | null): MixTransition | null {

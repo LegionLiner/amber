@@ -15,14 +15,84 @@ export interface EffectDef {
 }
 
 export const EFFECTS: EffectDef[] = [
-  { id: 'echo', label: $t('Эхо'), hint: $t('повтор через треть секунды'), initial: 0.5 },
-  { id: 'reverb', label: $t('Зал'), hint: $t('реверберация, как в большом помещении'), initial: 0.5 },
-  { id: 'bass', label: $t('Бас'), hint: $t('низы плотнее'), initial: 0.5 },
-  { id: 'wide', label: $t('Шире'), hint: $t('стерео раздвигается'), initial: 0.6 },
-  { id: 'orbit', label: '8D', hint: $t('звук ходит вокруг головы, в наушниках'), initial: 0.8 },
-  { id: 'wall', label: $t('За стеной'), hint: $t('как музыка у соседей'), initial: 0.7 },
-  { id: 'radio', label: $t('Радио'), hint: $t('старый приёмник'), initial: 0.8 },
-  { id: 'karaoke', label: $t('Караоке'), hint: $t('голос тише — если он в центре микса'), initial: 0.9 },
+  {
+    id: 'echo',
+    get label() {
+      return $t('Эхо')
+    },
+    get hint() {
+      return $t('повтор через треть секунды')
+    },
+    initial: 0.5,
+  },
+  {
+    id: 'reverb',
+    get label() {
+      return $t('Зал')
+    },
+    get hint() {
+      return $t('реверберация, как в большом помещении')
+    },
+    initial: 0.5,
+  },
+  {
+    id: 'bass',
+    get label() {
+      return $t('Бас')
+    },
+    get hint() {
+      return $t('низы плотнее')
+    },
+    initial: 0.5,
+  },
+  {
+    id: 'wide',
+    get label() {
+      return $t('Шире')
+    },
+    get hint() {
+      return $t('стерео раздвигается')
+    },
+    initial: 0.6,
+  },
+  {
+    id: 'orbit',
+    label: '8D',
+    get hint() {
+      return $t('звук ходит вокруг головы, в наушниках')
+    },
+    initial: 0.8,
+  },
+  {
+    id: 'wall',
+    get label() {
+      return $t('За стеной')
+    },
+    get hint() {
+      return $t('как музыка у соседей')
+    },
+    initial: 0.7,
+  },
+  {
+    id: 'radio',
+    get label() {
+      return $t('Радио')
+    },
+    get hint() {
+      return $t('старый приёмник')
+    },
+    initial: 0.8,
+  },
+  {
+    id: 'karaoke',
+    get label() {
+      return $t('Караоке')
+    },
+    get hint() {
+      return $t('голос тише — если он в центре микса')
+    },
+    initial: 0.9,
+  },
 ]
 
 /** Только включённые эффекты, сила округлена до сотых */

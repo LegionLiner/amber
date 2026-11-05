@@ -12,11 +12,51 @@ export type Rnd = () => number
 export type ShuffleKind = 'smart' | 'normal' | 'favorites' | 'fresh' | 'fair'
 
 export const SHUFFLE_KINDS: { id: ShuffleKind; label: string; hint: string }[] = [
-  { id: 'smart', label: $t('Умное'), hint: $t('Чаще любимое, реже недавнее и пропускаемое') },
-  { id: 'normal', label: $t('Обычное'), hint: $t('Все треки на равных') },
-  { id: 'favorites', label: $t('Любимое'), hint: $t('Избранное и высокие оценки впереди') },
-  { id: 'fresh', label: $t('Забытое'), hint: $t('Давно не звучавшее и почти не игравшее') },
-  { id: 'fair', label: $t('По кругу'), hint: $t('Каждый трек прозвучит, прежде чем повторится') },
+  {
+    id: 'smart',
+    get label() {
+      return $t('Умное')
+    },
+    get hint() {
+      return $t('Чаще любимое, реже недавнее и пропускаемое')
+    },
+  },
+  {
+    id: 'normal',
+    get label() {
+      return $t('Обычное')
+    },
+    get hint() {
+      return $t('Все треки на равных')
+    },
+  },
+  {
+    id: 'favorites',
+    get label() {
+      return $t('Любимое')
+    },
+    get hint() {
+      return $t('Избранное и высокие оценки впереди')
+    },
+  },
+  {
+    id: 'fresh',
+    get label() {
+      return $t('Забытое')
+    },
+    get hint() {
+      return $t('Давно не звучавшее и почти не игравшее')
+    },
+  },
+  {
+    id: 'fair',
+    get label() {
+      return $t('По кругу')
+    },
+    get hint() {
+      return $t('Каждый трек прозвучит, прежде чем повторится')
+    },
+  },
 ]
 
 export function mulberry32(seed: number): Rnd {

@@ -19,7 +19,7 @@ import { useFileSync } from '@/stores/filesync'
 import { isDesktop } from '@/native/desktop/bridge'
 import { formatDate } from '@/domain/format'
 import type { DbRecovery } from '@/native/types'
-import { LOCALE, $t, lang } from '@/i18n'
+import { LOCALE, $t, lang, onLangChange } from '@/i18n'
 
 /**
  * Запуск приложения:
@@ -42,6 +42,8 @@ export async function boot(): Promise<void> {
   if (info.dbRecovery) useUi().toast(recoveryText(info.dbRecovery), undefined, 15_000)
 
   await MusicCore.configure({ counting: settings.s.counting, lang })
+  // Язык сменили на ходу — уведомление, виджет и ошибки движка тоже на новом
+  onLangChange((l) => void MusicCore.configure({ counting: settings.s.counting, lang: l }).catch(() => undefined))
   watch(
     () => settings.s.counting,
     (counting) => void MusicCore.configure({ counting }),

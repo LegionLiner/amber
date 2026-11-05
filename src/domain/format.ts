@@ -1,14 +1,21 @@
 /** Форматирование чисел, времени, дат и окончаний — на языке интерфейса (i18n) */
-import { isEn, LOCALE, t, tp } from '@/i18n'
+import { isEn, LOCALE, onLangChange, t, tp } from '@/i18n'
 
-const pr = new Intl.PluralRules(isEn ? 'en' : 'ru')
+// Правила форм числа — на каждый язык одни; язык могут сменить на ходу
+const rules = new Map<string, Intl.PluralRules>()
+const pluralRules = () => {
+  const l = isEn ? 'en' : 'ru'
+  let r = rules.get(l)
+  if (!r) rules.set(l, (r = new Intl.PluralRules(l)))
+  return r
+}
 
 /**
  * plural(5, ['трек', 'трека', 'треков']) → 'треков'. Формы — как в русском (одна, несколько, много);
  * в английском «одна» — для 1, остальные числа берут последнюю форму
  */
 export function plural(n: number, forms: [one: string, few: string, many: string]): string {
-  const rule = pr.select(n)
+  const rule = pluralRules().select(n)
   if (rule === 'one') return forms[0]
   if (rule === 'few') return forms[1]
   return forms[2]
@@ -29,19 +36,17 @@ export function formatDuration(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
-const H = isEn ? 'h' : 'ч'
-const MIN = isEn ? 'min' : 'мин'
-const SEC = isEn ? 's' : 'с'
+const unit = () => (isEn ? { h: 'h', min: 'min', sec: 's' } : { h: 'ч', min: 'мин', sec: 'с' })
 
 /** 41 ч 12 мин, 25 мин, 40 с (41 h 12 min) */
 export function formatListen(ms: number): string {
   const min = Math.round(ms / 60000)
-  if (ms <= 0) return `0 ${MIN}`
-  if (min < 1) return `${Math.round(ms / 1000)} ${SEC}`
+  if (ms <= 0) return `0 ${unit().min}`
+  if (min < 1) return `${Math.round(ms / 1000)} ${unit().sec}`
   const h = Math.floor(min / 60)
   const m = min % 60
-  if (h === 0) return `${m} ${MIN}`
-  return m ? `${h} ${H} ${m} ${MIN}` : `${h} ${H}`
+  if (h === 0) return `${m} ${unit().min}`
+  return m ? `${h} ${unit().h} ${m} ${unit().min}` : `${h} ${unit().h}`
 }
 
 /* ---------------- месяцы и даты ---------------- */
@@ -92,10 +97,16 @@ const SHORT_RU = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', '�
 const SHORT_GEN_RU = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
 const SHORT_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-/** Названия месяцев с большой буквы: «Октябрь», «October» */
-export const MONTHS = isEn ? MONTHS_EN : MONTHS_RU
+/** Названия месяцев с большой буквы: «Октябрь», «October» (массив тот же, содержимое — на текущем языке) */
+export const MONTHS: string[] = []
 /** Короткие: «окт», «Oct» */
-export const MONTHS_SHORT = isEn ? SHORT_EN : SHORT_RU
+export const MONTHS_SHORT: string[] = []
+function fillMonths() {
+  MONTHS.splice(0, 12, ...(isEn ? MONTHS_EN : MONTHS_RU))
+  MONTHS_SHORT.splice(0, 12, ...(isEn ? SHORT_EN : SHORT_RU))
+}
+fillMonths()
+onLangChange(fillMonths)
 
 /** «12 октября» / «October 12» (с годом — «12 октября 2026» / «October 12, 2026») */
 export function dayMonth(d: Date, withYear = false): string {

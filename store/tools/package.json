@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "description": "Картинки для Google Play: съёмка, компоновка, значки (см. store/README.md)",
+  "type": "module",
+  "devDependencies": {
+    "puppeteer-core": "24.43.1"
+  }
+}

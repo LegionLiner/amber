@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Amber — кадры для Google Play</title>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  /*
+   * Шаблон картинок для Google Play: заголовок с фишкой, подпись и устройство со скриншотом.
+   * store/tools/compose.mjs вызывает render({...}) и снимает #shot нужного размера.
+   */
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #000; }
+  #shot {
+    position: relative; overflow: hidden; color: #f5f1ea;
+    font-family: 'Onest', system-ui, sans-serif;
+    background: #0e0d0c;
+  }
+  .glow { position: absolute; inset: 0; }
+  .glow i { position: absolute; border-radius: 50%; filter: blur(0); }
+  .grain { position: absolute; inset: 0; opacity: .06; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+  .text { position: absolute; left: 0; right: 0; text-align: center; padding: 0 7%; }
+  .kicker { display: inline-block; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #ffb23e; }
+  h1 { font-family: 'Unbounded', system-ui, sans-serif; font-weight: 700; letter-spacing: -0.035em; line-height: 1.05; margin-top: .3em; text-wrap: balance; }
+  h1 em { font-style: normal; background: linear-gradient(100deg, #ffd27a, #ffb23e 40%, #e8681e); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  p.sub { color: #c9bfb1; line-height: 1.35; margin-top: .55em; text-wrap: balance; }
+  .device { position: absolute; left: 50%; transform: translateX(-50%); background: #050505; box-shadow: 0 0 0 2px #2b2722, 0 60px 120px -30px rgba(0,0,0,.9), 0 0 200px -40px rgba(255,160,50,.35); }
+  .device img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .device .scr { width: 100%; height: 100%; overflow: hidden; }
+  .art { position: absolute; left: 50%; transform: translateX(-50%); }
+</style>
+</head>
+<body>
+<div id="shot"></div>
+<script>
+  /**
+   * opts: { w, h, kicker, title (можно <em>), sub, img (путь к скриншоту), device: 'phone' | 'tablet' | 'none',
+   *         glow: [цвет, цвет], art (HTML вместо устройства) }
+   */
+  window.render = function (o) {
+    const s = document.getElementById('shot')
+    s.style.width = o.w + 'px'
+    s.style.height = o.h + 'px'
+    const u = o.w / 1080 // единица масштаба: макет задан для ширины 1080
+    const [g1, g2] = o.glow || ['#ff9f3a', '#8e6cf0']
+    const textTop = Math.round(o.h * 0.05)
+    const titleSize = Math.round(76 * u)
+    s.innerHTML = `
+      <div class="glow">
+        <i style="width:${1100 * u}px;height:${1100 * u}px;left:${-420 * u}px;top:${-380 * u}px;background:radial-gradient(circle, ${g1}55 0, transparent 62%)"></i>
+        <i style="width:${1200 * u}px;height:${1200 * u}px;right:${-560 * u}px;top:${o.h * 0.35}px;background:radial-gradient(circle, ${g2}44 0, transparent 60%)"></i>
+      </div>
+      <div class="grain"></div>
+      <div class="text" style="top:${textTop}px">
+        <span class="kicker" style="font-size:${Math.round(26 * u)}px">${o.kicker}</span>
+        <h1 style="font-size:${titleSize}px">${o.title}</h1>
+        <p class="sub" style="font-size:${Math.round(36 * u)}px">${o.sub}</p>
+      </div>`
+    // Устройство и картинка встают под текст — по его настоящей высоте
+    // Не выше общей линии — чтобы в карусели магазина устройства на всех кадрах были одного размера
+    const below = Math.max(Math.round(o.h * 0.255), Math.round(s.querySelector('.text').getBoundingClientRect().bottom - s.getBoundingClientRect().top + 60 * u))
+    const bottom = Math.round(48 * u)
+    if (o.device && o.device !== 'none') {
+      const tablet = o.device === 'tablet'
+      const ratio = o.ratio // высота/ширина скриншота
+      const pad = Math.round((tablet ? 18 : 12) * u)
+      const r = Math.round((tablet ? 44 : 64) * u)
+      const maxH = o.h - below - bottom
+      let width = Math.round(o.w * (tablet ? 0.82 : 0.66))
+      if (width * ratio + 2 * pad > maxH) width = Math.round((maxH - 2 * pad) / ratio)
+      s.insertAdjacentHTML('beforeend', `<div class="device" style="top:${below}px;width:${width + pad * 2}px;height:${Math.round(width * ratio) + pad * 2}px;padding:${pad}px;border-radius:${r}px">
+        <div class="scr" style="border-radius:${r - pad}px"><img src="${o.img}"></div></div>`)
+    }
+    if (o.art) {
+      s.insertAdjacentHTML('beforeend', `<div class="art" style="top:${below}px;bottom:${bottom}px;width:${Math.round(o.w * 0.88)}px;font-size:${u}px">${o.art}</div>`)
+    }
+  }
+</script>
+</body>
+</html>

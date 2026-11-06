@@ -1,29 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Янтарная капля с вкраплением: янтарь хранит мгновения, приложение хранит историю музыки -->
+<!-- Знак Amber «A-волна»: буква A, перекладина которой — звуковая волна. Исходник — store/src/logos.html (#e-monogram), там сетка 512 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M54,25 C69,25 81,37 81,53 C81,69 69,82 54,82 C39,82 27,69 27,53 C27,37 39,25 54,25 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="47"
-                android:centerY="44"
-                android:gradientRadius="40"
-                android:startColor="#FFE2A0"
-                android:centerColor="#FFB23E"
-                android:endColor="#D9541F" />
-        </aapt:attr>
-    </path>
-    <path
-        android:fillColor="#5A2A0F"
-        android:fillAlpha="0.55"
-        android:pathData="M58,58 C60,55 65,55 66,58 C67,61 63,64 60,63 C58,62.5 57,60 58,58 Z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.42"
-        android:pathData="M40,40 C42,35 48,32 53,33 C50,36 46,40 44,45 C42,45 39,43 40,40 Z" />
+    <group
+        android:translateX="22"
+        android:translateY="21.75"
+        android:scaleX="0.125"
+        android:scaleY="0.125">
+        <path
+            android:pathData="M128,412 L256,104 L384,412"
+            android:strokeWidth="58"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="128"
+                    android:startY="104"
+                    android:endX="384"
+                    android:endY="412"
+                    android:startColor="#FFFFD27A"
+                    android:centerColor="#FFFFB23E"
+                    android:endColor="#FFE8681E" />
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M166,318 L200,318 L220,284 L244,346 L268,272 L290,336 L310,318 L346,318"
+            android:strokeColor="#FFFFF3DF"
+            android:strokeWidth="18"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
 </vector>

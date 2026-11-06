@@ -24,6 +24,9 @@ android/keystore.properties
 !.vscode/extensions.json
 .idea
 
+# картинки для магазина: сырые скриншоты пересобираются (store/tools/shots.mjs)
+store/raw/
+
 # компьютерная версия: сборка и установщики
 desktop/app/
 release/

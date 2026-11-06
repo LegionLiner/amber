@@ -10,9 +10,9 @@
             <gradient
                 android:type="radial"
                 android:centerX="54"
-                android:centerY="50"
-                android:gradientRadius="80"
-                android:startColor="#2A1D12"
+                android:centerY="58"
+                android:gradientRadius="58"
+                android:startColor="#4A3018"
                 android:endColor="#0E0D0C" />
         </aapt:attr>
     </path>

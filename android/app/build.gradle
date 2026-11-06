@@ -1,6 +1,23 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
+// Ключ релиза: из android/keystore.properties, иначе из переменных окружения
+def releaseKey = [:]
+def keyProps = rootProject.file('keystore.properties')
+if (keyProps.exists()) {
+    def p = new Properties()
+    keyProps.withInputStream { p.load(it) }
+    releaseKey.store = rootProject.file(p.getProperty('storeFile')).absolutePath
+    releaseKey.storePassword = p.getProperty('storePassword')
+    releaseKey.alias = p.getProperty('keyAlias')
+    releaseKey.keyPassword = p.getProperty('keyPassword')
+} else if (System.getenv('YANTAR_KEYSTORE') != null) {
+    releaseKey.store = System.getenv('YANTAR_KEYSTORE')
+    releaseKey.storePassword = System.getenv('YANTAR_KEYSTORE_PASSWORD')
+    releaseKey.alias = System.getenv('YANTAR_KEY_ALIAS')
+    releaseKey.keyPassword = System.getenv('YANTAR_KEY_PASSWORD')
+}
+
 android {
     namespace = "app.yantar.player"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -10,7 +27,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Код версии растёт со временем сборки: новые APK ставятся поверх старых без удаления
         versionCode Integer.parseInt(new java.text.SimpleDateFormat('yyMMddHH').format(new Date()))
-        versionName "0.12.1"
+        versionName "0.12.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -27,13 +44,14 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Ключ загрузки для Google Play: android/keystore.properties (создаёт android/make-upload-key.ps1,
+        // в репозиторий не попадает) или переменные окружения YANTAR_KEYSTORE… (для CI)
         release {
-            def ks = System.getenv('YANTAR_KEYSTORE')
-            if (ks != null && new File(ks).exists()) {
-                storeFile file(ks)
-                storePassword System.getenv('YANTAR_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('YANTAR_KEY_ALIAS')
-                keyPassword System.getenv('YANTAR_KEY_PASSWORD')
+            if (releaseKey.store != null && new File(releaseKey.store).exists()) {
+                storeFile file(releaseKey.store)
+                storePassword releaseKey.storePassword
+                keyAlias releaseKey.alias
+                keyPassword releaseKey.keyPassword
             }
         }
     }
@@ -42,7 +60,7 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            if (System.getenv('YANTAR_KEYSTORE') != null) signingConfig signingConfigs.release
+            if (releaseKey.store != null) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

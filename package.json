@@ -1,7 +1,7 @@
 {
   "name": "yantar",
   "private": true,
-  "version": "0.12.1",
+  "version": "0.12.2",
   "description": "Amber — личный офлайн-плеер для Android и компьютера",
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "sync": "npm run build && cap sync android",
     "apk": "npm run sync && cd android && gradlew.bat assembleDebug",
+    "aab": "npm run sync && cd android && gradlew.bat bundleRelease",
     "site": "node site/pack.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -173,7 +173,7 @@
   @media (max-width: 560px) { .f-cal, .f-recap { display: none; } .f-sync { right: 50%; transform: translateX(50%); bottom: -6px; } }
 
   /* ---------- разделы ---------- */
-  section { padding: 76px 0; }
+  section { padding: 76px 0; overflow-x: clip; }
   .sec-head { max-width: 680px; margin-bottom: 34px; }
   .sec-head h2 { font: 700 clamp(26px, 3.4vw, 38px)/1.12 var(--f-display); letter-spacing: -0.03em; margin: 0 0 12px; }
   .sec-head p { color: var(--ink-2); font-size: 17px; margin: 0; }
@@ -239,6 +239,127 @@
   footer { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 14px; }
   footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
   footer .sp { margin-left: auto; }
+
+  /* ---------- настоящий скриншот в телефоне первого экрана (site/img/hero-phone.png) ---------- */
+  .screen .real { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; border-radius: 34px; }
+
+  /* ---------- слоты скриншотов: пока картинки нет — подсказка, какую положить ---------- */
+  .slot { position: relative; margin: 0; background: var(--bg-2); overflow: hidden; }
+  .slot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .slot.empty { display: grid; place-items: center; background: repeating-linear-gradient(135deg, var(--card) 0 14px, var(--bg-2) 14px 28px); }
+  .slot.empty::after { content: attr(data-hint); max-width: 80%; text-align: center; color: var(--ink-3); font: 600 12.5px/1.4 var(--f-body); padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--bg); }
+  .slot.wide { aspect-ratio: 16 / 10; }
+  .slot.tall { aspect-ratio: 9 / 19.5; border-radius: 22px; }
+
+  .pc-frame { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: var(--card); box-shadow: 0 40px 80px -30px rgba(0,0,0,0.8), 0 0 140px -50px rgba(255,160,50,0.35); }
+  .pc-bar { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-bottom: 1px solid var(--line); color: var(--ink-3); font-size: 12px; }
+  .pc-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--card-2); }
+  .pc-bar span { margin-left: 8px; }
+  .phones { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; margin-top: 28px; }
+  @media (max-width: 920px) { .phones { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; margin-right: -20px; } .phones .ph { flex: 0 0 44%; scroll-snap-align: start; } }
+  @media (max-width: 560px) { .phones .ph { flex-basis: 62%; } }
+  .ph { margin: 0; }
+  .ph-frame { padding: 6px; border-radius: 28px; background: #050505; box-shadow: 0 0 0 1.5px #2b2722, 0 24px 40px -18px rgba(0,0,0,0.8); }
+  .ph figcaption { text-align: center; margin-top: 10px; color: var(--ink-2); font-size: 14px; font-weight: 600; }
+
+  /* ---------- витрина возможностей ---------- */
+  .show { display: grid; grid-template-columns: 1fr 1.1fr; gap: 48px; align-items: center; margin: 0 0 84px; }
+  .show.flip .show-text { order: 2; }
+  @media (max-width: 920px) { .show { grid-template-columns: 1fr; gap: 26px; margin-bottom: 64px; } .show.flip .show-text { order: 0; } }
+  .tag { display: inline-block; padding: 5px 11px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 13px; font-weight: 600; }
+  .show h3 { font: 700 clamp(22px, 2.6vw, 30px)/1.15 var(--f-display); letter-spacing: -0.025em; margin: 14px 0 12px; }
+  .show p { color: var(--ink-2); font-size: 16.5px; margin: 0 0 10px; }
+  .show .try { color: var(--amber); font-size: 14.5px; font-weight: 600; }
+  .art-card { padding: 20px; border-radius: 24px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 30px 60px -30px rgba(0,0,0,0.7); }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+  .tiles div { padding: 12px 14px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line); }
+  .tiles small { display: block; color: var(--ink-3); font-size: 11.5px; }
+  .tiles b { font: 700 22px/1.2 var(--f-display); letter-spacing: -0.03em; }
+
+  /* Итоги: три истории веером */
+  .stories { position: relative; height: 420px; }
+  .st { position: absolute; top: 20px; width: 210px; aspect-ratio: 9 / 16; border-radius: 22px; padding: 18px; color: #fff; display: flex; flex-direction: column; gap: 6px; overflow: hidden; box-shadow: 0 30px 50px -20px rgba(0,0,0,0.8); }
+  .st small { font-size: 10px; letter-spacing: .16em; opacity: .75; font-weight: 600; }
+  .st b { font: 700 19px/1.1 var(--f-display); letter-spacing: -0.02em; }
+  .st b.huge { font-size: 40px; letter-spacing: -0.05em; line-height: .95; margin-top: auto; }
+  .st > span { font-size: 12px; opacity: .85; }
+  .st1 { left: 0; transform: rotate(-8deg); background: radial-gradient(80% 60% at 20% 15%, #e98a3a, transparent 70%), linear-gradient(165deg, #6a2c10, #170a05); }
+  .st2 { left: 50%; width: 184px; margin-left: -92px; top: 0; z-index: 2; background: radial-gradient(80% 60% at 80% 10%, #c34a5a, transparent 70%), linear-gradient(165deg, #561a2a, #12060a); }
+  .st3 { right: 0; transform: rotate(8deg); background: radial-gradient(80% 60% at 30% 20%, #5b7fd6, transparent 70%), linear-gradient(165deg, #1b2a5a, #070b18); }
+  .pod { display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 6px; align-items: end; margin-top: 10px; }
+  .pod i { aspect-ratio: 1; border-radius: 9px; box-shadow: 0 8px 16px -8px rgba(0,0,0,0.6); }
+  .pod .c1 { background: linear-gradient(135deg, #ffd27a, #e8681e); margin-bottom: 8px; }
+  .pod .c2 { background: linear-gradient(135deg, #8fb4d9, #101b3a); }
+  .pod .c3 { background: linear-gradient(135deg, #62b38e, #0f2e24); }
+  .rows { display: grid; gap: 7px; margin-top: 12px; }
+  .rows i { height: 9px; border-radius: 5px; background: rgba(255,255,255,0.22); }
+  .rows i:nth-child(2) { width: 85%; } .rows i:nth-child(3) { width: 70%; } .rows i:nth-child(4) { width: 78%; }
+  .hrs { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; align-items: end; height: 70px; margin-top: 10px; }
+  .hrs i { border-radius: 2px; background: rgba(255,255,255,0.35); }
+  .hrs i.pk { background: #fff; }
+  @media (max-width: 560px) { .stories { height: 360px; } .st { width: 160px; } .st2 { width: 140px; margin-left: -70px; } .st b.huge { font-size: 30px; } }
+
+  /* Звук: эффекты, которые можно трогать */
+  .fx-head { margin-bottom: 12px; font-size: 15px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .presets button, .effects button { border: 1px solid var(--line); background: var(--bg-2); color: var(--ink-2); font: 600 13px/1 var(--f-body); padding: 9px 13px; border-radius: 999px; cursor: pointer; transition: background .15s, color .15s; }
+  .presets button.on { background: var(--amber); color: #1a1206; border-color: transparent; }
+  .speed { display: grid; grid-template-columns: auto 1fr 52px; gap: 12px; align-items: center; font-size: 13.5px; color: var(--ink-2); margin-bottom: 14px; }
+  .speed output { text-align: right; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .art-card input[type='range'] { width: 100%; accent-color: var(--amber); }
+  .effects { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 460px) { .effects { grid-template-columns: 1fr; } }
+  .eff { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line); cursor: pointer; transition: border-color .15s, background .15s; }
+  .eff b { font-size: 14px; }
+  .eff small { grid-column: 1 / -1; color: var(--ink-3); font-size: 11.5px; line-height: 1.3; }
+  .eff .sw { width: 30px; height: 18px; border-radius: 9px; background: var(--card-2); position: relative; transition: background .15s; }
+  .eff .sw::after { content: ''; position: absolute; left: 3px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--ink-3); transition: transform .15s, background .15s; }
+  .eff input { grid-column: 1 / -1; display: none; }
+  .eff.on { border-color: rgba(255,178,62,0.45); background: linear-gradient(135deg, rgba(255,178,62,0.10), var(--bg-2)); }
+  .eff.on .sw { background: var(--amber); }
+  .eff.on .sw::after { transform: translateX(12px); background: #1a1206; }
+  .eff.on input { display: block; }
+
+  /* Миксы */
+  .mix { position: relative; overflow: hidden; }
+  .lane { position: relative; height: 54px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); margin-bottom: 10px; overflow: hidden; display: flex; align-items: center; }
+  .lane span { position: absolute; left: 10px; top: 6px; font: 700 12px/1 var(--f-display); color: var(--ink-3); }
+  .lane .wav { position: absolute; top: 8px; bottom: 8px; display: flex; align-items: center; gap: 2px; }
+  .lane.a .wav { left: 6%; right: 32%; }
+  .lane.b .wav { left: 52%; right: 4%; }
+  .lane .wav b { flex: 1; border-radius: 2px; background: rgba(255,178,62,0.75); }
+  .lane.b .wav b { background: rgba(143,180,217,0.75); }
+  .curve { position: absolute; left: 52%; width: 16%; top: 20px; height: 108px; pointer-events: none; opacity: .9; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chips span { padding: 8px 12px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-2); font-size: 13px; font-weight: 600; }
+  .chips span.on { background: var(--amber); color: #1a1206; border-color: transparent; }
+
+  /* Маленькие картинки в карточках */
+  .mini { height: 120px; border-radius: 16px; margin-bottom: 16px; background: var(--bg-2); border: 1px solid var(--line); position: relative; overflow: hidden; }
+  .stage-mini { background: #0a0705; }
+  .stage-mini .g1, .stage-mini .g2 { position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%; filter: blur(18px); opacity: .7; animation: breathe 4s ease-in-out infinite alternate; }
+  .stage-mini .g1 { left: -10%; top: -30%; background: #e98a3a; }
+  .stage-mini .g2 { right: -15%; bottom: -40%; background: #8e6cf0; animation-delay: -2s; }
+  .stage-mini .cv { position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 12px; background: linear-gradient(135deg, #ffd27a, #e8681e); box-shadow: 0 14px 30px -10px rgba(0,0,0,0.8); }
+  @keyframes breathe { to { transform: scale(1.25); opacity: .9; } }
+  .lyr { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 0 16px; font-size: 13.5px; color: var(--ink-3); }
+  .lyr b { color: var(--ink); font-size: 16px; }
+  .duel { display: flex; align-items: center; justify-content: center; gap: 14px; }
+  .duel .c { width: 70px; height: 70px; border-radius: 12px; box-shadow: 0 10px 20px -10px rgba(0,0,0,0.7); }
+  .duel .a { background: linear-gradient(135deg, #c9786e, #2b1b2e); transform: rotate(-5deg); }
+  .duel .b { background: linear-gradient(135deg, #62b38e, #0f2e24); transform: rotate(5deg); }
+  .duel b { font: 700 16px/1 var(--f-display); color: var(--amber); }
+  .voice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .voice .bubble { padding: 7px 12px; border-radius: 12px 12px 12px 4px; background: var(--amber); color: #1a1206; font-weight: 700; font-size: 13.5px; }
+  .voice .bars { display: flex; gap: 3px; align-items: center; height: 30px; }
+  .voice .bars i { width: 4px; border-radius: 2px; background: var(--ink-3); animation: talk 1.1s ease-in-out infinite alternate; }
+  @keyframes talk { from { transform: scaleY(0.3); } to { transform: scaleY(1); } }
+  .smart { display: flex; flex-wrap: wrap; align-content: center; gap: 6px; padding: 0 14px; }
+  .smart > span { padding: 6px 10px; border-radius: 8px; background: var(--card-2); font-size: 12.5px; color: var(--ink-2); }
+  .smart .out { background: var(--amber-soft); color: var(--amber); font-weight: 700; }
+  .private { display: grid; place-items: center; color: var(--good); background: radial-gradient(circle at 50% 50%, rgba(79,192,141,0.15), transparent 60%), var(--bg-2); }
+  .private svg { width: 52px; height: 52px; }
+  @media (prefers-reduced-motion: reduce) { .stage-mini i, .voice .bars i { animation: none; } }
 </style>
 </head>
 <body>
@@ -247,6 +368,7 @@
   <div class="wrap">
     <a class="logo" href="#"><i aria-hidden="true"></i>Amber</a>
     <nav class="nav">
+      <a href="#screens"><span lang="ru">Скриншоты</span><span lang="en">Screens</span></a>
       <a href="#features"><span lang="ru">Возможности</span><span lang="en">Features</span></a>
       <a href="#wifi"><span lang="ru">Телефон и ПК</span><span lang="en">Phone &amp; PC</span></a>
       <a href="#download"><span lang="ru">Скачать</span><span lang="en">Download</span></a>
@@ -307,6 +429,7 @@
         </div>
         <div class="phone">
           <div class="screen">
+            <img class="real" src="img/hero-phone.png" alt="" decoding="async" onerror="this.remove()">
             <div class="from"><span lang="ru">Играет из</span><span lang="en">Playing from</span><b><span lang="ru">Чаще всего</span><span lang="en">Most played</span></b></div>
             <div class="cover"></div>
             <div class="track">
@@ -333,7 +456,44 @@
     </div>
   </div>
 
-  <!-- ================= возможности ================= -->
+  <!-- ================= как это выглядит: скриншоты (site/img, см. README в конце файла) ================= -->
+  <section id="screens">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2><span lang="ru">Как это выглядит</span><span lang="en">See it in action</span></h2>
+        <p><span lang="ru">Одно приложение на телефоне и компьютере: та же медиатека, та же история, тот же янтарный свет.</span>
+        <span lang="en">One app on your phone and computer: the same library, the same history, the same amber glow.</span></p>
+      </div>
+      <div class="pc-frame">
+        <div class="pc-bar"><i></i><i></i><i></i><span>Amber</span></div>
+        <figure class="slot wide" data-src="img/pc-home.png" data-hint="pc-home.png · 1600×1000 · главная на ПК"></figure>
+      </div>
+      <div class="phones">
+        <figure class="ph">
+          <div class="ph-frame"><div class="slot tall" data-src="img/ph-home.png" data-hint="ph-home.png · главная"></div></div>
+          <figcaption><span lang="ru">Главная</span><span lang="en">Home</span></figcaption>
+        </figure>
+        <figure class="ph">
+          <div class="ph-frame"><div class="slot tall" data-src="img/ph-chronicle.png" data-hint="ph-chronicle.png · хроника"></div></div>
+          <figcaption><span lang="ru">Хроника</span><span lang="en">Chronicle</span></figcaption>
+        </figure>
+        <figure class="ph">
+          <div class="ph-frame"><div class="slot tall" data-src="img/ph-recap.png" data-hint="ph-recap.png · итоги, слайд с топом"></div></div>
+          <figcaption><span lang="ru">Итоги года</span><span lang="en">Year in review</span></figcaption>
+        </figure>
+        <figure class="ph">
+          <div class="ph-frame"><div class="slot tall" data-src="img/ph-sound.png" data-hint="ph-sound.png · скорость и эффекты"></div></div>
+          <figcaption><span lang="ru">Звук и эффекты</span><span lang="en">Sound and effects</span></figcaption>
+        </figure>
+        <figure class="ph">
+          <div class="ph-frame"><div class="slot tall" data-src="img/ph-stage.png" data-hint="ph-stage.png · сцена"></div></div>
+          <figcaption><span lang="ru">Сцена</span><span lang="en">Stage</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= возможности: крупно, с нарисованными сценами ================= -->
   <section id="features">
     <div class="wrap">
       <div class="sec-head">
@@ -341,63 +501,153 @@
         <p><span lang="ru">Обычный плеер просто играет файлы. Amber ещё и записывает, что, когда и как ты слушал, — и превращает это в историю, которую интересно листать.</span>
         <span lang="en">A regular player just plays files. Amber also records what, when and how you listened — and turns it into a story worth scrolling through.</span></p>
       </div>
-      <div class="features">
-        <div class="feat wide">
-          <div>
-            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-            <h3><span lang="ru">Хроника</span><span lang="en">Chronicle</span></h3>
-            <p><span lang="ru">Календарь каждого дня с музыкой, часы, когда ты слушаешь, серии, дневник с настроением, эпохи твоей жизни и их саундтреки. Можно подгрузить историю из Spotify.</span>
-            <span lang="en">A calendar of every day with music, the hours you listen, streaks, a diary with moods, the eras of your life and their soundtracks. You can even import your Spotify history.</span></p>
+
+      <!-- Хроника -->
+      <div class="show">
+        <div class="show-text">
+          <span class="tag"><span lang="ru">Хроника</span><span lang="en">Chronicle</span></span>
+          <h3><span lang="ru">Каждый день с музыкой — в календаре</span><span lang="en">Every day with music, on a calendar</span></h3>
+          <p><span lang="ru">Сколько слушал, в какие часы, серии дней подряд, дневник с настроением и эпохи жизни со своими саундтреками. Можно подгрузить историю из Spotify — она дополнит статистику.</span>
+          <span lang="en">How much you listened, at what hours, streaks of days, a diary with moods and life eras with their own soundtracks. Import your Spotify history to fill in the stats.</span></p>
+        </div>
+        <div class="show-art">
+          <div class="art-card">
+            <div class="tiles">
+              <div><small><span lang="ru">Время</span><span lang="en">Time</span></small><b>38 <span lang="ru">ч</span><span lang="en">h</span></b></div>
+              <div><small><span lang="ru">Прослушивания</span><span lang="en">Plays</span></small><b>612</b></div>
+              <div><small><span lang="ru">Серия</span><span lang="en">Streak</span></small><b>24 <span lang="ru">дня</span><span lang="en">days</span></b></div>
+            </div>
+            <div class="chron"><div class="months" id="big-cal"></div></div>
           </div>
-          <div class="chron" aria-hidden="true"><div class="months" id="big-cal"></div></div>
         </div>
-        <div class="feat">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
-          <h3><span lang="ru">Итоги месяца и года</span><span lang="en">Monthly and yearly recaps</span></h3>
-          <p><span lang="ru">Истории на весь экран: трек периода, топ‑10 по прослушиваниям и по минутам, исполнители, открытия. Любой слайд — картинкой, чтобы поделиться.</span>
-          <span lang="en">Full-screen stories: track of the period, top 10 by plays and by minutes, artists, discoveries. Any slide can be saved as an image to share.</span></p>
+      </div>
+
+      <!-- Итоги -->
+      <div class="show flip">
+        <div class="show-text">
+          <span class="tag"><span lang="ru">Итоги</span><span lang="en">Recaps</span></span>
+          <h3><span lang="ru">Месяц и год — историями на весь экран</span><span lang="en">Your month and year as full-screen stories</span></h3>
+          <p><span lang="ru">Трек периода, топ‑10 по прослушиваниям и по минутам, исполнители, открытия и любимый час. Каждый слайд — в цветах обложки, и любой можно сохранить картинкой, чтобы поделиться.</span>
+          <span lang="en">Track of the period, top 10 by plays and by minutes, artists, discoveries and your favorite hour. Every slide takes the colors of its cover, and any one can be saved as an image to share.</span></p>
         </div>
-        <div class="feat">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></div>
-          <h3><span lang="ru">Рейтинг и дуэли</span><span lang="en">Ratings and duels</span></h3>
-          <p><span lang="ru">Оценки с половинками звёзд и личный топ. Не можешь выбрать между двумя треками — устрой дуэль, места уточнятся сами.</span>
-          <span lang="en">Half-star ratings and a personal top. Can't decide between two tracks? Run a duel and the ranking sorts itself out.</span></p>
+        <div class="show-art">
+          <div class="stories" aria-hidden="true">
+            <div class="st st1">
+              <small><span lang="ru">ВРЕМЯ</span><span lang="en">TIME</span></small>
+              <b class="huge">412 <span lang="ru">ч</span><span lang="en">h</span></b>
+              <span><span lang="ru">музыки за год</span><span lang="en">of music this year</span></span>
+            </div>
+            <div class="st st2">
+              <small><span lang="ru">ТОП-10</span><span lang="en">TOP 10</span></small>
+              <b><span lang="ru">Чаще всего</span><span lang="en">Most played</span></b>
+              <div class="pod"><i class="c2"></i><i class="c1"></i><i class="c3"></i></div>
+              <div class="rows"><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="st st3">
+              <small><span lang="ru">КОГДА</span><span lang="en">WHEN</span></small>
+              <b class="huge">22:00</b>
+              <div class="hrs" id="story-hours"></div>
+            </div>
+          </div>
         </div>
-        <div class="feat">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h10M4 17h6"/><path d="M17 14l3 3-3 3"/><path d="M20 17h-4a2 2 0 01-2-2V7"/></svg></div>
-          <h3><span lang="ru">Умные плейлисты и миксы</span><span lang="en">Smart playlists and mixes</span></h3>
-          <p><span lang="ru">Подборки по условиям, «Моё радио» по похожести, умное перемешивание и миксы со своим переходом на каждом стыке — как у диджея.</span>
-          <span lang="en">Rule-based collections, “My radio” by similarity, smart shuffle and mixes with a custom transition at every joint — like a DJ.</span></p>
+      </div>
+
+      <!-- Звук и эффекты: интерактивно -->
+      <div class="show">
+        <div class="show-text">
+          <span class="tag"><span lang="ru">Звук</span><span lang="en">Sound</span></span>
+          <h3><span lang="ru">Slowed, эхо, «за стеной» — и сила каждого эффекта</span><span lang="en">Slowed, echo, “next door” — with a strength for each effect</span></h3>
+          <p><span lang="ru">Скорость и тон вместе, как на пластинке, или по отдельности. Восемь эффектов, у каждого — своя сила; любимое сочетание сохраняется пресетом и включается одним нажатием. Плюс кроссфейд, одинаковая громкость и эквалайзер с профилем для каждых наушников.</span>
+          <span lang="en">Speed and pitch together, like a record, or separately. Eight effects, each with its own strength; save your favorite combo as a preset and turn it on with one tap. Plus crossfade, loudness normalization and an equalizer with a profile for each pair of headphones.</span></p>
+          <p class="try"><span lang="ru">Попробуй: нажми на эффект и подвинь силу →</span><span lang="en">Try it: tap an effect and drag its strength →</span></p>
         </div>
-        <div class="feat">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 18V6M9 18V9M14 18v-6M19 18V4"/></svg></div>
-          <h3><span lang="ru">Звук</span><span lang="en">Sound</span></h3>
-          <p><span lang="ru">Кроссфейд и альбомы без пауз, одинаковая громкость по LUFS, эквалайзер с профилем для каждых наушников, скорость, тон и эффекты.</span>
-          <span lang="en">Crossfade and gapless albums, loudness normalization by LUFS, an equalizer with a profile for each pair of headphones, speed, pitch and effects.</span></p>
+        <div class="show-art">
+          <div class="art-card fx" id="fx">
+            <div class="fx-head"><b><span lang="ru">Скорость, тон и эффекты</span><span lang="en">Speed, pitch and effects</span></b></div>
+            <div class="presets">
+              <button type="button" data-preset="normal"><span lang="ru">Как есть</span><span lang="en">As is</span></button>
+              <button type="button" data-preset="slowed">Slowed</button>
+              <button type="button" data-preset="slowedReverb">Slowed + reverb</button>
+              <button type="button" data-preset="nightcore">Nightcore</button>
+            </div>
+            <label class="speed">
+              <span><span lang="ru">Скорость</span><span lang="en">Speed</span></span>
+              <input type="range" min="0.5" max="1.5" step="0.05" value="0.85" id="fx-speed">
+              <output id="fx-speed-v">0.85×</output>
+            </label>
+            <div class="effects" id="fx-list"></div>
+          </div>
         </div>
-        <div class="feat">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M5 12h10M5 17h12"/></svg></div>
-          <h3><span lang="ru">Тексты песен</span><span lang="en">Lyrics</span></h3>
-          <p><span lang="ru">Из тегов файла или открытой базы LRCLIB, синхронные строки подсвечиваются под музыку. Можно вставить и подогнать свой текст.</span>
-          <span lang="en">From file tags or the open LRCLIB database, with synced lines that follow the music. You can paste and time your own lyrics too.</span></p>
+      </div>
+
+      <!-- Миксы -->
+      <div class="show flip">
+        <div class="show-text">
+          <span class="tag"><span lang="ru">Миксы</span><span lang="en">Mixes</span></span>
+          <h3><span lang="ru">Переходы между треками, как у диджея</span><span lang="en">Transitions between tracks, like a DJ</span></h3>
+          <p><span lang="ru">Кроссфейд, наложение, затухание или встык — для всех треков или свой на каждом стыке микса. Альбомы играют без пауз, а «Моё радио» само подбирает похожее из твоей музыки.</span>
+          <span lang="en">Crossfade, overlap, fade or gapless — for every track or a custom one at each joint of a mix. Albums play without gaps, and “My radio” picks similar music from your own library.</span></p>
         </div>
+        <div class="show-art">
+          <div class="art-card mix" aria-hidden="true">
+            <div class="lane a"><i class="wav" id="wav-a"></i><span>A</span></div>
+            <div class="lane b"><i class="wav" id="wav-b"></i><span>B</span></div>
+            <svg class="curve" viewBox="0 0 300 80" preserveAspectRatio="none"><path d="M0 8 C 120 8, 160 72, 300 72" stroke="#ffb23e" stroke-width="2.5" fill="none"/><path d="M0 72 C 140 72, 180 8, 300 8" stroke="#8fb4d9" stroke-width="2.5" fill="none" stroke-dasharray="5 5"/></svg>
+            <div class="chips">
+              <span><span lang="ru">Встык</span><span lang="en">Gapless</span></span>
+              <span class="on"><span lang="ru">Кроссфейд</span><span lang="en">Crossfade</span></span>
+              <span><span lang="ru">Наложение</span><span lang="en">Overlap</span></span>
+              <span><span lang="ru">Затухание</span><span lang="en">Fade out</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Остальное — карточками со своими картинками -->
+      <div class="features">
         <div class="feat">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 012-2h3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/><rect x="8" y="8" width="8" height="8" rx="1.5"/></svg></div>
+          <div class="mini stage-mini" aria-hidden="true"><i class="g1"></i><i class="g2"></i><span class="cv"></span></div>
           <h3><span lang="ru">Сцена</span><span lang="en">Stage</span></h3>
-          <p><span lang="ru">Только обложка на весь экран, а вокруг — мягкий свет в цветах обложки, который дышит в такт басам. Телефон можно положить боком.</span>
-          <span lang="en">Just the cover, full screen, surrounded by soft light in the cover's colors that breathes with the bass. Works in landscape too.</span></p>
+          <p><span lang="ru">Только обложка на весь экран, а вокруг — мягкий свет в её цветах, который дышит в такт басам. Телефон можно положить боком.</span>
+          <span lang="en">Just the cover, full screen, with soft light in its colors breathing with the bass. Works in landscape too.</span></p>
         </div>
         <div class="feat">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
-          <h3><span lang="ru">Голосовые команды на ПК</span><span lang="en">Voice commands on PC</span></h3>
-          <p><span lang="ru">«Эмбер, дальше», «Amber, volume down» — по-русски и по-английски. Распознаётся прямо на компьютере, без интернета.</span>
-          <span lang="en">“Amber, next”, “Amber, volume down” — in English and Russian. Recognized right on your computer, offline.</span></p>
+          <div class="mini lyr" aria-hidden="true">
+            <span lang="ru">Ночной проспект уходит вдаль</span><span lang="en">The night avenue runs far away</span>
+            <b><span lang="ru">Горят янтарные огни</span><span lang="en">The amber lights are burning</span></b>
+            <span lang="ru">И город тихо спит</span><span lang="en">And the city softly sleeps</span>
+          </div>
+          <h3><span lang="ru">Тексты песен</span><span lang="en">Lyrics</span></h3>
+          <p><span lang="ru">Из тегов или открытой базы LRCLIB: строки подсвечиваются под музыку. Можно вставить и подогнать свой текст.</span>
+          <span lang="en">From tags or the open LRCLIB database, lines light up with the music. Paste and time your own lyrics too.</span></p>
         </div>
-        <div class="feat full">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <div class="feat">
+          <div class="mini duel" aria-hidden="true"><span class="c a"></span><b>VS</b><span class="c b"></span></div>
+          <h3><span lang="ru">Рейтинг и дуэли</span><span lang="en">Ratings and duels</span></h3>
+          <p><span lang="ru">Оценки с половинками звёзд и личный топ. Не выбрать между двумя треками — устрой дуэль, места уточнятся сами.</span>
+          <span lang="en">Half-star ratings and a personal top. Can't pick between two tracks? Run a duel and the ranking sorts itself out.</span></p>
+        </div>
+        <div class="feat">
+          <div class="mini voice" aria-hidden="true"><span class="bubble">“Amber, next”</span><span class="bars" id="voice-bars"></span></div>
+          <h3><span lang="ru">Голосовые команды на ПК</span><span lang="en">Voice commands on PC</span></h3>
+          <p><span lang="ru">«Эмбер, дальше», «Amber, volume down» — по-русски и по-английски, распознаётся прямо на компьютере, без интернета.</span>
+          <span lang="en">“Amber, next”, “Amber, volume down” — in English and Russian, recognized right on your computer, offline.</span></p>
+        </div>
+        <div class="feat">
+          <div class="mini smart" aria-hidden="true">
+            <span><span lang="ru">Оценка от 4★</span><span lang="en">Rating from 4★</span></span>
+            <span><span lang="ru">звучал за 30 дней</span><span lang="en">played in 30 days</span></span>
+            <span class="out">→ 42 <span lang="ru">трека</span><span lang="en">tracks</span></span>
+          </div>
+          <h3><span lang="ru">Умные плейлисты</span><span lang="en">Smart playlists</span></h3>
+          <p><span lang="ru">Подборки по условиям собираются и обновляются сами. Умное перемешивание: чаще любимое, реже недавнее.</span>
+          <span lang="en">Rule-based collections build and update themselves. Smart shuffle: more favorites, less of the recent.</span></p>
+        </div>
+        <div class="feat">
+          <div class="mini private" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
           <h3><span lang="ru">Только твоё</span><span lang="en">Yours only</span></h3>
-          <p><span lang="ru">Ни рекламы, ни аналитики, ни аккаунтов. Медиатека, история и оценки лежат на твоих устройствах — их можно выгрузить одним файлом.</span>
-          <span lang="en">No ads, no analytics, no accounts. Your library, history and ratings live on your devices — export them as a single file any time.</span></p>
+          <p><span lang="ru">Ни рекламы, ни аналитики, ни аккаунтов. Всё лежит на твоих устройствах и выгружается одним файлом.</span>
+          <span lang="en">No ads, no analytics, no accounts. Everything lives on your devices and exports as a single file.</span></p>
         </div>
       </div>
     </div>
@@ -508,8 +758,8 @@
             <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 2.6v18.8c0 .5.5.8 1 .6l10.4-9.4L5 2c-.5-.2-1 .1-1 .6zM16.6 13.7l2.9 2.6 2.7-1.6c.7-.4.7-1.4 0-1.8l-2.7-1.6-2.9 2.4zM6.3 22.3l9.2-8.3 1.3 1.2-10.5 7.1zM6.3 1.7l10.5 7.1-1.3 1.2z"/></svg></span>
             <span><h3>Google Play</h3><span class="meta"><span lang="ru">Скоро</span><span lang="en">Coming soon</span></span></span>
           </div>
-          <p><span lang="ru">Приложение готовится к публикации в Google Play — тогда обновления будут приходить сами. Пока можно поставить APK отсюда: данные потом не потеряются.</span>
-          <span lang="en">The app is on its way to Google Play — then updates will arrive by themselves. Meanwhile, install the APK from here: your data will carry over.</span></p>
+          <p><span lang="ru">Приложение готовится к публикации в Google Play — тогда обновления будут приходить сами. Пока можно поставить APK отсюда, а при переходе на версию из Google Play данные переносятся бэкапом или через компьютер по Wi‑Fi.</span>
+          <span lang="en">The app is on its way to Google Play — then updates will arrive by themselves. Meanwhile, install the APK from here; when you switch to the Google Play version, bring your data over with a backup or via your computer over Wi‑Fi.</span></p>
           <a class="btn soon" href="#download" id="play-link" aria-disabled="true"><span lang="ru">Скоро в Google Play</span><span lang="en">Soon on Google Play</span></a>
         </div>
       </div>
@@ -598,6 +848,107 @@
       box.appendChild(g)
       big.appendChild(box)
     }
+
+
+    // Скриншоты: картинка из site/img; нет файла — подсказка, какой положить
+    document.querySelectorAll('.slot[data-src]').forEach(function (s) {
+      var img = new Image()
+      img.alt = ''
+      img.loading = 'lazy'
+      img.decoding = 'async'
+      img.onerror = function () {
+        img.remove()
+        s.classList.add('empty')
+      }
+      img.src = s.dataset.src
+      s.appendChild(img)
+    })
+
+    // Итоги: часы суток на истории
+    var hrs = document.getElementById('story-hours')
+    if (hrs) for (var hh = 0; hh < 24; hh++) {
+      var b = document.createElement('i')
+      var v = hh === 22 ? 1 : Math.max(0.06, Math.exp(-Math.pow((hh - 20) / 4, 2)) * 0.75 + rnd() * 0.15 * (hh > 7 ? 1 : 0.2))
+      b.style.height = Math.round(v * 100) + '%'
+      if (hh === 22) b.className = 'pk'
+      hrs.appendChild(b)
+    }
+
+    // Миксы: волны двух треков
+    ;['wav-a', 'wav-b'].forEach(function (id, n) {
+      var w = document.getElementById(id)
+      if (!w) return
+      for (var q = 0; q < 40; q++) {
+        var bar = document.createElement('b')
+        var fade = n === 0 ? Math.min(1, (40 - q) / 14) : Math.min(1, (q + 1) / 14)
+        bar.style.height = Math.round((25 + 70 * Math.abs(Math.sin(q * 0.7 + n))) * fade) + '%'
+        w.appendChild(bar)
+      }
+    })
+
+    // Голос: полоски
+    var vb = document.getElementById('voice-bars')
+    if (vb) for (var z = 0; z < 14; z++) {
+      var vi = document.createElement('i')
+      vi.style.height = 30 + Math.round(70 * Math.abs(Math.sin(z * 1.3))) + '%'
+      vi.style.animationDelay = -z * 0.13 + 's'
+      vb.appendChild(vi)
+    }
+
+    // Звук: эффекты как в приложении — включить, подвинуть силу, пресеты Slowed / Nightcore
+    var FX = [
+      ['echo', 'Эхо', 'Echo', 'повтор через треть секунды', 'a repeat a third of a second later'],
+      ['reverb', 'Зал', 'Hall', 'как в большом помещении', 'like in a large room'],
+      ['bass', 'Бас', 'Bass', 'низы плотнее', 'denser lows'],
+      ['wide', 'Шире', 'Wider', 'стерео раздвигается', 'the stereo spreads out'],
+      ['orbit', '8D', '8D', 'звук ходит вокруг головы', 'sound circles around your head'],
+      ['wall', 'За стеной', 'Next door', 'как музыка у соседей', "like the neighbors' music"],
+      ['radio', 'Радио', 'Radio', 'старый приёмник', 'an old receiver'],
+      ['karaoke', 'Караоке', 'Karaoke', 'голос тише', 'quieter vocals'],
+    ]
+    var list = document.getElementById('fx-list')
+    var fxEls = {}
+    FX.forEach(function (f) {
+      var el = document.createElement('div')
+      el.className = 'eff'
+      el.innerHTML =
+        '<b><span lang="ru">' + f[1] + '</span><span lang="en">' + f[2] + '</span></b><i class="sw"></i>' +
+        '<small><span lang="ru">' + f[3] + '</span><span lang="en">' + f[4] + '</span></small>' +
+        '<input type="range" min="0" max="1" step="0.05" value="0.5" aria-label="' + f[2] + '">'
+      el.addEventListener('click', function (e) {
+        if (e.target.tagName === 'INPUT') return
+        el.classList.toggle('on')
+        markPreset(null)
+      })
+      el.querySelector('input').addEventListener('input', function () { markPreset(null) })
+      list.appendChild(el)
+      fxEls[f[0]] = el
+    })
+    var speed = document.getElementById('fx-speed')
+    var speedV = document.getElementById('fx-speed-v')
+    function showSpeed() { speedV.textContent = Number(speed.value).toFixed(2) + '×' }
+    speed.addEventListener('input', function () { showSpeed(); markPreset(null) })
+    function markPreset(id) {
+      document.querySelectorAll('.presets button').forEach(function (b) { b.classList.toggle('on', b.dataset.preset === id) })
+    }
+    var PRESETS = { normal: [1, {}], slowed: [0.85, {}], slowedReverb: [0.85, { reverb: 0.6 }], nightcore: [1.25, {}] }
+    document.querySelectorAll('.presets button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var p = PRESETS[b.dataset.preset]
+        speed.value = p[0]
+        showSpeed()
+        Object.keys(fxEls).forEach(function (k) {
+          var on = k in p[1]
+          fxEls[k].classList.toggle('on', on)
+          if (on) fxEls[k].querySelector('input').value = p[1][k]
+        })
+        markPreset(b.dataset.preset)
+      })
+    })
+    // Для начала включены «За стеной» и «Зал» — видно, что эффекты сочетаются
+    fxEls.wall.classList.add('on')
+    fxEls.reverb.classList.add('on')
+    markPreset(null)
 
     // Версии и размеры файлов: download/version.json кладёт npm run site (нет файла — просто без них)
     fetch('download/version.json', { cache: 'no-store' })

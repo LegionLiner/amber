@@ -2,7 +2,7 @@ import type { Recap } from '@/data/repos/recap'
 import type { Track } from '@/domain/track'
 import { countLabel, formatListen } from '@/domain/format'
 import { dayLabel } from '@/domain/weeks'
-import { splitArtists } from '@/domain/names'
+import { initialOf, splitArtists } from '@/domain/names'
 import { hexToLch, lchHex } from '@/domain/cover-colors'
 import { coverPair } from '@/domain/palette'
 import { LOCALE, $t, $tp } from '@/i18n'
@@ -254,11 +254,12 @@ function loadImage(src: string | null): Promise<HTMLImageElement | null> {
   })
 }
 
-/** Обложка в скруглённом квадрате; нет картинки — градиент по названию */
+/** Обложка в скруглённом квадрате; нет картинки — буква на градиенте, как CoverArt в приложении */
 function drawCover(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement | null,
   t: Track | undefined,
+  label: string,
   x: number,
   y: number,
   size: number,
@@ -282,12 +283,19 @@ function drawCover(
   ctx.clip()
   if (img) ctx.drawImage(img, x, y, size, size)
   else {
-    const [a, b] = fallbackPair(t)
+    const [a, b] = coverPair(t?.title ?? label)
     const g = ctx.createLinearGradient(x, y, x + size, y + size)
     g.addColorStop(0, a)
     g.addColorStop(1, b)
     ctx.fillStyle = g
     ctx.fillRect(x, y, size, size)
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    ctx.font = `700 ${Math.round(size * 0.42)}px Unbounded, system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(initialOf(label || t?.title || ''), x + size / 2, y + size / 2 + size * 0.03)
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
   }
   ctx.restore()
 }
@@ -347,7 +355,16 @@ export async function renderSlide(
     tracks.forEach((t, i) => {
       const col = i % 3
       const row = Math.floor(i / 3)
-      drawCover(ctx, imgs[i] ?? null, t, (col - 1.5) * (size + gap) + gap / 2, (row - 1.5) * (size + gap) + gap / 2, size, 26)
+      drawCover(
+        ctx,
+        imgs[i] ?? null,
+        t,
+        t.title,
+        (col - 1.5) * (size + gap) + gap / 2,
+        (row - 1.5) * (size + gap) + gap / 2,
+        size,
+        26,
+      )
     })
     ctx.restore()
     y += 990
@@ -361,11 +378,11 @@ export async function renderSlide(
         ctx.translate(W / 2 + (i ? 190 : -190), y + 60 + size / 2)
         ctx.rotate(i ? 0.14 : -0.14)
         ctx.globalAlpha = 0.85
-        drawCover(ctx, im[i] ?? null, t, -size * 0.38, -size * 0.38, size * 0.76, 34)
+        drawCover(ctx, im[i] ?? null, t, t.title, -size * 0.38, -size * 0.38, size * 0.76, 34)
         ctx.restore()
       })
     }
-    drawCover(ctx, await img(s.cover), s.cover, (W - size) / 2, y + 60, size, 44)
+    drawCover(ctx, await img(s.cover), s.cover, s.cover.title, (W - size) / 2, y + 60, size, 44)
     y += size + 120
   }
 
@@ -417,7 +434,7 @@ export async function renderSlide(
     const items = s.list
     const thumbs = await Promise.all(items.map((it) => img(it.track)))
     // Пьедестал: первые три — крупными обложками
-    const podium = items.length >= 3 && items.slice(0, 3).every((x) => x.track)
+    const podium = items.length >= 3
     if (podium) {
       y += 50
       const big = 300
@@ -429,7 +446,7 @@ export async function renderSlide(
         [cx - big / 2, y, big, 0],
       ]
       for (const [x, yy, size, i] of places) {
-        drawCover(ctx, thumbs[i] ?? null, items[i]!.track, x, yy, size, 28)
+        drawCover(ctx, thumbs[i] ?? null, items[i]!.track, items[i]!.title, x, yy, size, 28)
         ctx.fillStyle = '#fff'
         ctx.font = '700 44px Unbounded, system-ui, sans-serif'
         ctx.fillText(String(i + 1), x + 18, yy + size - 18)
@@ -447,8 +464,8 @@ export async function renderSlide(
       ctx.fillStyle = 'rgba(255,255,255,0.55)'
       ctx.font = '700 40px Unbounded, system-ui, sans-serif'
       ctx.fillText(String(it.n), pad, y)
-      if (it.track) drawCover(ctx, thumbs[items.indexOf(it)] ?? null, it.track, pad + 76, y - 62, 80, 14, false)
-      const tx = pad + (it.track ? 180 : 80)
+      drawCover(ctx, thumbs[items.indexOf(it)] ?? null, it.track, it.title, pad + 76, y - 62, 80, 14, false)
+      const tx = pad + 180
       ctx.font = '600 40px Onest, system-ui, sans-serif'
       const rw = ctx.measureText(it.right).width
       ctx.fillStyle = '#fff'

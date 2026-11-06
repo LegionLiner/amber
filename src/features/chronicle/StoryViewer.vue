@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import IconClose from '~icons/solar/close-circle-linear'
 import IconSave from '~icons/solar/download-linear'
 import IconPlay from '~icons/solar/play-bold'
@@ -14,6 +14,7 @@ import { coverSrc } from '@/native/paths'
 import { coverGlow } from '@/app/cover-colors'
 import { buildSlides, renderSlide, slideTones, type Slide, type SlideTones } from './story'
 import { $t } from '@/i18n'
+import { isDesktop } from '@/native/desktop/bridge'
 
 /**
  * Итоги в виде историй: слайды на весь экран, тап справа — дальше, слева — назад, удержание — пауза.
@@ -31,20 +32,19 @@ const slides = shallowRef<Slide[]>([])
 /** Краски слайдов: сразу — запасные, через мгновение — по картинкам обложек */
 const tones = shallowRef<SlideTones[]>([])
 const i = ref(0)
-const progress = ref(0)
 const paused = ref(false)
 const saving = ref(false)
+/**
+ * Сколько показывается слайд. Время идёт CSS-анимацией полоски сверху (на паузе — стоит): раньше прогресс
+ * считался каждый кадр в Vue, и весь слайд с обложками перерисовывался 60 раз в секунду — на телефоне лагало
+ */
 const DURATION = 7000
-let raf = 0
-let last = 0
 
 onMounted(async () => {
   const r = await buildRecap(props.from, props.to)
   const list = buildSlides(r, props.title, library.byKey)
   tones.value = list.map((s) => slideTones(s.colors))
   slides.value = list
-  last = performance.now()
-  raf = requestAnimationFrame(tick)
   // Цвета обложек: каждая разбирается один раз (и кэшируется), слайды перекрашиваются по мере готовности
   list.forEach((s, n) => {
     const art = s.accent?.art
@@ -57,21 +57,9 @@ onMounted(async () => {
     })
   })
 })
-onBeforeUnmount(() => cancelAnimationFrame(raf))
-
-function tick(t: number) {
-  const dt = t - last
-  last = t
-  if (!paused.value && slides.value.length) {
-    progress.value += dt / DURATION
-    if (progress.value >= 1) {
-      if (i.value < slides.value.length - 1) {
-        i.value++
-        progress.value = 0
-      } else progress.value = 1
-    }
-  }
-  raf = requestAnimationFrame(tick)
+/** Полоска текущего слайда дошла до конца — следующий (последний остаётся на экране) */
+function timeUp() {
+  if (i.value < slides.value.length - 1) i.value++
 }
 
 const s = computed(() => slides.value[i.value])
@@ -86,7 +74,7 @@ const vars = computed(() => ({
 /** Пьедестал: первые три места — с обложками */
 const podium = computed(() => {
   const l = s.value?.list
-  return l && l.length >= 3 && l.slice(0, 3).every((x) => x.track) ? l.slice(0, 3) : null
+  return l && l.length >= 3 ? l.slice(0, 3) : null
 })
 const rows = computed(() => (podium.value ? (s.value?.list?.slice(3) ?? []) : (s.value?.list ?? [])))
 const hourMax = computed(() => Math.max(1, ...(s.value?.hours ?? [0])))
@@ -104,7 +92,6 @@ function go(d: number) {
   if (n < 0) return
   if (n >= slides.value.length) return emit('close')
   i.value = n
-  progress.value = 0
 }
 let downAt = 0
 function down() {
@@ -150,16 +137,18 @@ function playTop() {
 </script>
 
 <template>
-  <div class="story" :class="{ paused }" :style="vars" role="dialog" :aria-label="$t('Итоги')">
+  <div class="story" :class="{ paused }" :style="{ ...vars, '--dur': `${DURATION}ms` }" role="dialog" :aria-label="$t('Итоги')">
     <!-- Живой фон: основа в цветах обложки и три световых пятна, которые медленно плывут -->
     <div class="bg" aria-hidden="true">
       <i class="blob b1" />
       <i class="blob b2" />
-      <i class="blob b3" />
-      <i class="grain" />
+      <i v-if="isDesktop" class="blob b3" />
+      <i v-if="isDesktop" class="grain" />
     </div>
     <div class="bars">
-      <i v-for="(_, n) in slides" :key="n"><b :style="{ transform: `scaleX(${n < i ? 1 : n === i ? progress : 0})` }" /></i>
+      <i v-for="(_, n) in slides" :key="n"
+        ><b v-if="n < i" class="done" /><b v-else-if="n === i" :key="i" class="run" @animationend="timeUp"
+      /></i>
     </div>
     <div class="top">
       <span class="brand">Amber · {{ title }}</span>
@@ -211,8 +200,8 @@ function playTop() {
             <div v-if="podium" class="podium">
               <div v-for="n in [1, 0, 2]" :key="n" class="place" :class="`p${n}`" :style="{ '--d': n }">
                 <CoverArt
-                  :art="podium[n]!.track!.art"
-                  :seed="podium[n]!.track!.title"
+                  :art="podium[n]!.track?.art ?? null"
+                  :seed="podium[n]!.track?.title ?? podium[n]!.title"
                   :label="podium[n]!.title"
                   size="m"
                   radius="16px"
@@ -225,16 +214,15 @@ function playTop() {
             <ol class="list" :class="{ long: rows.length > 5 }">
               <li v-for="(it, n) in rows" :key="it.n" class="anim" :style="{ '--d': 4 + n }">
                 <span class="n display">{{ it.n }}</span>
+                <!-- Нет трека или картинки — буква и цвет, как у обложек в медиатеке -->
                 <CoverArt
-                  v-if="it.track"
-                  :art="it.track.art"
-                  :seed="it.track.title"
+                  :art="it.track?.art ?? null"
+                  :seed="it.track?.title ?? it.title"
                   :label="it.title"
                   size="s"
                   radius="8px"
                   class="th"
                 />
-                <span v-else class="th" />
                 <span class="t"
                   ><b class="ellipsis">{{ it.title }}</b
                   ><small v-if="it.sub" class="ellipsis">{{ it.sub }}</small></span
@@ -295,10 +283,10 @@ function playTop() {
   padding: calc(var(--safe-top) + 8px) var(--gutter) calc(var(--safe-bottom) + 16px);
   overflow: hidden;
   transition:
-    --bg1 1.1s ease,
-    --bg2 1.1s ease,
-    --g1 1.1s ease,
-    --g2 1.1s ease;
+    --bg1 0.8s ease,
+    --bg2 0.8s ease,
+    --g1 0.8s ease,
+    --g2 0.8s ease;
 }
 
 /* ---------- живой фон ---------- */
@@ -308,14 +296,15 @@ function playTop() {
   background: linear-gradient(165deg, var(--bg1), var(--bg2) 85%);
   overflow: hidden;
 }
+/* Пятна — просто прозрачные градиенты, без смешивания слоёв (mix-blend на огромных слоях тормозил телефон) */
 .blob {
   position: absolute;
-  width: 95vmax;
+  width: 85vmax;
   aspect-ratio: 1;
   border-radius: 50%;
-  opacity: 0.5;
-  mix-blend-mode: screen;
+  opacity: 0.45;
   will-change: transform;
+  contain: strict;
 }
 .b1 {
   left: -45vmax;
@@ -382,6 +371,18 @@ function playTop() {
   height: 100%;
   background: #fff;
   transform-origin: left;
+}
+.bars b.run {
+  transform: scaleX(0);
+  animation: fill var(--dur) linear forwards;
+}
+.paused .bars b.run {
+  animation-play-state: paused;
+}
+@keyframes fill {
+  to {
+    transform: scaleX(1);
+  }
 }
 .top {
   position: relative;

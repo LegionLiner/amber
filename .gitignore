@@ -17,6 +17,7 @@ android/captures
 # ключ отладки нужен в репозитории, ключи релиза — нет
 *.keystore
 !android/app/yantar-debug.keystore
+android/keystore.properties
 
 # editors
 .vscode/*

@@ -21,6 +21,7 @@ import { SHUFFLE_KINDS } from '@/domain/shuffle'
 import { countLabel, formatDate } from '@/domain/format'
 import type { CountingRule } from '@/native/types'
 import SyncSection from './SyncSection.vue'
+import { playBuild } from '@/app/store-build'
 import FileSyncSection from './FileSyncSection.vue'
 import SpotifySection from './SpotifySection.vue'
 import { useSync } from '@/stores/sync'
@@ -677,7 +678,8 @@ async function backupNow() {
       <SpotifySection />
 
       <FileSyncSection v-if="isDesktop || isNative" />
-      <SyncSection />
+      <!-- Свой сервер — не в сборке для Google Play: там данные идут только через компьютер по Wi-Fi -->
+      <SyncSection v-if="!playBuild" />
 
       <section class="group">
         <h2 class="gtitle">{{ $t('Данные') }}</h2>

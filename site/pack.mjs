@@ -25,7 +25,7 @@ function findExe() {
 
 const files = {
   exe: { from: findExe(), to: 'Amber-Setup.exe' },
-  apk: { from: path.join(root, 'android/app/build/outputs/apk/debug/app-debug.apk'), to: 'Amber.apk' },
+  apk: { from: path.join(root, 'android/app/build/outputs/apk/site/debug/app-site-debug.apk'), to: 'Amber.apk' },
 }
 const info = { version, date: new Date().toISOString().slice(0, 10) }
 for (const [k, f] of Object.entries(files)) {

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Amber — варианты логотипа</title>
+<style>
+  body { margin: 0; background: #222; display: flex; flex-wrap: wrap; gap: 20px; padding: 20px; }
+  svg { display: block; width: 512px; height: 512px; }
+</style>
+</head>
+<body>
+<!--
+  Варианты значка Amber для Google Play: 512×512, на всю площадь (углы скругляет сам магазин).
+  Рендер в PNG — store/tools/render.mjs (каждый <svg id> отдельной картинкой).
+-->
+<svg id="a-note" viewBox="0 0 512 512">
+  <!-- A. «Нота в янтаре»: музыка, застывшая в смоле, как насекомое в янтаре — приложение хранит каждое прослушивание -->
+  <defs>
+    <radialGradient id="a-glow" cx="50%" cy="58%" r="50%"><stop offset="0" stop-color="#ff9f3a" stop-opacity=".45"/><stop offset="1" stop-color="#ff9f3a" stop-opacity="0"/></radialGradient>
+    <linearGradient id="a-resin" x1="0.2" y1="0" x2="0.85" y2="1"><stop offset="0" stop-color="#ffd98a"/><stop offset=".45" stop-color="#ffaf3e"/><stop offset="1" stop-color="#d9581a"/></linearGradient>
+    <radialGradient id="a-depth" cx="50%" cy="78%" r="55%"><stop offset="0" stop-color="#7a2a08" stop-opacity=".45"/><stop offset="1" stop-color="#7a2a08" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#0e0d0c"/>
+  <circle cx="256" cy="300" r="230" fill="url(#a-glow)"/>
+  <path d="M256 70 C 214 128 112 228 112 318 A 144 144 0 0 0 400 318 C 400 228 298 128 256 70 Z" fill="url(#a-resin)"/>
+  <path d="M256 70 C 214 128 112 228 112 318 A 144 144 0 0 0 400 318 C 400 228 298 128 256 70 Z" fill="url(#a-depth)"/>
+  <g fill="#6b2b07" fill-opacity=".82">
+    <ellipse cx="232" cy="372" rx="38" ry="28" transform="rotate(-22 232 372)"/>
+    <rect x="257" y="226" width="14" height="148" rx="7"/>
+    <path d="M264 226 C 300 236 330 258 320 304 C 314 282 298 268 270 262 Z"/>
+  </g>
+  <path d="M186 232 C 168 262 160 290 162 318" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="16" stroke-linecap="round"/>
+</svg>
+
+<svg id="b-record" viewBox="0 0 512 512">
+  <!-- B. «Янтарная пластинка»: виниловый диск с янтарной сердцевиной и бликом -->
+  <defs>
+    <linearGradient id="b-label" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".5" stop-color="#ffb23e"/><stop offset="1" stop-color="#e8681e"/></linearGradient>
+    <linearGradient id="b-sheen" x1="0" y1="0" x2="1" y2="1"><stop offset=".25" stop-color="#ffb23e" stop-opacity="0"/><stop offset=".5" stop-color="#ffc35a" stop-opacity=".55"/><stop offset=".75" stop-color="#ffb23e" stop-opacity="0"/></linearGradient>
+    <radialGradient id="b-glow" cx="50%" cy="50%" r="50%"><stop offset=".6" stop-color="#ff9f3a" stop-opacity=".25"/><stop offset="1" stop-color="#ff9f3a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#0e0d0c"/>
+  <circle cx="256" cy="256" r="250" fill="url(#b-glow)"/>
+  <circle cx="256" cy="256" r="196" fill="#17140f"/>
+  <g fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="2">
+    <circle cx="256" cy="256" r="176"/><circle cx="256" cy="256" r="158"/><circle cx="256" cy="256" r="140"/><circle cx="256" cy="256" r="122"/><circle cx="256" cy="256" r="104"/>
+  </g>
+  <path d="M256 60 A196 196 0 0 1 452 256 L256 256 Z" fill="url(#b-sheen)" opacity=".9"/>
+  <path d="M256 452 A196 196 0 0 1 60 256 L256 256 Z" fill="url(#b-sheen)" opacity=".45"/>
+  <circle cx="256" cy="256" r="74" fill="url(#b-label)"/>
+  <circle cx="256" cy="256" r="12" fill="#0e0d0c"/>
+</svg>
+
+<svg id="c-wave" viewBox="0 0 512 512">
+  <!-- C. «Капля-звук»: знакомая капля янтаря, но внутри — волна звука из столбиков -->
+  <defs>
+    <linearGradient id="c-amb" x1="0" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".5" stop-color="#ffb23e"/><stop offset="1" stop-color="#e8681e"/></linearGradient>
+    <clipPath id="c-drop"><path d="M256 64 C 214 124 110 226 110 318 A 146 146 0 0 0 402 318 C 402 226 298 124 256 64 Z"/></clipPath>
+    <radialGradient id="c-glow" cx="50%" cy="60%" r="50%"><stop offset="0" stop-color="#ff9f3a" stop-opacity=".35"/><stop offset="1" stop-color="#ff9f3a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#0e0d0c"/>
+  <circle cx="256" cy="300" r="230" fill="url(#c-glow)"/>
+  <path d="M256 64 C 214 124 110 226 110 318 A 146 146 0 0 0 402 318 C 402 226 298 124 256 64 Z" fill="#3b2410"/>
+  <g clip-path="url(#c-drop)" fill="url(#c-amb)">
+    <rect x="118" y="292" width="22" height="80" rx="11"/>
+    <rect x="150" y="250" width="22" height="164" rx="11"/>
+    <rect x="182" y="196" width="22" height="272" rx="11"/>
+    <rect x="214" y="150" width="22" height="364" rx="11"/>
+    <rect x="246" y="96" width="22" height="420" rx="11"/>
+    <rect x="278" y="160" width="22" height="344" rx="11"/>
+    <rect x="310" y="210" width="22" height="248" rx="11"/>
+    <rect x="342" y="262" width="22" height="144" rx="11"/>
+    <rect x="374" y="300" width="22" height="64" rx="11"/>
+  </g>
+  <path d="M256 64 C 214 124 110 226 110 318 A 146 146 0 0 0 402 318 C 402 226 298 124 256 64 Z" fill="none" stroke="#ffb23e" stroke-opacity=".55" stroke-width="7"/>
+</svg>
+
+<svg id="d-gem" viewBox="0 0 512 512">
+  <!-- D. «Камень»: огранённый кусочек янтаря, сквозь который проходит светлая звуковая волна -->
+  <defs>
+    <radialGradient id="d-glow" cx="50%" cy="50%" r="50%"><stop offset=".3" stop-color="#ff9f3a" stop-opacity=".3"/><stop offset="1" stop-color="#ff9f3a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#0e0d0c"/>
+  <circle cx="256" cy="256" r="250" fill="url(#d-glow)"/>
+  <polygon points="256,72 404,158 404,354 256,440 108,354 108,158" fill="#f08c2e"/>
+  <polygon points="256,72 404,158 256,200" fill="#ffd27a"/>
+  <polygon points="256,72 256,200 108,158" fill="#ffc35a"/>
+  <polygon points="108,158 256,200 186,300 108,354" fill="#ffad3c"/>
+  <polygon points="404,158 404,354 326,300 256,200" fill="#f39633"/>
+  <polygon points="256,200 326,300 186,300" fill="#ffbe4f"/>
+  <polygon points="186,300 326,300 256,440 108,354" fill="#e8741f"/>
+  <polygon points="326,300 404,354 256,440" fill="#cf5a17"/>
+  <polyline points="96,262 150,262 178,214 214,318 248,180 282,330 312,232 340,262 416,262" fill="none" stroke="#fff8ea" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+
+<svg id="e-monogram" viewBox="0 0 512 512">
+  <!-- E. «A-волна»: буква A, перекладина которой — звуковая волна -->
+  <defs>
+    <linearGradient id="e-amb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".5" stop-color="#ffb23e"/><stop offset="1" stop-color="#e8681e"/></linearGradient>
+    <radialGradient id="e-glow" cx="50%" cy="55%" r="50%"><stop offset="0" stop-color="#ff9f3a" stop-opacity=".3"/><stop offset="1" stop-color="#ff9f3a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#0e0d0c"/>
+  <circle cx="256" cy="280" r="230" fill="url(#e-glow)"/>
+  <path d="M128 412 L256 104 L384 412" fill="none" stroke="url(#e-amb)" stroke-width="58" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="166,318 200,318 220,284 244,346 268,272 290,336 310,318 346,318" fill="none" stroke="#fff3df" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+
+<svg id="f-current" viewBox="0 0 512 512">
+  <!-- F. Нынешняя капля (для сравнения), на всю площадь -->
+  <defs><linearGradient id="f-amb" x1="0.2" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#ffbf62"/><stop offset="1" stop-color="#f7863a"/></linearGradient></defs>
+  <rect width="512" height="512" fill="#0e0d0c"/>
+  <path d="M256 80 C 220 130 128 232 128 300 A 128 128 0 0 0 384 300 C 384 232 292 130 256 80 Z" fill="url(#f-amb)"/>
+  <path d="M206 286 C 206 316 222 342 250 352" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="20" stroke-linecap="round"/>
+</svg>
+</body>
+</html>

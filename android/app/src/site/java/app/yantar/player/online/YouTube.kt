@@ -41,6 +41,16 @@ import java.nio.ByteBuffer
  * обычный файл в медиатеке, для прослушивания интернет не нужен.
  */
 object YouTube {
+    /** Ошибка загрузки — словами для человека */
+    fun errorText(e: Throwable): String = when (e) {
+        is org.schabi.newpipe.extractor.exceptions.ReCaptchaException -> Lang.t("YouTube просит проверку «я не робот». Попробуй позже", "YouTube asks for an “I'm not a robot” check. Try later")
+        is org.schabi.newpipe.extractor.exceptions.AgeRestrictedContentException -> Lang.t("Видео с ограничением по возрасту — без входа в аккаунт его не скачать", "The video is age-restricted — it can't be downloaded without signing in")
+        is org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException -> Lang.t("Видео недоступно: удалено, закрыто или не для этой страны", "The video is unavailable: deleted, private or blocked in this country")
+        is java.net.UnknownHostException -> Lang.t("Нет интернета", "No internet")
+        is org.schabi.newpipe.extractor.exceptions.ParsingException -> Lang.t("Не получилось разобрать страницу YouTube. Возможно, нужна новая версия приложения", "Couldn't parse the YouTube page. A newer app version may be needed")
+        else -> e.message ?: e.toString()
+    }
+
     class Info(
         val title: String,
         val artist: String,

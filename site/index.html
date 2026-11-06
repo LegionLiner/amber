@@ -249,6 +249,9 @@
   .slot.empty { display: grid; place-items: center; background: repeating-linear-gradient(135deg, var(--card) 0 14px, var(--bg-2) 14px 28px); }
   .slot.empty::after { content: attr(data-hint); max-width: 80%; text-align: center; color: var(--ink-3); font: 600 12.5px/1.4 var(--f-body); padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--bg); }
   .slot.wide { aspect-ratio: 16 / 10; }
+  /* Скриншот ПК — целиком, в своих пропорциях: рамка подстраивается под картинку */
+  .slot.wide:has(img) { aspect-ratio: auto; }
+  .slot.wide img { height: auto; object-fit: contain; }
   .slot.tall { aspect-ratio: 9 / 19.5; border-radius: 22px; }
 
   .pc-frame { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: var(--card); box-shadow: 0 40px 80px -30px rgba(0,0,0,0.8), 0 0 140px -50px rgba(255,160,50,0.35); }

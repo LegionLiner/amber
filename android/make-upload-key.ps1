@@ -1,4 +1,4 @@
-# Ключ загрузки для Google Play — создаётся один раз.
+﻿# Ключ загрузки для Google Play — создаётся один раз.
 #
 # Запуск из папки проекта:  powershell -ExecutionPolicy Bypass -File android\make-upload-key.ps1
 #

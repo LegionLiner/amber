@@ -273,9 +273,6 @@ export default {
   'Ничего не играет': 'Nothing playing',
   Играет: 'Playing',
   'На паузе': 'Paused',
-  'Управлять музыкой на других устройствах и переносить её между ними можно со входом в синхронизацию.':
-    'Sign in to sync to control music on other devices and move it between them.',
-  'Настройки → Синхронизация': 'Settings → Sync',
   'Сервер старой версии и не знает о других устройствах. Обнови сервер.':
     "The server is an old version and doesn't know about other devices. Update the server.",
   'Нет связи с сервером синхронизации.': 'No connection to the sync server.',
@@ -322,4 +319,8 @@ export default {
   'Треки идут встык, без пауз.': 'Tracks play back to back, no gaps.',
   'Выбрать месяц и год': 'Choose month and year',
   Позже: 'Later',
+  'Управлять музыкой на других устройствах и переносить её между ними можно, когда телефон и компьютер связаны по Wi-Fi.':
+    'You can control music on other devices and move it between them once your phone and computer are linked over Wi-Fi.',
+  'Настройки → Телефон по Wi-Fi': 'Settings → Phone over Wi-Fi',
+  'Настройки → Компьютер по Wi-Fi': 'Settings → Computer over Wi-Fi',
 } as Record<string, string>

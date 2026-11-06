@@ -8,6 +8,7 @@ import IconHistory from '~icons/solar/history-linear'
 import IconFolder from '~icons/solar/folder-2-linear'
 import IconDownload from '~icons/solar/download-minimalistic-linear'
 import YoutubeSheet from './YoutubeSheet.vue'
+import { playBuild } from '@/app/store-build'
 import CoverArt from '@/components/CoverArt.vue'
 import TrackRow from '@/components/TrackRow.vue'
 import TrackActionsSheet from '@/components/TrackActionsSheet.vue'
@@ -154,12 +155,12 @@ function go(to: Parameters<typeof router.push>[0]) {
           <IconClose />
         </button>
       </label>
-      <button v-if="!ytLink" type="button" class="yt-btn" @click="openYoutube()">
+      <button v-if="!ytLink && !playBuild" type="button" class="yt-btn" @click="openYoutube()">
         <IconDownload />{{ $t('Скачать с YouTube по ссылке') }}
       </button>
     </header>
 
-    <button v-if="ytLink" type="button" class="yt-card" @click="openYoutube(query.trim())">
+    <button v-if="ytLink && !playBuild" type="button" class="yt-card" @click="openYoutube(query.trim())">
       <IconDownload />
       <span
         ><b>{{ $t('Ссылка на YouTube') }}</b

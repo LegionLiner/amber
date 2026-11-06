@@ -55,6 +55,20 @@ android {
             }
         }
     }
+    /*
+     * Два варианта: site — APK для сайта (всё, включая загрузку с YouTube), play — для Google Play: без YouTube
+     * (и без библиотеки NewPipe), интерфейс собирается с VITE_STORE=play (без своего сервера и YouTube).
+     * Команды: npm run apk (site, отладка) и npm run aab (play, релиз).
+     */
+    flavorDimensions 'store'
+    productFlavors {
+        site {
+            dimension 'store'
+        }
+        play {
+            dimension 'store'
+        }
+    }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
@@ -99,7 +113,7 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion"
     implementation "androidx.palette:palette:$paletteVersion"
     // Разбор страниц YouTube для загрузки аудио по ссылке (та же библиотека, что у NewPipe)
-    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
+    siteImplementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

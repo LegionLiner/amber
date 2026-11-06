@@ -107,9 +107,9 @@
   <h2>3. Разрешения и зачем они нужны</h2>
   <ul>
     <li><b>Доступ к аудиофайлам</b> (READ_MEDIA_AUDIO, на старых версиях Android — чтение памяти) — найти и воспроизвести вашу музыку.</li>
-    <li><b>Доступ ко всем файлам</b> (MANAGE_EXTERNAL_STORAGE) — запрашивается, только если вы включаете синхронизацию папки
-      с компьютером по Wi-Fi: приложению нужно добавлять, обновлять и убирать файлы в выбранной вами папке с музыкой.
-      Без этой функции разрешение не требуется. Приложение работает только с папкой, которую вы выбрали.</li>
+    <li><b>Доступ к одной папке</b> — только если вы включаете синхронизацию папки с компьютером по Wi-Fi: вы сами выбираете
+      папку в системном окне Android, и приложение добавляет, обновляет и убирает файлы только в ней. Доступа к остальным
+      файлам телефона у приложения нет. Разрешение снимается при удалении приложения или очистке его данных.</li>
     <li><b>Уведомления и фоновое воспроизведение</b> (POST_NOTIFICATIONS, FOREGROUND_SERVICE, WAKE_LOCK) — чтобы музыка играла
       при выключенном экране, а в уведомлении и на экране блокировки были кнопки управления.</li>
     <li><b>Интернет</b> — для поиска текстов песен (раздел 4).</li>
@@ -225,7 +225,7 @@
   <h2>3. Permissions</h2>
   <ul>
     <li><b>Audio files</b> (READ_MEDIA_AUDIO; storage read on older Android) — to find and play your music.</li>
-    <li><b>All files access</b> (MANAGE_EXTERNAL_STORAGE) — requested only if you turn on Wi-Fi folder sync with your computer: the app needs to add, update and remove files in the music folder you choose. It is not needed otherwise, and the app works only with the folder you chose.</li>
+    <li><b>Access to one folder</b> — only if you turn on Wi-Fi folder sync with your computer: you pick the folder yourself in Android's system dialog, and the app adds, updates and removes files only there. The app has no access to the rest of your phone's files. The permission is removed when you uninstall the app or clear its data.</li>
     <li><b>Notifications and background playback</b> (POST_NOTIFICATIONS, FOREGROUND_SERVICE, WAKE_LOCK) — to keep playing with the screen off and show playback controls.</li>
     <li><b>Internet</b> — for lyrics lookup (section 4).</li>
     <li><b>Wi-Fi state and multicast</b> (ACCESS_WIFI_STATE, CHANGE_WIFI_MULTICAST_STATE) — to find your computer running Amber on the local network.</li>

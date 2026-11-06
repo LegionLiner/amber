@@ -96,9 +96,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Папка с музыкой по Wi-Fi (filesync/FileSync.kt): писать и убирать в корзину любые файлы папки,
-         слышать маячок компьютера в локальной сети -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
+    <!-- Папка с музыкой по Wi-Fi (filesync/FileSync.kt): слышать маячок компьютера в локальной сети.
+         Сама папка — выбранная системным окном (SafFolder), доступ «ко всем файлам» не нужен -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 </manifest>

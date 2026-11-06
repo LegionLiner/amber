@@ -110,9 +110,11 @@ export default {
   'на связи {0}': 'online {0}',
   'подключён {0}': 'connected {0}',
   Отключить: 'Disconnect',
-  'Нужен доступ ко всем файлам: без него Amber не сможет записывать в папку с музыкой.':
-    "Needs access to all files: without it Amber can't write to the music folder.",
-  Разрешить: 'Allow',
+  'Нет доступа к папке на телефоне — возможно, её переименовали или перенесли. Выбери её снова.':
+    'No access to the phone folder — it may have been renamed or moved. Choose it again.',
+  'Выбери папку с музыкой на телефоне — Amber запомнит её и дальше будет синхронизировать сам.':
+    'Choose the music folder on your phone — Amber will remember it and keep it in sync by itself.',
+  'Выбрать папку': 'Choose folder',
   'Компьютер не в сети — синхронизирую, когда появится': 'The computer is offline — will sync when it shows up',
   'Синхронизировать сейчас': 'Sync now',
   'На другой стороне удалили {0} — больше, чем обычно. Удалить и здесь? Они уйдут в корзину.':

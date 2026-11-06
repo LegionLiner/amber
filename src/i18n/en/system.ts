@@ -173,7 +173,6 @@ export default {
   'MP4: фрагмент указывает за конец файла': 'MP4: a fragment points past the end of the file',
   'Во фрагментах нет звука': 'No audio in the fragments',
   Телефон: 'Phone',
-  'Нужен доступ к файлам': 'File access needed',
   'Папка на телефоне пуста — похоже, к ней нет доступа. Ничего не трогаю.':
     "The folder on the phone is empty — looks like there's no access. Not touching anything.",
   'Папка на компьютере пуста — похоже, она недоступна. Ничего не трогаю.':

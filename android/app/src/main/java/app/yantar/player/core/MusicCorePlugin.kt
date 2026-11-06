@@ -22,6 +22,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import app.yantar.player.db.Database
 import app.yantar.player.filesync.FileSync
+import app.yantar.player.filesync.SafFolder
 import app.yantar.player.library.Covers
 import app.yantar.player.library.Id3Reader
 import app.yantar.player.library.AudioFormat
@@ -714,36 +715,28 @@ class MusicCorePlugin : Plugin() {
         call.resolve()
     }
 
-    private fun fsRoot(call: PluginCall): File = File(call.getString("root") ?: error(Lang.t("Папка не задана", "No folder set")))
+    /** Папка телефона — адрес content://, выданный системным окном выбора (SafFolder) */
+    private fun fsRoot(call: PluginCall): SafFolder {
+        val root = call.getString("root") ?: error(Lang.t("Папка не задана", "No folder set"))
+        require(root.startsWith("content://")) { Lang.t("Выбери папку на телефоне заново", "Choose the phone folder again") }
+        return SafFolder(context, Uri.parse(root))
+    }
 
+    /** Разрешение на выбранную папку Android помнит (после переименования или удаления папки — уже нет) */
     @PluginMethod
     fun fsAccess(call: PluginCall) {
-        call.resolve(JSObject().put("granted", android.os.Environment.isExternalStorageManager()))
+        val root = call.getString("root")
+        // Разрешение Android помнит и после того, как папку переименовали или удалили — проверяем, что она на месте
+        val ok = root != null && root.startsWith("content://") && SafFolder.granted(context, Uri.parse(root)) &&
+            runCatching { SafFolder(context, Uri.parse(root)).entry("")?.dir == true }.getOrDefault(false)
+        call.resolve(JSObject().put("granted", ok).put("name", if (ok) SafFolder.label(Uri.parse(root)) else null))
     }
 
-    /** Доступ «ко всем файлам»: без него не записать в папку с музыкой чужие файлы. Выдаётся в настройках Android */
-    @PluginMethod
-    fun fsRequestAccess(call: PluginCall) {
-        try {
-            val i = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(i)
-        } catch (_: Exception) {
-            context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
-        call.resolve()
-    }
-
-    @PluginMethod
-    fun fsDefaultRoot(call: PluginCall) {
-        val dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC)
-        call.resolve(JSObject().put("root", dir.absolutePath))
-    }
-
-    /** Выбор папки системным окном → обычный путь (/storage/emulated/0/Music/…) */
+    /** Выбор папки системным окном (открывается на «Музыке»); разрешение на неё запоминается навсегда */
     @PluginMethod
     fun fsPickFolder(call: PluginCall) {
-        startActivityForResult(call, Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), "onFsFolderPicked")
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, SafFolder.musicUri())
+        startActivityForResult(call, i, "onFsFolderPicked")
     }
 
     @ActivityCallback
@@ -754,12 +747,12 @@ class MusicCorePlugin : Plugin() {
             call.reject(Lang.t("Папка не выбрана", "No folder chosen"), "CANCELLED")
             return
         }
-        // «primary:Music/Rock» → /storage/emulated/0/Music/Rock; карта памяти «1234-ABCD:Music» → /storage/1234-ABCD/Music
-        val doc = android.provider.DocumentsContract.getTreeDocumentId(uri)
-        val vol = doc.substringBefore(':')
-        val rel = doc.substringAfter(':', "")
-        val base = if (vol == "primary") android.os.Environment.getExternalStorageDirectory().absolutePath else "/storage/$vol"
-        call.resolve(JSObject().put("root", if (rel.isEmpty()) base else "$base/$rel"))
+        if (uri.authority != SafFolder.AUTHORITY) {
+            call.reject(Lang.t("Выбери папку в памяти телефона или на карте", "Choose a folder on the phone or an SD card"))
+            return
+        }
+        context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        call.resolve(JSObject().put("root", uri.toString()).put("name", SafFolder.label(uri)))
     }
 
     @PluginMethod
@@ -802,7 +795,7 @@ class MusicCorePlugin : Plugin() {
 
     @PluginMethod
     fun fsLocalHash(call: PluginCall) = fsWork(call) {
-        call.resolve(JSObject().put("h", FileSync.hashFile(FileSync.resolve(fsRoot(call), call.getString("p")!!))))
+        call.resolve(JSObject().put("h", FileSync.hashFile(fsRoot(call), FileSync.checkPath(call.getString("p")!!))))
     }
 
     @PluginMethod

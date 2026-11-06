@@ -80,7 +80,11 @@ const baseUrl = (host: string, port: number) => `http://${host.includes(':') ? `
 export const useFileSync = defineStore('filesync', () => {
   /* ---------------- телефон ---------------- */
   const link = ref<Link | null>(null)
+  /** Папка телефона: content://… из системного окна выбора (раньше был обычный путь — тогда её выбирают заново) */
   const root = ref<string | null>(null)
+  /** Подпись папки для настроек: «Music/Rock» */
+  const rootName = ref<string | null>(null)
+  /** Android помнит разрешение на эту папку */
   const access = ref(false)
   const status = ref<FileSyncStatus>('idle')
   const error = ref('')
@@ -105,7 +109,9 @@ export const useFileSync = defineStore('filesync', () => {
     const raw = await getState('link')
     link.value = raw ? (JSON.parse(raw) as Link) : null
     files.value = (await getState('files')) !== '0'
-    root.value = (await getState('root')) ?? (await MusicCore.fsDefaultRoot()).root
+    // Обычный путь — от версий с доступом «ко всем файлам»: такую папку надо выбрать заново (один раз)
+    const saved = await getState('root')
+    root.value = saved?.startsWith('content://') ? saved : null
     lastAt.value = Number(await getState('lastAt')) || null
     const r = await getState('report')
     report.value = r ? (JSON.parse(r) as SyncReport) : null
@@ -113,7 +119,9 @@ export const useFileSync = defineStore('filesync', () => {
   }
 
   async function checkAccess() {
-    access.value = (await MusicCore.fsAccess()).granted
+    const r = await MusicCore.fsAccess({ root: root.value })
+    access.value = r.granted
+    rootName.value = r.name
     return access.value
   }
 
@@ -177,10 +185,14 @@ export const useFileSync = defineStore('filesync', () => {
 
   async function chooseRoot() {
     const r = await MusicCore.fsPickFolder()
+    // Та же папка выбрана заново (разрешение потерялось) — память прошлых проходов остаётся в силе
+    if (r.root !== root.value) await run(`DELETE FROM filesync_base`)
     root.value = r.root
-    // Другая папка на телефоне — сверяем заново, ничего не удаляя по старой памяти
-    await run(`DELETE FROM filesync_base`)
+    rootName.value = r.name
+    access.value = true
+    error.value = ''
     await setStates({ root: r.root })
+    if (files.value) void syncNow()
   }
 
   /** Компьютер на прежнем адресе? Если нет — ищем его маячок (адрес в сети мог смениться) */
@@ -211,11 +223,9 @@ export const useFileSync = defineStore('filesync', () => {
 
   /** Один проход. auto — по расписанию: «компьютер не в сети» тогда не ошибка */
   async function syncNow(opts: { confirmDeletes?: boolean; auto?: boolean } = {}) {
-    if (!isNative || status.value === 'running' || !link.value || !root.value || !files.value) return
-    if (!(await checkAccess())) {
-      if (!opts.auto) error.value = $t('Нужен доступ к файлам')
-      return
-    }
+    if (!isNative || status.value === 'running' || !link.value || !files.value) return
+    // Папку ещё не выбрали или Android забыл разрешение (её переименовали, перенесли) — настройки попросят выбрать
+    if (!root.value || !(await checkAccess())) return
     status.value = 'running'
     error.value = ''
     progress.value = null
@@ -339,6 +349,7 @@ export const useFileSync = defineStore('filesync', () => {
   return {
     link,
     root,
+    rootName,
     access,
     status,
     error,

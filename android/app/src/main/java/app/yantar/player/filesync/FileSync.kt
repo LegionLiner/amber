@@ -6,7 +6,6 @@ import android.media.MediaScannerConnection
 import android.net.wifi.WifiManager
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -33,7 +32,8 @@ import kotlin.math.abs
  *    ничего не делаем, разберётся следующий проход;
  *  - корзина чистится через 30 дней.
  *
- * Работает с обычными путями (java.io.File): нужен доступ «ко всем файлам» (MANAGE_EXTERNAL_STORAGE).
+ * Папка телефона — выбранная один раз системным окном (SafFolder): Android помнит разрешение на неё, доступ
+ * «ко всем файлам» не нужен. Время изменения через SAF не задать — после скачивания запоминается то, какое есть.
  */
 object FileSync {
     const val BEACON_PORT = 47863
@@ -47,13 +47,11 @@ object FileSync {
         fun json(): JSONObject = JSONObject().put("s", s).put("m", m)
     }
 
-    fun statOf(f: File): Stat? = if (f.isFile) Stat(f.length(), f.lastModified()) else null
-
     fun stat(j: JSONObject?): Stat? = j?.let { Stat(it.optLong("s"), it.optLong("m")) }
 
-    private fun matches(f: File, expect: Stat?): Boolean {
-        val st = statOf(f)
-        return if (expect == null) st == null && !f.exists() else st != null && st.s == expect.s && abs(st.m - expect.m) < 1000
+    private fun matches(root: SafFolder, p: String, expect: Stat?): Boolean {
+        val e = root.entry(p)
+        return if (expect == null) e == null else e != null && !e.dir && e.size == expect.s && abs(e.mtime - expect.m) < 1000
     }
 
     /** То же правило, что ignored() в plan.ts: скрытое, служебное, недокачанное */
@@ -64,35 +62,30 @@ object FileSync {
             name == "desktop.ini" || name == "thumbs.db" || name.endsWith(".amber-part") || name.endsWith(".tmp")
     }
 
-    /** Путь из плана → файл внутри корня. Выйти за пределы папки нельзя */
-    fun resolve(root: File, p: String): File {
-        require(p.isNotEmpty() && !p.contains('\\') && p.split('/').none { it == ".." || it.isEmpty() }) { Lang.t("Недопустимый путь", "Invalid path") }
-        val f = File(root, p)
-        require(f.canonicalPath.startsWith(root.canonicalPath + File.separator)) { Lang.t("Недопустимый путь", "Invalid path") }
-        return f
+    /** Путь из плана: только внутри папки — без «..», пустых частей и обратных косых */
+    fun checkPath(p: String): String {
+        require(p.isNotEmpty() && !p.contains('\\') && p.split('/').none { it == ".." || it == "." || it.isEmpty() }) { Lang.t("Недопустимый путь", "Invalid path") }
+        return p
     }
 
     /* ------------------------------ эта сторона ------------------------------ */
 
-    fun listLocal(root: File): JSONArray {
+    fun listLocal(root: SafFolder): JSONArray {
         val out = JSONArray()
-        fun walk(dir: File, rel: String) {
-            val items = dir.listFiles() ?: return
-            for (f in items) {
-                val p = if (rel.isEmpty()) f.name else "$rel/${f.name}"
+        fun walk(rel: String) {
+            for (e in root.children(rel)) {
+                val p = if (rel.isEmpty()) e.name else "$rel/${e.name}"
                 if (ignored(p)) continue
-                if (f.isDirectory) walk(f, p)
-                else if (f.isFile) out.put(JSONObject().put("p", p).put("s", f.length()).put("m", f.lastModified()))
+                if (e.dir) walk(p) else out.put(JSONObject().put("p", p).put("s", e.size).put("m", e.mtime))
             }
         }
-        require(root.isDirectory) { Lang.t("Папки ${root.path} нет", "Folder ${root.path} doesn't exist") }
-        walk(root, "")
+        walk("")
         return out
     }
 
-    fun hashFile(f: File): String {
+    fun hashFile(root: SafFolder, p: String): String {
         val md = MessageDigest.getInstance("SHA-1")
-        f.inputStream().use { input ->
+        root.read(p).use { input ->
             val buf = ByteArray(1 shl 16)
             while (true) {
                 val n = input.read(buf)
@@ -104,39 +97,46 @@ object FileSync {
     }
 
     /** В корзину папки: .amber-trash/2026-10-14/путь (с .nomedia, чтобы медиатека её не видела) */
-    fun moveToTrash(ctx: Context, root: File, f: File) {
-        val trash = File(root, TRASH)
-        if (!trash.isDirectory) trash.mkdirs()
-        File(trash, ".nomedia").let { if (!it.exists()) it.createNewFile() }
+    fun moveToTrash(ctx: Context, root: SafFolder, p: String) {
+        if (!root.exists("$TRASH/.nomedia")) {
+            root.ensureDir(TRASH)
+            root.write(root.create("$TRASH/.nomedia")).close()
+        }
         val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val rel = f.canonicalPath.removePrefix(root.canonicalPath + File.separator)
-        var target = File(File(trash, day), rel)
+        val dir = SafFolder.parentOf(p).let { if (it.isEmpty()) "$TRASH/$day" else "$TRASH/$day/$it" }
+        root.ensureDir(dir)
+        val name = p.substringAfterLast('/')
+        var src = p
         // Та же версия уже в корзине сегодня — рядом с отметкой времени, ничего не затираем
-        if (target.exists()) target = File(target.parentFile, "${System.currentTimeMillis()}-${target.name}")
-        target.parentFile?.mkdirs()
-        if (!f.renameTo(target)) throw IOException(Lang.t("Не удалось убрать «${f.name}» в корзину", "Couldn't move “${f.name}” to the trash"))
-        scan(ctx, f)
+        if (root.exists("$dir/$name")) {
+            val stamped = "${System.currentTimeMillis()}-$name"
+            if (!root.rename(p, stamped)) throw IOException(Lang.t("Не удалось убрать «$name» в корзину", "Couldn't move “$name” to the trash"))
+            src = SafFolder.parentOf(p).let { if (it.isEmpty()) stamped else "$it/$stamped" }
+        }
+        if (!root.move(src, dir)) throw IOException(Lang.t("Не удалось убрать «$name» в корзину", "Couldn't move “$name” to the trash"))
+        scan(ctx, root, p)
     }
 
-    fun trashLocal(ctx: Context, root: File, p: String, expect: Stat?): String {
-        val f = resolve(root, p)
-        if (!f.exists()) return "missing"
-        if (expect == null || !matches(f, expect)) return "changed"
-        moveToTrash(ctx, root, f)
+    fun trashLocal(ctx: Context, root: SafFolder, p: String, expect: Stat?): String {
+        checkPath(p)
+        if (!root.exists(p)) return "missing"
+        if (expect == null || !matches(root, p, expect)) return "changed"
+        moveToTrash(ctx, root, p)
         return "ok"
     }
 
     /** Корзина старше days дней удаляется насовсем */
-    fun cleanTrash(root: File, days: Int) {
-        val trash = File(root, TRASH)
+    fun cleanTrash(root: SafFolder, days: Int) {
+        if (!root.exists(TRASH)) return
         val cutoff = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(System.currentTimeMillis() - days * 86_400_000L))
-        trash.listFiles()?.filter { it.isDirectory && it.name < cutoff && it.name.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) }
-            ?.forEach { it.deleteRecursively() }
+        root.children(TRASH).filter { it.dir && it.name < cutoff && it.name.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) }
+            .forEach { root.delete("$TRASH/${it.name}") }
     }
 
     /** Медиатека телефона (MediaStore) узнаёт о новом, заменённом или убранном файле */
-    private fun scan(ctx: Context, f: File) {
-        MediaScannerConnection.scanFile(ctx, arrayOf(f.absolutePath), null, null)
+    private fun scan(ctx: Context, root: SafFolder, p: String) {
+        val path = root.pathOf(p) ?: return
+        MediaScannerConnection.scanFile(ctx, arrayOf(path), null, null)
     }
 
     /* ------------------------------ компьютер ------------------------------ */
@@ -186,11 +186,14 @@ object FileSync {
     private fun fail(why: String, message: String? = null) = JSONObject().put("ok", false).put("why", why).apply { message?.let { put("message", it) } }
 
     /** Скачать rp в lp. from — каким файл был в списке компьютера, expect — каким сейчас должен быть lp */
-    fun pull(ctx: Context, base: String, token: String, root: File, rp: String, lp: String, from: Stat, expect: Stat?): JSONObject {
-        val target = resolve(root, lp)
-        if (!matches(target, expect)) return fail("changed")
+    fun pull(ctx: Context, base: String, token: String, root: SafFolder, rp: String, lp: String, from: Stat, expect: Stat?): JSONObject {
+        checkPath(lp)
+        if (!matches(root, lp, expect)) return fail("changed")
         val c = open(base, "/file?p=${q(rp)}", token, readMs = 120_000)
-        var part: File? = null
+        val name = lp.substringAfterLast('/')
+        val dir = SafFolder.parentOf(lp)
+        val partP = (if (dir.isEmpty()) "" else "$dir/") + ".$name.amber-part"
+        var part = false
         try {
             if (c.responseCode == 404) return fail("changed")
             if (c.responseCode != 200) {
@@ -199,37 +202,39 @@ object FileSync {
             }
             val r = Stat(c.getHeaderField("X-Size")?.toLongOrNull() ?: -1, c.getHeaderField("X-Mtime")?.toLongOrNull() ?: -1)
             if (r.s != from.s || abs(r.m - from.m) >= 1000) return fail("changed")
-            target.parentFile?.mkdirs()
-            part = File(target.parentFile, ".${target.name}.amber-part")
-            c.inputStream.use { input -> part.outputStream().use { input.copyTo(it, 1 shl 16) } }
-            if (part.length() != from.s) return fail("error", Lang.t("Файл пришёл не целиком", "The file arrived incomplete"))
+            // Недокачанный хвост прошлого раза — иначе Android назовёт новый «… (1)»
+            if (root.exists(partP)) root.delete(partP)
+            val u = root.create(partP)
+            part = true
+            c.inputStream.use { input -> root.write(u).use { input.copyTo(it, 1 shl 16) } }
+            if (root.stat(partP)?.s != from.s) return fail("error", Lang.t("Файл пришёл не целиком", "The file arrived incomplete"))
             // Пока качали, файл здесь могли поменять
-            if (!matches(target, expect)) return fail("changed")
-            if (expect != null) moveToTrash(ctx, root, target)
-            if (!part.renameTo(target)) return fail("error", Lang.t("Не удалось сохранить «${target.name}»", "Couldn't save “${target.name}”"))
-            part = null
-            // Время файла — как на компьютере (не везде получается: тогда запоминаем, какое есть)
-            target.setLastModified(from.m)
-            scan(ctx, target)
-            return JSONObject().put("ok", true).put("l", statOf(target)!!.json()).put("r", r.json())
+            if (!matches(root, lp, expect)) return fail("changed")
+            if (expect != null) moveToTrash(ctx, root, lp)
+            if (!root.rename(partP, name)) return fail("error", Lang.t("Не удалось сохранить «$name»", "Couldn't save “$name”"))
+            part = false
+            scan(ctx, root, lp)
+            // Время файла через SAF не задать — запоминаем, какое у него теперь
+            val l = root.stat(lp) ?: return fail("error", Lang.t("Не удалось сохранить «$name»", "Couldn't save “$name”"))
+            return JSONObject().put("ok", true).put("l", l.json()).put("r", r.json())
         } catch (e: SocketTimeoutException) {
             return fail("error", Lang.t("Компьютер не отвечает", "The computer doesn't respond"))
         } finally {
-            part?.delete()
+            if (part) root.delete(partP)
             c.disconnect()
         }
     }
 
     /** Отправить lp на компьютер как rp */
-    fun push(base: String, token: String, root: File, lp: String, rp: String, from: Stat, expect: Stat?): JSONObject {
-        val f = resolve(root, lp)
-        if (!matches(f, from)) return fail("changed")
+    fun push(base: String, token: String, root: SafFolder, lp: String, rp: String, from: Stat, expect: Stat?): JSONObject {
+        checkPath(lp)
+        if (!matches(root, lp, from)) return fail("changed")
         val c = open(base, "/file?p=${q(rp)}&s=${from.s}&m=${from.m}&expect=${expectParam(expect)}", token, "PUT", 120_000)
         try {
             c.doOutput = true
-            c.setFixedLengthStreamingMode(f.length())
+            c.setFixedLengthStreamingMode(from.s)
             c.setRequestProperty("Content-Type", "application/octet-stream")
-            f.inputStream().use { input -> c.outputStream.use { input.copyTo(it, 1 shl 16) } }
+            root.read(lp).use { input -> c.outputStream.use { input.copyTo(it, 1 shl 16) } }
             val code = c.responseCode
             val j = runCatching { JSONObject(readBody(c)) }.getOrNull() ?: JSONObject()
             if (code == 200) return JSONObject().put("ok", true).put("l", from.json()).put("r", Stat(j.optLong("s"), j.optLong("m")).json())

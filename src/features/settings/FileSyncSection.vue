@@ -8,7 +8,6 @@ import { useSync } from '@/stores/sync'
 import { useUi } from '@/stores/ui'
 import { desktop, isDesktop } from '@/native/desktop/bridge'
 import { isNative } from '@/native/paths'
-import { MusicCore } from '@/native/music-core'
 import { countLabel, formatBytes } from '@/domain/format'
 import { LOCALE, $t, $tp } from '@/i18n'
 
@@ -50,8 +49,17 @@ async function toggleFolder(on: boolean) {
   if (folders.value[0]) return fs.setPc({ folder: folders.value[0] })
   await chooseOther()
 }
-/** Доступ ко всем файлам дают в настройках Android: открываем их, по возвращении проверяем снова */
-const requestAccess = () => void MusicCore.fsRequestAccess()
+/** Папку телефона выбирают один раз системным окном — Android запоминает разрешение на неё */
+const pickError = ref('')
+async function pickRoot() {
+  pickError.value = ''
+  try {
+    await fs.chooseRoot()
+  } catch (e) {
+    const err = e as { code?: string; message?: string }
+    if (err.code !== 'CANCELLED') pickError.value = err.message ?? String(e)
+  }
+}
 const ui = useUi()
 
 const now = ref(Date.now())
@@ -320,9 +328,14 @@ const reportText = computed(() => {
 
         <template v-if="fs.files && fs.link!.folder !== null">
           <div v-if="!fs.access" class="warn">
-            <span>{{ $t('Нужен доступ ко всем файлам: без него Amber не сможет записывать в папку с музыкой.') }}</span>
-            <button type="button" class="btn small" @click="requestAccess">{{ $t('Разрешить') }}</button>
+            <span>{{
+              fs.root
+                ? $t('Нет доступа к папке на телефоне — возможно, её переименовали или перенесли. Выбери её снова.')
+                : $t('Выбери папку с музыкой на телефоне — Amber запомнит её и дальше будет синхронизировать сам.')
+            }}</span>
+            <button type="button" class="btn small" @click="pickRoot">{{ $t('Выбрать папку') }}</button>
           </div>
+          <p v-if="pickError" class="tiny err">{{ pickError }}</p>
           <div v-if="fs.status === 'running' && fs.progress?.bytesTotal" class="bar">
             <i :style="{ width: `${(fs.progress.bytesDone / fs.progress.bytesTotal) * 100}%` }" />
           </div>
@@ -349,10 +362,10 @@ const reportText = computed(() => {
               )
             }}
           </p>
-          <div class="pick">
+          <div v-if="fs.access" class="pick">
             <span class="lbl">{{ $t('Папка на телефоне') }}</span>
-            <span class="path ellipsis">{{ fs.root }}</span>
-            <button type="button" class="link" @click="fs.chooseRoot()">{{ $t('Другая…') }}</button>
+            <span class="path ellipsis">{{ fs.rootName }}</span>
+            <button type="button" class="link" @click="pickRoot">{{ $t('Другая…') }}</button>
           </div>
         </template>
 

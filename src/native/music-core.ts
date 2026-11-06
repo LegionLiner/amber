@@ -97,12 +97,10 @@ export interface MusicCorePlugin {
   setEffects(options: { effects: Partial<Record<string, number>> }): Promise<void>
 
   // папка с музыкой по Wi-Fi (только телефон: android/.../filesync/FileSync.kt; компьютерная половина — desktop/filesync.ts)
-  /** Есть ли доступ «ко всем файлам» */
-  fsAccess(): Promise<{ granted: boolean }>
-  /** Открыть настройки Android, где его дают */
-  fsRequestAccess(): Promise<void>
-  fsDefaultRoot(): Promise<{ root: string }>
-  fsPickFolder(): Promise<{ root: string }>
+  /** Помнит ли Android разрешение на папку root (content://…, из fsPickFolder); name — подпись вида «Music/Rock» */
+  fsAccess(options: { root: string | null }): Promise<{ granted: boolean; name: string | null }>
+  /** Системное окно выбора папки (открывается на «Музыке»); разрешение на неё запоминается насовсем */
+  fsPickFolder(): Promise<{ root: string; name: string }>
   /** Послушать маячки компьютеров в сети */
   fsDiscover(options: { ms: number }): Promise<{ found: { host: string; port: number; id: string; name: string }[] }>
   fsHello(options: { base: string }): Promise<{ app: string; id: string; name: string; folder: string | null; data?: boolean }>

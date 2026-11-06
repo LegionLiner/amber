@@ -1735,13 +1735,9 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     throw new Error($t('Только на телефоне'))
   }
   async fsAccess() {
-    return { granted: false }
+    return { granted: false, name: null }
   }
-  async fsRequestAccess(): Promise<void> {}
-  async fsDefaultRoot(): Promise<{ root: string }> {
-    return this.noFs()
-  }
-  async fsPickFolder(): Promise<{ root: string }> {
+  async fsPickFolder(): Promise<{ root: string; name: string }> {
     return this.noFs()
   }
   async fsDiscover() {

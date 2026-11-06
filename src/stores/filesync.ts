@@ -86,6 +86,8 @@ export const useFileSync = defineStore('filesync', () => {
   const rootName = ref<string | null>(null)
   /** Android помнит разрешение на эту папку */
   const access = ref(false)
+  /** На телефоне включён VPN, а компьютер не ответил — настройки подскажут, что делать */
+  const vpn = ref(false)
   const status = ref<FileSyncStatus>('idle')
   const error = ref('')
   const progress = shallowRef<SyncProgress | null>(null)
@@ -234,8 +236,10 @@ export const useFileSync = defineStore('filesync', () => {
       const l = await reach(link.value)
       if (!l) {
         status.value = 'offline'
+        vpn.value = (await MusicCore.lanVpn().catch(() => null))?.active ?? false
         return
       }
+      vpn.value = false
       // Компьютер папку не раздаёт (только данные) — сверять нечего
       if (l.folder === null) {
         status.value = 'idle'
@@ -273,6 +277,7 @@ export const useFileSync = defineStore('filesync', () => {
         )
     } catch (e) {
       status.value = 'error'
+      vpn.value = (await MusicCore.lanVpn().catch(() => null))?.active ?? false
       error.value = e instanceof Error ? e.message : String(e)
       if (/не подключён|not connected/.test(error.value))
         error.value = $t('Компьютер больше не знает этот телефон: подключись заново')
@@ -350,6 +355,7 @@ export const useFileSync = defineStore('filesync', () => {
     link,
     root,
     rootName,
+    vpn,
     access,
     status,
     error,

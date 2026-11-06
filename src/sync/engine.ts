@@ -211,9 +211,14 @@ async function applyIncoming(db: SyncDb, items: SyncItem[], hooks: SyncHooks, re
   )
   const sorted = [...items].sort((a, b) => APPLY_ORDER.indexOf(a.kind) - APPLY_ORDER.indexOf(b.kind))
   const stmts: SqlStatement[] = [setState('applying', '1')]
+  // Настройки сохраняются целиком на любую мелочь (вкладка, раскрытая группа), и журнал почти всегда держит
+  // свежую запись 'pref' — даже когда общие настройки не менялись. Такая запись пришедшие не перекрывает:
+  // раньше из-за неё правка с другого устройства пропускалась насовсем
+  const ownPrefs = hooks.readPrefs?.() ?? null
+  const prefsChangedHere = !!ownPrefs && stable(ownPrefs) !== (await state(db, 'prefHash'))
   for (const it of sorted) {
     const local = pending.get(`${it.kind}\u0000${it.id}`)
-    if (local != null && local > it.updatedAt) continue
+    if (local != null && local > it.updatedAt && (it.kind !== 'pref' || prefsChangedHere)) continue
     report.pulled++
     report.kinds.add(it.kind)
     if (it.kind === 'pref') {

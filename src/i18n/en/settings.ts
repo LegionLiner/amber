@@ -115,6 +115,10 @@ export default {
   'Выбери папку с музыкой на телефоне — Amber запомнит её и дальше будет синхронизировать сам.':
     'Choose the music folder on your phone — Amber will remember it and keep it in sync by itself.',
   'Выбрать папку': 'Choose folder',
+  'На компьютере есть VPN. Если телефон его не находит — разреши в настройках VPN доступ к локальной сети (LAN).':
+    "This computer has a VPN. If the phone can't find it, allow local network (LAN) access in the VPN's settings.",
+  'На телефоне включён VPN, и он не пускает к компьютеру в домашней сети. В настройках VPN включи доступ к локальной сети (обход LAN) или добавь Amber в исключения.':
+    "This phone has a VPN on, and it blocks the computer on your home network. In the VPN's settings, allow local network access (bypass LAN) or exclude Amber.",
   'Компьютер не в сети — синхронизирую, когда появится': 'The computer is offline — will sync when it shows up',
   'Синхронизировать сейчас': 'Sync now',
   'На другой стороне удалили {0} — больше, чем обычно. Удалить и здесь? Они уйдут в корзину.':

@@ -13,7 +13,14 @@ let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => (timer = setInterval(() => (now.value = Date.now()), 1000)))
 onBeforeUnmount(() => clearInterval(timer))
 
-const OPTIONS = [15, 30, 45, 60, 90]
+/** Шесть вариантов — ровная сетка 3×2 */
+const OPTIONS = [15, 30, 45, 60, 90, 120]
+function label(m: number) {
+  if (m < 60) return $t('{0} мин', m)
+  if (m === 60) return $t('1 час')
+  if (m === 90) return $t('1,5 часа')
+  return $t('2 часа')
+}
 const active = computed(() => player.sleepAt > 0 || player.sleepEndOfTrack)
 const left = computed(() => {
   if (player.sleepEndOfTrack) return $t('после этого трека')
@@ -38,7 +45,7 @@ async function set(v: number | 'end' | null) {
     <p v-if="active" class="now">{{ $t('Музыка остановится {0}', left) }}</p>
     <div class="grid">
       <button v-for="m in OPTIONS" :key="m" type="button" class="opt" @click="set(m)">
-        {{ m < 60 ? $t('{0} мин', m) : m === 60 ? $t('1 час') : $t('1,5 часа') }}
+        {{ label(m) }}
       </button>
       <button type="button" class="opt wide" @click="set('end')">{{ $t('После этого трека') }}</button>
     </div>

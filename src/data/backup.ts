@@ -68,6 +68,7 @@ const PLAIN_TABLES = [
   'lyrics',
   'dismissed',
   'device_profiles',
+  'sound_presets',
   'settings',
 ] as const
 type PlainTable = (typeof PLAIN_TABLES)[number]
@@ -282,6 +283,11 @@ export async function importBackup(data: BackupFile, mode: 'merge' | 'replace'):
       statements.push({ sql: insertSql(t, tab.columns, mode === 'merge' ? 'ignore' : 'replace'), params: r })
     }
   }
+
+  // Бэкап старше миграции 8: свои пресеты звука в нём только внутри настроек. Снимаем отметку о переезде —
+  // при следующем запуске они снова переедут из настроек в таблицу sound_presets
+  if (mode === 'replace' && !data.tables.sound_presets)
+    statements.push({ sql: `DELETE FROM settings WHERE key = 'presets:table'` })
 
   await runChunked(statements)
   return { ...report, plays, userRows }

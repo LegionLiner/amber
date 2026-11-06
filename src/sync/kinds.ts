@@ -394,6 +394,17 @@ export const KINDS: KindDef[] = [
     eid: (r) => `${r}.kind || '|' || ${r}.key`,
     seed: `SELECT kind || '|' || key AS eid, at FROM dismissed`,
   }),
+  // Свои пресеты звука — каждый отдельно (миграция 8): наборы разных устройств складываются, удаление расходится
+  simple({
+    kind: 'spreset',
+    table: 'sound_presets',
+    cols: ['id', 'name', 'data', 'pos', 'updated_at'],
+    where: ['id'],
+    fromEid: (e) => [e],
+    eid: (r) => `${r}.id`,
+    since: 8,
+    seed: `SELECT id AS eid, updated_at AS at FROM sound_presets`,
+  }),
 ]
 
 /** Порядок применения: контексты раньше интервалов, плейлисты и треки — в любом */
@@ -413,6 +424,7 @@ export const APPLY_ORDER = [
   'diary',
   'lyric',
   'dismiss',
+  'spreset',
   'pref',
 ]
 

@@ -35,10 +35,13 @@ import { $t } from '@/i18n'
  *    Адрес компьютера в сети может смениться: тогда его находят по маячку (setLocator) и идут уже туда.
  */
 
-/** Какие настройки общие для всех устройств. Тема, папки, звук устройства — у каждого свои */
+/**
+ * Какие настройки общие для всех устройств. Тема, папки, звук устройства — у каждого свои.
+ * Свои пресеты звука — не здесь: они синхронизируются каждый отдельно (kind 'spreset', таблица sound_presets),
+ * а в этом общем куске набор одного устройства целиком затирал набор другого
+ */
 const SHARED_PREFS = [
   'counting',
-  'soundPresets',
   'radio',
   'askRatingAfterPlays',
   'shuffleKind',
@@ -287,6 +290,7 @@ export const useSync = defineStore('sync', () => {
         const k = report.kinds
         if (['track', 'card', 'play', 'rate', 'duel'].some((x) => k.has(x))) await useLibrary().load()
         if (['playlist', 'pgroup', 'pcover'].some((x) => k.has(x))) await usePlaylists().refresh()
+        if (k.has('spreset')) await useSettings().reloadPresets()
         if (report.pulled > 0) dataRev.value++
       } catch (e) {
         failures++

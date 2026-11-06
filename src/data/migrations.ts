@@ -354,6 +354,22 @@ export const MIGRATIONS: Migration[] = [
       `CREATE TABLE filesync_state (k TEXT PRIMARY KEY, v TEXT)`,
     ],
   },
+  {
+    version: 8,
+    statements: [
+      // Свои пресеты звука (src/data/repos/sound-presets.ts). Раньше жили в общих настройках одним куском:
+      // при синхронизации набор с одного устройства целиком затирал набор с другого. Теперь каждый пресет —
+      // своя запись (kind 'spreset'), наборы телефона и компьютера складываются. data — скорость, тон, эффекты
+      `CREATE TABLE sound_presets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        data TEXT NOT NULL,
+        pos REAL,
+        updated_at INTEGER NOT NULL
+      )`,
+      ...syncTriggers(8),
+    ],
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version

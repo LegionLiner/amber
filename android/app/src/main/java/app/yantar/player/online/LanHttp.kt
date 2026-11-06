@@ -21,7 +21,7 @@ object LanHttp {
     class Response(val status: Int, val body: String, val contentType: String?)
 
     fun request(method: String, url: String, headers: JSONObject?, body: String?, timeoutMs: Int): Response {
-        val c = (URL(url).openConnection() as HttpURLConnection).apply {
+        val c = LocalNet.open(URL(url)).apply {
             requestMethod = method
             connectTimeout = minOf(15_000, timeoutMs)
             readTimeout = timeoutMs
@@ -63,7 +63,7 @@ object LanHttp {
             var type: String? = null
             var error: String? = null
             try {
-                val c = (URL(url).openConnection() as HttpURLConnection).apply {
+                val c = LocalNet.open(URL(url)).apply {
                     connectTimeout = 15_000
                     // Компьютер подаёт голос раз в 25 с: дольше тишины — связь умерла
                     readTimeout = 70_000

@@ -407,6 +407,8 @@ const fileSync = new FileSyncServer({
 
 function fileSyncState() {
   const c = fileSyncConfig()
+  const nets = lanAddresses()
+  const home = nets.filter((n) => !n.vpn)
   return {
     enabled: c.enabled,
     folder: c.folder,
@@ -415,7 +417,10 @@ function fileSyncState() {
     port: fileSync.port,
     error: fileSync.error,
     name: os.hostname(),
-    addresses: lanAddresses().map((a) => a.address),
+    // Телефону — адреса домашней сети; адреса VPN и виртуальных адаптеров только если других нет
+    addresses: (home.length ? home : nets).map((n) => n.address),
+    /** На компьютере есть VPN — подсказать, если телефон его не находит */
+    vpn: nets.some((n) => n.vpn),
     devices: c.devices.map((d) => ({ id: d.id, name: d.name, pairedAt: d.pairedAt, lastSeenAt: d.lastSeenAt ?? null })),
   }
 }

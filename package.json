@@ -1,7 +1,7 @@
 {
   "name": "yantar",
   "private": true,
-  "version": "0.12.4",
+  "version": "0.12.6",
   "description": "Amber — личный офлайн-плеер для Android и компьютера",
   "type": "module",
   "scripts": {

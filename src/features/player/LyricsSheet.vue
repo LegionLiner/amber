@@ -217,8 +217,8 @@ function stamp() {
       <div class="names">
         <h3 class="sheet-head ellipsis">{{ item?.title ?? $t('Текст') }}</h3>
         <small class="muted ellipsis"
-          >{{ item?.artist }}<template v-if="source === 'mine'"> {{ $t('· твой текст') }}</template
-          ><template v-else-if="source === 'lrclib' && currentId"> {{ $t('· из LRCLIB') }}</template></small
+          >{{ item?.artist }}<template v-if="source === 'mine'"> {{ $t(' · твой текст') }}</template
+          ><template v-else-if="source === 'lrclib' && currentId"> {{ $t(' · из LRCLIB') }}</template></small
         >
       </div>
       <button

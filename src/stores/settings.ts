@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { reactive, watch } from 'vue'
-import { db } from '@/data/db'
+import { all, batch, db } from '@/data/db'
+import { loadSoundPresets, saveSoundPresets } from '@/data/repos/sound-presets'
 import { DEFAULT_COUNTING } from '@/domain/counting'
 import type { AudioSettings, CountingRule, RepeatMode } from '@/native/types'
 import type { SoundPreset } from '@/domain/effects'
@@ -204,8 +205,44 @@ export const useSettings = defineStore('settings', () => {
         /* повреждённые настройки: остаются значения по умолчанию */
       }
     }
+    await initPresets()
     loaded = true
   }
+
+  /*
+   * Свои пресеты звука живут в таблице sound_presets (по записи на пресет — так они синхронизируются
+   * между устройствами, не затирая друг друга). settings.s.soundPresets — их копия для интерфейса:
+   * правка списка пишется в таблицу, пришедшее с другого устройства — перечитывается (reloadPresets)
+   */
+  let presetsReady = false
+  let presetsTimer: ReturnType<typeof setTimeout> | undefined
+  async function initPresets() {
+    try {
+      const moved = await all<{ v: string }>(`SELECT value AS v FROM settings WHERE key = 'presets:table'`)
+      if (!moved.length) {
+        // Первый запуск с таблицей: пресеты из настроек переезжают туда (и уходят в синхронизацию)
+        await saveSoundPresets(JSON.parse(JSON.stringify(s.soundPresets)) as SoundPreset[])
+        await batch([{ sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('presets:table', '1')`, params: [] }])
+      }
+      s.soundPresets = await loadSoundPresets()
+    } catch {
+      /* без таблицы (старая база в тестах) пресеты остаются как были в настройках */
+    }
+    presetsReady = true
+  }
+  async function reloadPresets() {
+    clearTimeout(presetsTimer)
+    s.soundPresets = await loadSoundPresets()
+  }
+  watch(
+    () => s.soundPresets,
+    (list) => {
+      if (!presetsReady) return
+      clearTimeout(presetsTimer)
+      presetsTimer = setTimeout(() => void saveSoundPresets(JSON.parse(JSON.stringify(list)) as SoundPreset[]).catch(() => undefined), 300)
+    },
+    { deep: true },
+  )
 
   async function save() {
     const value = JSON.stringify(s)
@@ -248,5 +285,5 @@ export const useSettings = defineStore('settings', () => {
     s.sorts[screen] = pref
   }
 
-  return { s, load, save, sortFor, setSort }
+  return { s, load, save, sortFor, setSort, reloadPresets }
 })

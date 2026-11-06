@@ -322,19 +322,28 @@
   .eff.on .sw::after { transform: translateX(12px); background: #1a1206; }
   .eff.on input { display: block; }
 
-  /* Миксы */
-  .mix { position: relative; overflow: hidden; }
-  .lane { position: relative; height: 54px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); margin-bottom: 10px; overflow: hidden; display: flex; align-items: center; }
-  .lane span { position: absolute; left: 10px; top: 6px; font: 700 12px/1 var(--f-display); color: var(--ink-3); }
-  .lane .wav { position: absolute; top: 8px; bottom: 8px; display: flex; align-items: center; gap: 2px; }
-  .lane.a .wav { left: 6%; right: 32%; }
-  .lane.b .wav { left: 52%; right: 4%; }
-  .lane .wav b { flex: 1; border-radius: 2px; background: rgba(255,178,62,0.75); }
-  .lane.b .wav b { background: rgba(143,180,217,0.75); }
-  .curve { position: absolute; left: 52%; width: 16%; top: 20px; height: 108px; pointer-events: none; opacity: .9; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-  .chips span { padding: 8px 12px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-2); font-size: 13px; font-weight: 600; }
-  .chips span.on { background: var(--amber); color: #1a1206; border-color: transparent; }
+  /* Переходы между треками — как группа настроек в приложении (src/design/forms.css): сегменты, ползунок, тумблер */
+  .xf { display: flex; flex-direction: column; gap: 10px; }
+  .xf-title { font: 600 16px/1.2 var(--f-body); margin-bottom: 2px; }
+  .xf .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 4px; border-radius: 14px; background: var(--card-2); }
+  .xf .seg.three { grid-template-columns: repeat(3, 1fr); }
+  .xf .seg button { border: 0; padding: 10px 6px; border-radius: 10px; background: none; color: var(--ink-2); font: 500 13.5px/1.15 var(--f-body); cursor: pointer; transition: background .15s, color .15s; }
+  .xf .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); }
+  .xf-note { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-2); }
+  .xf-slider { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; font-size: 14px; }
+  .xf-slider output { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .xf-slider input { grid-column: 1 / -1; margin: 6px 0 4px; }
+  .xf-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; cursor: default; }
+  .xf-row > span:first-child { display: flex; flex-direction: column; gap: 3px; font-size: 15px; min-width: 0; }
+  .xf-row b { font-weight: 500; }
+  .xf-row small { font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
+  .xf-select { flex: none; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-2); font-size: 14px; }
+  .xf .switch { appearance: none; -webkit-appearance: none; flex: none; width: 46px; height: 28px; margin: 0; border-radius: 14px; background: var(--card-2); position: relative; cursor: pointer; transition: background .15s; }
+  .xf .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .xf .switch:checked { background: var(--amber); }
+  .xf .switch:checked::after { transform: translateX(18px); }
+  .xf [hidden] { display: none !important; }
+  @media (max-width: 420px) { .xf .seg button { font-size: 12.5px; padding: 10px 2px; } }
 
   /* Маленькие картинки в карточках */
   .mini { height: 120px; border-radius: 16px; margin-bottom: 16px; background: var(--bg-2); border: 1px solid var(--line); position: relative; overflow: hidden; }
@@ -590,15 +599,43 @@
           <span lang="en">Crossfade, overlap, fade or gapless — for every track or a custom one at each joint of a mix. Albums play without gaps, and “My radio” picks similar music from your own library.</span></p>
         </div>
         <div class="show-art">
-          <div class="art-card mix" aria-hidden="true">
-            <div class="lane a"><i class="wav" id="wav-a"></i><span>A</span></div>
-            <div class="lane b"><i class="wav" id="wav-b"></i><span>B</span></div>
-            <svg class="curve" viewBox="0 0 300 80" preserveAspectRatio="none"><path d="M0 8 C 120 8, 160 72, 300 72" stroke="#ffb23e" stroke-width="2.5" fill="none"/><path d="M0 72 C 140 72, 180 8, 300 8" stroke="#8fb4d9" stroke-width="2.5" fill="none" stroke-dasharray="5 5"/></svg>
-            <div class="chips">
-              <span><span lang="ru">Встык</span><span lang="en">Gapless</span></span>
-              <span class="on"><span lang="ru">Кроссфейд</span><span lang="en">Crossfade</span></span>
-              <span><span lang="ru">Наложение</span><span lang="en">Overlap</span></span>
-              <span><span lang="ru">Затухание</span><span lang="en">Fade out</span></span>
+          <!-- Как экран «Звук → Переходы между треками» в приложении (src/features/settings/AudioSettingsView.vue): можно трогать -->
+          <div class="art-card xf" id="xf">
+            <b class="xf-title"><span lang="ru">Переходы между треками</span><span lang="en">Transitions between tracks</span></b>
+            <div class="seg four" id="xf-modes">
+              <button type="button" data-mode="off"><span lang="ru">Без</span><span lang="en">None</span></button>
+              <button type="button" data-mode="crossfade" class="on"><span lang="ru">Кроссфейд</span><span lang="en">Crossfade</span></button>
+              <button type="button" data-mode="overlay"><span lang="ru">Наложение</span><span lang="en">Overlap</span></button>
+              <button type="button" data-mode="fadeOutIn"><span lang="ru">Затухание</span><span lang="en">Fade out</span></button>
+            </div>
+            <p class="xf-note" data-for="off"><span lang="ru">Треки идут встык, без пауз.</span><span lang="en">Tracks play back to back, no gaps.</span></p>
+            <p class="xf-note" data-for="crossfade"><span lang="ru">Конец одного трека плавно перетекает в начало следующего.</span><span lang="en">The end of one track flows smoothly into the start of the next.</span></p>
+            <p class="xf-note" data-for="overlay"><span lang="ru">Следующий входит сразу, предыдущий уходит на второй план и затихает.</span><span lang="en">The next one comes in right away while the previous one steps back and fades.</span></p>
+            <p class="xf-note" data-for="fadeOutIn"><span lang="ru">Трек затихает, потом начинается следующий.</span><span lang="en">The track fades out, then the next one starts.</span></p>
+            <label class="xf-slider" data-for="crossfade overlay fadeOutIn">
+              <span><span lang="ru">Длительность</span><span lang="en">Duration</span></span>
+              <output id="xf-dur-v"></output>
+              <input type="range" min="1000" max="12000" step="500" value="6000" id="xf-dur">
+            </label>
+            <div class="seg three" id="xf-curves" data-for="crossfade">
+              <button type="button" data-curve="equalPower" class="on"><span lang="ru">Плавная</span><span lang="en">Smooth</span></button>
+              <button type="button" data-curve="linear"><span lang="ru">Прямая</span><span lang="en">Linear</span></button>
+              <button type="button" data-curve="sCurve"><span lang="ru">S-кривая</span><span lang="en">S-curve</span></button>
+            </div>
+            <label class="xf-slider" data-for="overlay">
+              <span><span lang="ru">Предыдущий трек тише на</span><span lang="en">Previous track quieter by</span></span>
+              <output id="xf-duck-v"></output>
+              <input type="range" min="-18" max="-3" step="1" value="-9" id="xf-duck">
+            </label>
+            <label class="xf-row">
+              <span><b><span lang="ru">Альбомы без склеек</span><span lang="en">Gapless albums</span></b>
+              <small><span lang="ru">Соседние треки одного альбома по порядку идут встык, как задумано</span><span lang="en">Consecutive tracks of one album play back to back, as intended</span></small></span>
+              <input type="checkbox" class="switch" checked>
+            </label>
+            <div class="xf-row">
+              <span><b><span lang="ru">Мягкий пропуск</span><span lang="en">Soft skip</span></b>
+              <small><span lang="ru">Короткое затухание, когда листаешь треки</span><span lang="en">A short fade when you skip tracks</span></small></span>
+              <span class="xf-select"><span lang="ru">обычно</span><span lang="en">normal</span></span>
             </div>
           </div>
         </div>
@@ -875,17 +912,35 @@
       hrs.appendChild(b)
     }
 
-    // Миксы: волны двух треков
-    ;['wav-a', 'wav-b'].forEach(function (id, n) {
-      var w = document.getElementById(id)
-      if (!w) return
-      for (var q = 0; q < 40; q++) {
-        var bar = document.createElement('b')
-        var fade = n === 0 ? Math.min(1, (40 - q) / 14) : Math.min(1, (q + 1) / 14)
-        bar.style.height = Math.round((25 + 70 * Math.abs(Math.sin(q * 0.7 + n))) * fade) + '%'
-        w.appendChild(bar)
+    // Переходы между треками: режим меняет подсказку и то, какие настройки видны — как в приложении
+    var xf = document.getElementById('xf')
+    if (xf) {
+      var xfMode = 'crossfade'
+      var showXf = function () {
+        xf.querySelectorAll('#xf-modes button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === xfMode) })
+        xf.querySelectorAll('[data-for]').forEach(function (el) { el.hidden = el.dataset.for.split(' ').indexOf(xfMode) < 0 })
       }
-    })
+      xf.querySelectorAll('#xf-modes button').forEach(function (b) {
+        b.addEventListener('click', function () { xfMode = b.dataset.mode; showXf() })
+      })
+      xf.querySelectorAll('#xf-curves button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          xf.querySelectorAll('#xf-curves button').forEach(function (c) { c.classList.toggle('on', c === b) })
+        })
+      })
+      var dur = document.getElementById('xf-dur')
+      var duck = document.getElementById('xf-duck')
+      var showVals = function () {
+        var en = document.documentElement.lang === 'en'
+        document.getElementById('xf-dur-v').textContent = String(dur.value / 1000).replace('.', en ? '.' : ',') + (en ? ' s' : ' с')
+        document.getElementById('xf-duck-v').textContent = -duck.value + (en ? ' dB' : ' дБ')
+      }
+      dur.addEventListener('input', showVals)
+      duck.addEventListener('input', showVals)
+      document.querySelectorAll('.langs button').forEach(function (b) { b.addEventListener('click', function () { setTimeout(showVals) }) })
+      showXf()
+      showVals()
+    }
 
     // Голос: полоски
     var vb = document.getElementById('voice-bars')

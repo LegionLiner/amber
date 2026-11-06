@@ -92,18 +92,40 @@ class HttpError extends Error {
   }
 }
 
-/** Адреса компьютера в локальной сети (для подсказки на экране и маячка) */
-export function lanAddresses(): { address: string; broadcast: string }[] {
-  const out: { address: string; broadcast: string }[] = []
-  for (const list of Object.values(os.networkInterfaces())) {
+/** VPN и виртуальные адаптеры по имени: телефону в домашней сети их адреса ничего не дают */
+const VIRTUAL =
+  /vpn|tap|tun|wireguard|wg\d|nordlynx|proton|openvpn|radmin|hamachi|zerotier|tailscale|outline|amnezia|v2ray|clash|singbox|sing-box|vethernet|hyper-v|wsl|virtualbox|vmware|vbox|loopback|npcap/i
+
+/** Адрес из диапазонов VPN-сервисов: 100.64/10 (Tailscale и CGNAT), 26/8 (Radmin), 25/8 (Hamachi) */
+function vpnRange(ip: number[]): boolean {
+  return (ip[0] === 100 && ip[1]! >= 64 && ip[1]! < 128) || ip[0] === 26 || ip[0] === 25
+}
+
+/**
+ * Адреса компьютера в сетях (для подсказки на экране и маячка). Сначала — настоящая домашняя сеть
+ * (Wi-Fi, Ethernet, 192.168/10/172.16), VPN и виртуальные адаптеры — в конце с пометкой vpn: при включённом
+ * VPN их адреса стоят первыми, и в подсказке телефону раньше показывался адрес, по которому он не достучится
+ */
+export function lanAddresses(): { address: string; broadcast: string; name: string; vpn: boolean }[] {
+  const out: { address: string; broadcast: string; name: string; vpn: boolean; score: number }[] = []
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
     for (const a of list ?? []) {
       if (a.family !== 'IPv4' || a.internal) continue
       const ip = a.address.split('.').map(Number)
       const mask = a.netmask.split('.').map(Number)
-      out.push({ address: a.address, broadcast: ip.map((x, i) => (x | (~mask[i]! & 255)) >>> 0).join('.') })
+      const vpn = VIRTUAL.test(name) || vpnRange(ip)
+      const home = ip[0] === 192 && ip[1] === 168 ? 2 : ip[0] === 10 || (ip[0] === 172 && ip[1]! >= 16 && ip[1]! < 32) ? 1 : 0
+      const physical = /wi-?fi|wlan|wireless|ethernet|беспровод|локальн/i.test(name) ? 2 : 0
+      out.push({
+        address: a.address,
+        broadcast: ip.map((x, i) => (x | (~mask[i]! & 255)) >>> 0).join('.'),
+        name,
+        vpn,
+        score: (vpn ? -10 : 0) + home + physical,
+      })
     }
   }
-  return out
+  return out.sort((a, b) => b.score - a.score).map(({ score: _s, ...a }) => a)
 }
 
 export class FileSyncServer {

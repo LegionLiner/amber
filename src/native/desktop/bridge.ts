@@ -43,6 +43,8 @@ export interface DesktopFileSyncState {
   error: string | null
   name: string
   addresses: string[]
+  /** Есть VPN или виртуальный адаптер: если телефон не находит компьютер, подсказать про локальную сеть в VPN */
+  vpn?: boolean
   devices: { id: string; name: string; pairedAt: number; lastSeenAt: number | null }[]
 }
 

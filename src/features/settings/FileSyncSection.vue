@@ -246,6 +246,9 @@ const reportText = computed(() => {
           </span>
         </div>
         <p v-if="activityText" class="tiny">{{ activityText }}</p>
+        <p v-if="fs.pc.vpn && !phoneOnline" class="tiny vpn">
+          {{ $t('На компьютере есть VPN. Если телефон его не находит — разреши в настройках VPN доступ к локальной сети (LAN).') }}
+        </p>
 
         <div v-if="code && codeLeft !== '0:00'" class="code">
           <small>{{ $t('Код для телефона · {0}', codeLeft) }}</small>
@@ -369,6 +372,14 @@ const reportText = computed(() => {
           </div>
         </template>
 
+        <!-- Amber ходит к компьютеру через Wi-Fi мимо VPN, но некоторые VPN этого не разрешают -->
+        <p v-if="fs.vpn && (fs.status === 'offline' || fs.status === 'error')" class="tiny vpn">
+          {{
+            $t(
+              'На телефоне включён VPN, и он не пускает к компьютеру в домашней сети. В настройках VPN включи доступ к локальной сети (обход LAN) или добавь Amber в исключения.',
+            )
+          }}
+        </p>
         <div class="btns">
           <button type="button" class="btn" :disabled="fs.status === 'running' || sync.status === 'syncing'" @click="syncAll">
             <IconSync />{{ $t('Синхронизировать сейчас') }}
@@ -612,6 +623,9 @@ const reportText = computed(() => {
   font-size: 12.5px;
   color: var(--ink-3);
   line-height: 1.4;
+}
+.tiny.vpn {
+  color: var(--amber-ink);
 }
 .err {
   color: var(--bad);

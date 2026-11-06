@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import IconAdd from '~icons/solar/add-circle-linear'
 import IconList from '~icons/solar/playlist-linear'
 import IconCheck from '~icons/solar/check-circle-bold'
+import CoverArt from '@/components/CoverArt.vue'
 import { usePlaylists } from '@/stores/playlists'
 import { useUi } from '@/stores/ui'
 import { playlistsContaining } from '@/data/repos/playlists'
@@ -75,7 +76,9 @@ async function create() {
       :class="state(p.id)"
       @click="add(p.id, p.name)"
     >
-      <span class="ic"><IconList /></span>
+      <!-- Обложка плейлиста, если её задали, — как в медиатеке; нет — значок -->
+      <CoverArt v-if="p.cover" :art="p.cover" :seed="p.name" :label="p.name" size="s" radius="12px" class="pcv" />
+      <span v-else class="ic"><IconList /></span>
       <span class="text">
         <span class="t ellipsis">{{ p.name }}</span>
         <span class="s">
@@ -145,6 +148,9 @@ async function create() {
   width: 24px;
   height: 24px;
   color: var(--amber);
+}
+.pcv {
+  width: 44px;
 }
 .row.all .ic {
   background: rgba(var(--amber-rgb), 0.14);

@@ -86,6 +86,7 @@ class MusicCorePlugin : Plugin() {
 
     override fun load() {
         Lang.init(context)
+        app.yantar.player.online.LocalNet.init(context)
         PlayerHub.init(context)
         PlayerHub.listeners.add(hubListener)
         PlayerHub.setUiVisible(true)
@@ -707,6 +708,12 @@ class MusicCorePlugin : Plugin() {
             },
         )
         call.resolve()
+    }
+
+    /** Включён ли на телефоне VPN — подсказать, если компьютер в той же сети не отвечает */
+    @PluginMethod
+    fun lanVpn(call: PluginCall) {
+        call.resolve(JSObject().put("active", app.yantar.player.online.LocalNet.vpnActive()))
     }
 
     @PluginMethod

@@ -146,6 +146,8 @@ export interface MusicCorePlugin {
   /** Поток событий компьютера: события — lanEvent, конец — lanEventsClosed */
   lanEventsOpen(options: { id: string; url: string; token: string }): Promise<void>
   lanEventsClose(options: { id: string }): Promise<void>
+  /** Включён ли на телефоне VPN: компьютер в той же сети не отвечает — подсказать, что делать */
+  lanVpn(): Promise<{ active: boolean }>
   importFile(): Promise<ImportedFile>
   chooseBackupFolder(): Promise<{ uri: string }>
   writeBackup(options: { folderUri: string; json: string; keep: number }): Promise<{ uri: string }>

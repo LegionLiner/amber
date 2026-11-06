@@ -144,7 +144,7 @@ object FileSync {
     class HttpFail(val code: Int, val why: String?, message: String) : IOException(message)
 
     private fun open(base: String, path: String, token: String?, method: String = "GET", readMs: Int = 60_000): HttpURLConnection =
-        (URL("$base$API$path").openConnection() as HttpURLConnection).apply {
+        app.yantar.player.online.LocalNet.open(URL("$base$API$path")).apply {
             requestMethod = method
             connectTimeout = 5_000
             readTimeout = readMs
@@ -264,6 +264,8 @@ object FileSync {
             DatagramSocket(null).use { sock ->
                 sock.reuseAddress = true
                 sock.broadcast = true
+                // При включённом VPN — слушать именно Wi-Fi
+                app.yantar.player.online.LocalNet.bind(sock)
                 sock.bind(InetSocketAddress(BEACON_PORT))
                 val until = System.currentTimeMillis() + ms
                 val buf = ByteArray(2048)

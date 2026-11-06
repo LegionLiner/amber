@@ -1751,6 +1751,9 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
     return this.noFs()
   }
   async lanEventsClose(): Promise<void> {}
+  async lanVpn() {
+    return { active: false }
+  }
 
   async fsHello(): Promise<never> {
     return this.noFs()

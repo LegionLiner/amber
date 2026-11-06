@@ -145,9 +145,11 @@ function playTop() {
       <i v-if="isDesktop" class="blob b3" />
       <i v-if="isDesktop" class="grain" />
     </div>
+    <!-- Ключи у веток разные: иначе пройденная полоска (неявный ключ 0) совпадала с идущей первой (ключ i = 0),
+         Vue оставлял тот же элемент со старым классом run — и она продолжала заполняться после перелистывания -->
     <div class="bars">
       <i v-for="(_, n) in slides" :key="n"
-        ><b v-if="n < i" class="done" /><b v-else-if="n === i" :key="i" class="run" @animationend="timeUp"
+        ><b v-if="n < i" key="done" class="done" /><b v-else-if="n === i" :key="`run-${i}`" class="run" @animationend="timeUp"
       /></i>
     </div>
     <div class="top">

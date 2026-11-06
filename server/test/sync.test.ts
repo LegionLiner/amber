@@ -423,6 +423,49 @@ describe('синхронизация телефона и компьютера', 
     expect(r.pushed).toBe(0)
   })
 
+  it('свои пресеты звука складываются с обоих устройств, удаление расходится', async () => {
+    const preset = (d: Device, id: string, name: string, at: number) =>
+      d.run(`INSERT INTO sound_presets (id, name, data, pos, updated_at) VALUES (?, ?, '{"speed":0.85,"pitch":0.85,"effects":{}}', 0, ?)`, [
+        id,
+        name,
+        at,
+      ])
+    preset(phone, 'p-phone', 'Ночной', 9000)
+    preset(pc, 'p-pc', 'Зал', 9100)
+    await phone.sync()
+    await pc.sync()
+    await phone.sync()
+    const names = (d: Device) => d.all<{ name: string }>(`SELECT name FROM sound_presets ORDER BY id`).map((r) => r.name)
+    expect(names(phone)).toEqual(['Зал', 'Ночной'])
+    expect(names(pc)).toEqual(['Зал', 'Ночной'])
+
+    phone.run(`DELETE FROM sound_presets WHERE id = 'p-pc'`)
+    await phone.sync()
+    await pc.sync()
+    expect(names(pc)).toEqual(['Ночной'])
+  })
+
+  it('общие настройки с другого устройства не теряются из-за своей несвязанной правки', async () => {
+    phone.prefs = { ...phone.prefs, lrclib: false }
+    phone.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('app', '{"x":1}')`)
+    await phone.sync()
+    // Пока компьютер ждёт ответа сервера, у него сохранилась своя мелочь (вкладка): в журнале — свежая запись
+    // 'pref', а общие настройки там те же, что были. Пришедшая правка всё равно должна примениться
+    const token = pc.token
+    await runSync(
+      pc.sdb,
+      {
+        async sync(body) {
+          pc.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('app', '{"x":2}')`)
+          const r = await app.inject({ method: 'POST', url: '/v1/sync', headers: { authorization: `Bearer ${token}` }, payload: body })
+          return r.json()
+        },
+      },
+      pc.hooks,
+    )
+    expect(pc.prefs.lrclib).toBe(false)
+  })
+
   it('удаление аккаунта стирает данные с сервера', async () => {
     const tmp = await post('/v1/auth/register', { email: 'tmp@example.com', password: 'tmp-password' })
     const t = String(tmp.body.token)

@@ -179,7 +179,7 @@ function wheel(e: WheelEvent) {
         </Transition>
       </div>
     </div>
-    <p v-if="!month" class="hint">{{ $t('Нажми на месяц — покажу его по дням') }}</p>
+    <p v-if="!month" class="hint">{{ $t('Нажми на месяц — покажется по дням') }}</p>
   </div>
 </template>
 

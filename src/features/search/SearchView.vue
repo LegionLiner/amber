@@ -178,7 +178,6 @@ function go(to: Parameters<typeof router.push>[0]) {
           <IconHistory />{{ r }}
         </button>
       </template>
-      <p v-else class="hint muted">{{ $t('Ищет с опечатками, транслитом и в неверной раскладке: «rbyj» найдёт «Кино».') }}</p>
     </div>
 
     <template v-else>

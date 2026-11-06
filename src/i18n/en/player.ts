@@ -16,7 +16,7 @@ export default {
   'Сам выбираешь треки и порядок': 'You pick the tracks and the order',
   'Собирается сам по условиям и обновляется': 'Builds itself from rules and stays updated',
   Микс: 'Mix',
-  'Свой переход на каждом стыке, как у диджея': 'A custom transition at every joint, like a DJ',
+  'Свой переход на каждом стыке': 'A custom transition at every joint',
   Все: 'All',
   Новые: 'New',
   Любимые: 'Favorites',
@@ -78,7 +78,7 @@ export default {
   все: 'all',
   'Все месяцы': 'All months',
   '. Открыть по дням': '. Open by day',
-  'Нажми на месяц — покажу его по дням': 'Tap a month to see it by day',
+  'Нажми на месяц — покажется по дням': 'Tap a month to see it by day',
   Файл: 'File',
   Размер: 'Size',
   Формат: 'Format',
@@ -143,7 +143,7 @@ export default {
   'Плеер в шторке, на экране блокировки и на часах.':
     'The player in the notification shade, on the lock screen and on your watch.',
   'Совет про батарею': 'Battery tip',
-  'В настройках Android поставь приложению режим «Без ограничений», чтобы One UI не усыплял музыку.':
+  'В настройках Android поставь приложению режим «Без ограничений», чтобы система не усыпляла музыку.':
     "In Android settings set the app's battery mode to “Unrestricted” so the system doesn't put the music to sleep.",
   'Разрешить и найти музыку': 'Allow and find music',
   'Открыть папку с музыкой': 'Open music folder',
@@ -161,8 +161,8 @@ export default {
   'Метки · {0}': 'Marks · {0}',
   'Поставить метку на {0}': 'Add a mark at {0}',
   'Лучший момент': 'Best moment',
-  'Меток пока нет. Отметь припев, соло или момент, ради которого включаешь трек.':
-    'No marks yet. Mark the chorus, a solo or the moment you play this track for.',
+  'Меток пока нет.':
+    'No marks yet.',
   'Радио по треку: дальше похожее из твоей музыки': 'Track radio: similar music from your library comes next',
   Плеер: 'Player',
   'Играет из': 'Playing from',
@@ -181,8 +181,8 @@ export default {
   'Текст убран': 'Lyrics removed',
   'Текст сохранён': 'Lyrics saved',
   Текст: 'Lyrics',
-  '· твой текст': '· your lyrics',
-  '· из LRCLIB': '· from LRCLIB',
+  ' · твой текст': '· your lyrics',
+  ' · из LRCLIB': '· from LRCLIB',
   'Варианты из LRCLIB': 'Options from LRCLIB',
   'Изменить текст': 'Edit lyrics',
   'Скрыть текст': 'Hide lyrics',
@@ -296,8 +296,6 @@ export default {
   'Скачать звук этого ролика в медиатеку': "Download this video's audio to the library",
   'Недавние запросы': 'Recent searches',
   очистить: 'clear',
-  'Ищет с опечатками, транслитом и в неверной раскладке: «rbyj» найдёт «Кино».':
-    'Handles typos, transliteration and the wrong keyboard layout: “rbyj” finds “Кино”.',
   'Показать все {0}': 'Show all {0}',
   'Попробуй часть названия или имя файла.': 'Try part of the title or the file name.',
   'Сохраняю в «Музыку»…': 'Saving to “Music”…',

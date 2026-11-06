@@ -47,7 +47,7 @@ async function remove() {
 <template>
   <div class="sheet-body form">
     <h3 class="sheet-head">{{ era ? $t('Эпоха') : $t('Новая эпоха') }}</h3>
-    <input id="era-title" v-model="form.title" class="field" :placeholder="$t('Например, «Переезд в Питер»')" maxlength="60" />
+    <input id="era-title" v-model="form.title" class="field" :placeholder="$t('Например, «Поездка в горы»')" maxlength="60" />
     <div class="dates">
       <label
         ><span>{{ $t('С') }}</span

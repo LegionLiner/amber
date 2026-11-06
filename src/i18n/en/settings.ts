@@ -1,8 +1,8 @@
 /** Английский: звук, уборка тегов, дубли, папка по Wi-Fi, настройки (начало) */
 export default {
   'Конец одного трека плавно перетекает в начало следующего.': 'The end of one track flows smoothly into the start of the next.',
-  'Следующий входит сразу, предыдущий уходит на второй план и затихает — как у диджея.':
-    'The next one comes in right away while the previous one steps back and fades — like a DJ.',
+  'Следующий входит сразу, предыдущий уходит на второй план и затихает.':
+    'The next one comes in right away while the previous one steps back and fades.',
   'Трек затихает, потом начинается следующий.': 'The track fades out, then the next one starts.',
   Выкл: 'Off',
   'Как записано в файлах: одни треки громче других.': 'As recorded in the files: some tracks are louder than others.',

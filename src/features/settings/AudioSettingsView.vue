@@ -33,7 +33,7 @@ const MODES: { id: CrossfadeSettings['mode']; label: string }[] = [
 const MODE_HINT: Record<CrossfadeSettings['mode'], string> = {
   off: $t('Треки идут встык, без пауз.'),
   crossfade: $t('Конец одного трека плавно перетекает в начало следующего.'),
-  overlay: $t('Следующий входит сразу, предыдущий уходит на второй план и затихает — как у диджея.'),
+  overlay: $t('Следующий входит сразу, предыдущий уходит на второй план и затихает.'),
   fadeOutIn: $t('Трек затихает, потом начинается следующий.'),
 }
 const CURVES: { id: CrossfadeSettings['curve']; label: string }[] = [

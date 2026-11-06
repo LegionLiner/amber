@@ -92,7 +92,7 @@ async function remove(b: Bookmark) {
       <button type="button" class="ic" :aria-label="$t('Удалить')" @click="remove(b)"><IconTrash /></button>
     </div>
     <p v-if="!list.length" class="note muted">
-      {{ $t('Меток пока нет. Отметь припев, соло или момент, ради которого включаешь трек.') }}
+      {{ $t('Меток пока нет.') }}
     </p>
   </div>
 </template>

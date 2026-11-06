@@ -126,7 +126,7 @@ export function buildSlides(r: Recap, title: string, byKey: Map<string, Track>):
     big: formatListen(r.listenedMs),
     lines: [
       $t('{0} с музыкой', countLabel(days, $tp('день|дня|дней'))),
-      days ? $t('в среднем {0} мин в такой день', Math.round(minutes / days)) : '',
+      days ? $t('в среднем {0} мин в день', Math.round(minutes / days)) : '',
       `${countLabel(r.tracks, $tp('разный трек|разных трека|разных треков'))}`,
     ].filter(Boolean),
     accent: statAccent,

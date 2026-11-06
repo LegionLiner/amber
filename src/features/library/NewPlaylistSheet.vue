@@ -60,7 +60,7 @@ function mix() {
       </button>
       <button type="button" class="sheet-item" @click="mix">
         <IconMix /><span
-          >{{ $t('Микс') }}<small>{{ $t('Свой переход на каждом стыке, как у диджея') }}</small></span
+          >{{ $t('Микс') }}<small>{{ $t('Свой переход на каждом стыке') }}</small></span
         >
       </button>
     </div>

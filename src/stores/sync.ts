@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia'
-import { computed, ref, toRaw } from 'vue'
+import { computed, ref, toRaw, watch } from 'vue'
 import { all, batch, onDbWrite } from '@/data/db'
 import { dataRev } from '@/app/data-rev'
 import { isNative } from '@/native/paths'
 import { MusicCore } from '@/native/music-core'
 import { isDesktop } from '@/native/desktop/bridge'
 import type { SyncDb } from '@/sync/kinds'
-import { disableSync, enableSync, pendingCount, runSync } from '@/sync/engine'
+import { disableSync, dropIdlePrefs, enableSync, pendingCount, runSync } from '@/sync/engine'
 import { ApiError, SyncApi, normalizeUrl, type Me } from '@/sync/api'
 import { readCoverImage, saveCoverImage } from '@/sync/covers'
 import { useSettings, type AppSettings } from './settings'
@@ -101,6 +101,17 @@ export const useSync = defineStore('sync', () => {
     locate = fn
   }
   const status = ref<SyncStatus>('off')
+  /**
+   * Проход идёт дольше секунды — только тогда настройки пишут «Синхронизирую…». Короткие проходы (их много:
+   * пришло изменение с другого устройства, своя правка) не трогают текст, иначе он мигал туда-сюда
+   */
+  const busy = ref(false)
+  let busyTimer = 0
+  watch(status, (v) => {
+    clearTimeout(busyTimer)
+    if (v === 'syncing') busyTimer = window.setTimeout(() => (busy.value = true), 1000)
+    else busy.value = false
+  })
   const error = ref('')
   const lastAt = ref<number | null>(null)
   const pending = ref(0)
@@ -336,6 +347,12 @@ export const useSync = defineStore('sync', () => {
       pending.value = 0
       return
     }
+    // Сохранилась только локальная мелочь в настройках — общие те же: проход не нужен
+    if (await dropIdlePrefs(sdb, readPrefs()).catch(() => false)) {
+      outboxSig = await readOutboxSig().catch(() => sig)
+      pending.value = 0
+      return
+    }
     void syncNow()
   }
 
@@ -433,6 +450,7 @@ export const useSync = defineStore('sync', () => {
     peer,
     label,
     status,
+    busy,
     error,
     lastAt,
     pending,

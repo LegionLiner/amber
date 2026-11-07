@@ -103,7 +103,7 @@ export interface MusicCorePlugin {
   fsPickFolder(): Promise<{ root: string; name: string }>
   /** Послушать маячки компьютеров в сети */
   fsDiscover(options: { ms: number }): Promise<{ found: { host: string; port: number; id: string; name: string }[] }>
-  fsHello(options: { base: string }): Promise<{ app: string; id: string; name: string; folder: string | null; data?: boolean }>
+  fsHello(options: { base: string }): Promise<{ app: string; id: string; name: string; folder: string | null; data?: boolean; rev?: string | null }>
   fsPair(options: { base: string; code: string; name: string }): Promise<{ token: string; id: string; name: string }>
   fsRemoteList(options: { base: string; token: string }): Promise<{ folderId: string; files: FsEntry[] }>
   fsRemoteHash(options: { base: string; token: string; p: string }): Promise<{ h: string }>

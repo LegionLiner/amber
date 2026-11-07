@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { MusicCore } from '@/native/music-core'
 import type { DamagedFile, PlayLoggedEvent, ScanProgress, ScanResult } from '@/native/types'
-import { loadAnalysis, loadTrackRows, saveRating, upsertTrackUser } from '@/data/repos/library'
+import { loadAnalysis, loadTrackRows, outdatedWaves, saveRating, upsertTrackUser } from '@/data/repos/library'
 import { hasSpotify, rematchSpotify } from '@/data/repos/spotify'
 import { toTrack, type Track } from '@/domain/track'
 import { buildFolderTree, groupAlbums, groupArtists, groupGenres } from '@/domain/groups'
@@ -85,9 +85,13 @@ export const useLibrary = defineStore('library', () => {
     })
   }
 
-  /** Всё, что ещё не анализировали, — в фоновую очередь (на телефоне: на зарядке или при открытом приложении) */
+  /**
+   * Всё, что ещё не анализировали, — в фоновую очередь (на телефоне: на зарядке или при открытом приложении).
+   * Туда же — треки с волной старой формулы (domain/waveform.ts): громкость у них уже есть, пересчитается волна
+   */
   async function scheduleAnalysis() {
     const keys = tracks.value.filter((t) => !t.analyzed).map((t) => t.key)
+    keys.push(...(await outdatedWaves().catch(() => [])))
     if (keys.length) await MusicCore.analyze({ keys, priority: 'night' })
   }
 
@@ -95,7 +99,7 @@ export const useLibrary = defineStore('library', () => {
     const keys = [...analyzedPending]
     analyzedPending.clear()
     const rows = await loadAnalysis(keys)
-    patchMany(new Map(rows.map((r) => [r.key, { lufs: r.lufs, bpm: r.bpm, energy: r.energy, analyzed: true }])))
+    patchMany(new Map(rows.map((r) => [r.key, { lufs: r.lufs, bpm: r.bpm, energy: r.energy, analyzed: true, analyzedAt: r.analyzedAt }])))
   }
 
   /** Починить испорченные файлы: Android один раз спросит разрешение, потом библиотека пересканируется */

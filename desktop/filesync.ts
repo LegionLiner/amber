@@ -139,6 +139,41 @@ export class FileSyncServer {
   /** Общие данные: тот же сервер, пути /v1/… */
   readonly hub: LocalHub | null
 
+  /*
+   * Ревизия раздаваемой папки: меняется при любом изменении в ней (fs.watch). Телефон, пока приложение
+   * открыто, раз в несколько секунд спрашивает /hello и сверяет папку сразу, как только ревизия другая, —
+   * новая песня приходит без нажатия «Синхронизировать». Начало — время запуска: после перезапуска ревизия новая
+   */
+  private rev = 0
+  private readonly revBase = Date.now().toString(36)
+  private watcher: fs.FSWatcher | null = null
+  private watching: string | null = null
+  private revTimer: NodeJS.Timeout | undefined
+
+  /** Следить за текущей папкой (сменили папку — за новой) */
+  private watchFolder() {
+    const folder = this.running ? (this.host.config().folder ?? null) : null
+    if (folder === this.watching) return
+    this.watcher?.close()
+    this.watcher = null
+    this.watching = folder
+    this.rev++
+    if (!folder) return
+    try {
+      this.watcher = fs.watch(folder, { recursive: true }, (_e, name) => {
+        // Свои служебные файлы (недокачанное, корзина) ревизию не меняют
+        const p = String(name ?? '').split(path.sep).join('/')
+        if (p && ignored(p)) return
+        // Копирование большого файла — пачка событий: считаем одним изменением
+        clearTimeout(this.revTimer)
+        this.revTimer = setTimeout(() => this.rev++, 1500)
+      })
+      this.watcher.on('error', () => undefined)
+    } catch {
+      /* папки нет или нельзя следить: телефон сверит по расписанию */
+    }
+  }
+
   constructor(private readonly host: FileSyncHost) {
     this.hub = host.hubFile
       ? new LocalHub({
@@ -212,10 +247,15 @@ export class FileSyncServer {
     this.server = server
     this.port = (server.address() as { port: number }).port
     this.startBeacon()
+    this.watchFolder()
   }
 
   async stop(): Promise<void> {
     clearInterval(this.beaconTimer)
+    clearTimeout(this.revTimer)
+    this.watcher?.close()
+    this.watcher = null
+    this.watching = null
     this.beacon?.close()
     this.beacon = null
     const s = this.server
@@ -310,7 +350,9 @@ export class FileSyncServer {
 
   private hello() {
     const c = this.host.config()
+    this.watchFolder()
     return {
+      rev: c.folder ? `${this.revBase}.${this.rev}` : null,
       app: 'amber',
       v: 1,
       id: c.id,

@@ -1,8 +1,9 @@
 /**
  * Анализ трека в браузере — порт android/…/analysis/Analyzer.kt:
  * громкость по EBU R128 (K-фильтр, блоки 400 мс, гейты −70 LUFS и −10 LU), пик, тишина по краям,
- * волна на 1000 точек, энергия и грубый темп.
+ * волна на 1000 точек (domain/waveform.ts), энергия и грубый темп.
  */
+import { waveFromMeanSquares } from '@/domain/waveform'
 
 export interface AnalysisResult {
   lufs: number | null
@@ -79,6 +80,9 @@ export class TrackAnalyzer {
   private readonly envLen: number
   private readonly sub: number[] = []
   private readonly env: number[] = []
+  /** Средний квадрат по 10 мс — для волны (waveFromMeanSquares) */
+  private readonly envSq: number[] = []
+  private envSqAcc = 0
   private readonly silence = Math.pow(10, -50 / 20)
   private acc = 0
   private accN = 0
@@ -105,11 +109,13 @@ export class TrackAnalyzer {
     for (let i = 0; i < n; i++) {
       let fmax = 0
       let fsq = 0
+      let raw = 0
       for (let c = 0; c < data.length; c++) {
         const x = data[c]![i]!
         const ax = Math.abs(x)
         if (ax > fmax) fmax = ax
         this.sumSq += x * x
+        raw += x * x
         if (c < this.chans) {
           const [shelf, hp] = this.filters[c]!
           const y = hp.process(shelf.process(x))
@@ -129,8 +135,11 @@ export class TrackAnalyzer {
         this.last = at
       }
       if (fmax > this.envMax) this.envMax = fmax
+      this.envSqAcc += raw / data.length
       if (++this.envN >= this.envLen) {
         this.env.push(this.envMax)
+        this.envSq.push(this.envSqAcc / this.envN)
+        this.envSqAcc = 0
         this.envMax = 0
         this.envN = 0
       }
@@ -151,17 +160,7 @@ export class TrackAnalyzer {
       const gated = abs70.filter((b) => L(b) > rel)
       if (gated.length) lufs = L(gated.reduce((s, x) => s + x, 0) / gated.length)
     }
-    const wave = new Uint8Array(1000)
-    // Не Math.max(...env): у часового трека в огибающей сотни тысяч точек — столько аргументов не влезает в стек
-    let top = 1e-9
-    for (const v of env) if (v > top) top = v
-    for (let i = 0; i < 1000; i++) {
-      const from = Math.floor((i * env.length) / 1000)
-      const to = Math.max(from + 1, Math.floor(((i + 1) * env.length) / 1000))
-      let m = 0
-      for (let j = from; j < Math.min(to, env.length); j++) if (env[j]! > m) m = env[j]!
-      wave[i] = Math.min(255, Math.round(Math.sqrt(m / top) * 255))
-    }
+    const wave = waveFromMeanSquares(this.envSq)
     const rmsDb = 10 * Math.log10(this.sumSq / Math.max(1, this.values) + 1e-12)
     return {
       lufs,

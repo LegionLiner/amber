@@ -110,6 +110,8 @@ export interface Track {
   bpm: number | null
   energy: number | null
   analyzed: boolean
+  /** Когда анализировали в последний раз: меняется и при пересчёте волны — плеер перечитывает её */
+  analyzedAt?: number | null
 }
 
 export function parseOverrides(json: string | null): TagOverrides {
@@ -208,6 +210,7 @@ export function toTrack(r: TrackRow, opts: TrackOptions): Track {
     bpm: r.bpm,
     energy: r.energy,
     analyzed: r.analyzedAt != null,
+    analyzedAt: r.analyzedAt,
   }
 }
 

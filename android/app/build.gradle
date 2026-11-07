@@ -29,7 +29,7 @@ android {
         // не встречает один код дважды. yyMMddHHmm − 2 000 000 000: 06.11.2026 18:52 → 611061852 — больше прежних
         // кодов вида yyMMddHH (26110618) и влезает в int до 2041 года
         versionCode Long.parseLong(new java.text.SimpleDateFormat('yyMMddHHmm').format(new Date())) - 2_000_000_000L as int
-        versionName "0.12.6"
+        versionName "0.12.7"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

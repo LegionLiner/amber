@@ -30,7 +30,8 @@ const dataText = computed(() => {
     )
   switch (sync.status) {
     case 'syncing':
-      return $t('Синхронизирую…')
+      // Короткий проход не меняет текст: «Синхронизирую…» — только если он затянулся (sync.busy)
+      return sync.busy ? $t('Синхронизирую…') : $t('Всё синхронизировано · {0}', ago(sync.lastAt))
     case 'offline':
       return isDesktop ? $t('Связь с телефоном выключена') : $t('Компьютер не в сети — синхронизирую, когда появится')
     case 'error':
@@ -310,7 +311,7 @@ const reportText = computed(() => {
                 ? $t('Компьютер не раздаёт папку: включи это в его настройках')
                 : !fs.files
                   ? $t('Новая музыка с компьютера приходит сюда, а своя уходит туда')
-                  : fs.status === 'running'
+                  : fs.busy
                     ? progressText
                     : fs.status === 'offline'
                       ? $t('Компьютер не в сети — синхронизирую, когда появится')
@@ -381,7 +382,7 @@ const reportText = computed(() => {
           }}
         </p>
         <div class="btns">
-          <button type="button" class="btn" :disabled="fs.status === 'running' || sync.status === 'syncing'" @click="syncAll">
+          <button type="button" class="btn" :disabled="fs.status === 'running' || sync.busy" @click="syncAll">
             <IconSync />{{ $t('Синхронизировать сейчас') }}
           </button>
           <button type="button" class="link danger" @click="fs.unpair()">{{ $t('Отключить компьютер') }}</button>
@@ -452,6 +453,11 @@ const reportText = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+/* Кнопка и ссылка не переносят текст: не помещаются рядом — ссылка уходит на следующую строку */
+.btns > * {
+  flex: none;
+  white-space: nowrap;
 }
 .btns .btn svg {
   width: 18px;

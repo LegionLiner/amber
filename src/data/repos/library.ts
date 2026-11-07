@@ -1,4 +1,5 @@
 import { all, batch, db, run } from '../db'
+import { WAVE_VERSION } from '@/domain/waveform'
 import { toCard, type TrackCard, type TrackRow } from '@/domain/track'
 import { countedSqlExpr } from '@/domain/counting'
 import type { CountingRule } from '@/native/types'
@@ -71,6 +72,27 @@ export function loadAnalysis(
     `SELECT key, lufs, bpm, energy, analyzed_at AS analyzedAt FROM analysis WHERE key IN (${keys.map(() => '?').join(',')})`,
     keys,
   )
+}
+
+/**
+ * Волна посчитана старой формулой (до WAVE_VERSION, domain/waveform.ts) — у громко сведённых треков она была
+ * ровной полосой. Такие пересчитываются: играющий — сразу, остальные — в фоне (outdatedWaves)
+ */
+export async function waveOutdated(key: string): Promise<boolean> {
+  const rows = await all<{ v: number | null }>(
+    'SELECT wave_v AS v FROM analysis WHERE key = ? AND waveform IS NOT NULL',
+    [key],
+  )
+  return rows.length > 0 && (rows[0]!.v ?? 0) < WAVE_VERSION
+}
+
+/** Все треки с волной старой формулы */
+export async function outdatedWaves(): Promise<string[]> {
+  const rows = await all<{ key: string }>(
+    'SELECT key FROM analysis WHERE waveform IS NOT NULL AND (wave_v IS NULL OR wave_v < ?)',
+    [WAVE_VERSION],
+  )
+  return rows.map((r) => r.key)
 }
 
 /** Волна трека: 1000 значений 0…255 */

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { all, batch, run } from '@/data/db'
 import { MusicCore } from '@/native/music-core'
 import { isNative } from '@/native/paths'
@@ -27,6 +27,8 @@ import { $t } from '@/i18n'
 
 const AUTO_EVERY_MS = 10 * 60_000
 const RESUME_AFTER_MS = 2 * 60_000
+/** Как часто, пока приложение открыто, спрашивать компьютер, не поменялась ли его папка (маленький запрос) */
+const POLL_MS = 15_000
 const TRASH_DAYS = 30
 
 export type FileSyncStatus = 'idle' | 'running' | 'offline' | 'error'
@@ -89,6 +91,14 @@ export const useFileSync = defineStore('filesync', () => {
   /** На телефоне включён VPN, а компьютер не ответил — настройки подскажут, что делать */
   const vpn = ref(false)
   const status = ref<FileSyncStatus>('idle')
+  /** Проход идёт дольше секунды — только тогда показываем «Сверяю папки…» (короткие не дёргают текст) */
+  const busy = ref(false)
+  let busyTimer = 0
+  watch(status, (v) => {
+    clearTimeout(busyTimer)
+    if (v === 'running') busyTimer = window.setTimeout(() => (busy.value = true), 1000)
+    else busy.value = false
+  })
   const error = ref('')
   const progress = shallowRef<SyncProgress | null>(null)
   const report = shallowRef<SyncReport | null>(null)
@@ -213,6 +223,7 @@ export const useFileSync = defineStore('filesync', () => {
       base = baseUrl(found.host, found.port)
       h = await MusicCore.fsHello({ base }).catch(() => null)
     }
+    seenRev = h?.rev ?? null
     const next: Link = { ...l, base, folder: h ? h.folder : l.folder, data: h ? !!h.data : l.data }
     if (JSON.stringify(next) !== JSON.stringify(l)) {
       link.value = next
@@ -245,6 +256,7 @@ export const useFileSync = defineStore('filesync', () => {
         status.value = 'idle'
         return
       }
+      const rev = seenRev
       const listing = await MusicCore.fsRemoteList({ base: l.base, token: l.token })
       // Память прошлых проходов относится к паре папок «эта на компьютере — эта на телефоне». Сменилась любая
       // из них (выбрали другую, или папка телефона взялась по умолчанию) — сверяем заново: тогда файлы только
@@ -262,6 +274,8 @@ export const useFileSync = defineStore('filesync', () => {
       })
       report.value = r
       lastAt.value = Date.now()
+      // Папку компьютера в этом виде уже сверили: опрос (watchPc) ждёт следующего изменения
+      doneRev = rev
       status.value = r.error === 'localEmpty' || r.error === 'remoteEmpty' ? 'error' : 'idle'
       if (r.error === 'localEmpty') error.value = $t('Папка на телефоне пуста — похоже, к ней нет доступа. Ничего не трогаю.')
       if (r.error === 'remoteEmpty') error.value = $t('Папка на компьютере пуста — похоже, она недоступна. Ничего не трогаю.')
@@ -292,7 +306,23 @@ export const useFileSync = defineStore('filesync', () => {
     ctl?.abort()
   }
 
-  /** Автозапуск: при старте, при возвращении в приложение и раз в 10 минут, пока оно открыто */
+  /*
+   * Ревизия папки компьютера (его /hello): меняется, как только в папке что-то поменялось. Пока приложение
+   * открыто, телефон спрашивает её раз в POLL_MS и сверяет папку сразу — новая песня приходит без кнопки
+   */
+  let seenRev: string | null = null
+  let doneRev: string | null = null
+  let pollTimer = 0
+  async function watchPc() {
+    const l = link.value
+    if (!l || !files.value || !root.value || !access.value || status.value === 'running') return
+    if (document.visibilityState !== 'visible') return
+    const h = await MusicCore.fsHello({ base: l.base }).catch(() => null)
+    if (!h || h.id !== l.pcId || !h.rev || h.rev === doneRev) return
+    void syncNow({ auto: true })
+  }
+
+  /** Автозапуск: при старте, при возвращении в приложение, при изменении папки на компьютере и раз в 10 минут */
   function start() {
     if (!isNative) return
     // Данные через компьютер: он сменил адрес в сети — находим его по маячку
@@ -310,6 +340,8 @@ export const useFileSync = defineStore('filesync', () => {
     timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void syncNow({ auto: true })
     }, AUTO_EVERY_MS)
+    clearInterval(pollTimer)
+    pollTimer = window.setInterval(() => void watchPc(), POLL_MS)
   }
 
   /* ---------------- компьютер ---------------- */
@@ -358,6 +390,7 @@ export const useFileSync = defineStore('filesync', () => {
     vpn,
     access,
     status,
+    busy,
     error,
     progress,
     report,

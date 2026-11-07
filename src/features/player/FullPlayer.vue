@@ -45,7 +45,8 @@ import { useRemote } from '@/stores/remote'
 import PlayerAmbient from './PlayerAmbient.vue'
 import NowExtras from '@/components/desktop/NowExtras.vue'
 import SpeedSheet from './SpeedSheet.vue'
-import { loadWaveform } from '@/data/repos/library'
+import { loadWaveform, waveOutdated } from '@/data/repos/library'
+import { MusicCore } from '@/native/music-core'
 import { outputLabel } from '@/domain/outputs'
 import { bookmarksFor, type Bookmark } from '@/data/repos/bookmarks'
 import CoverArt from '@/components/CoverArt.vue'
@@ -128,10 +129,18 @@ const markPoints = computed(() => marks.value.map((b) => ({ at: b.positionMs, be
 
 /* ---- волна трека из анализа ---- */
 const wave = shallowRef<Uint8Array | null>(null)
+/** Треки, которым уже заказан пересчёт волны в этот раз */
+const rewaved = new Set<string>()
 watch(
-  () => [item.value?.key, track.value?.analyzed] as const,
+  // analyzedAt, а не analyzed: после пересчёта волны трек остаётся «проанализированным», а волна — новая
+  () => [item.value?.key, track.value?.analyzedAt] as const,
   async ([k]) => {
     wave.value = k ? await loadWaveform(k).catch(() => null) : null
+    // Волна по старой формуле (у громких треков — ровная полоса): пересчитать сейчас, громкость не теряется
+    if (k && !rewaved.has(k) && (await waveOutdated(k).catch(() => false))) {
+      rewaved.add(k)
+      void MusicCore.analyze({ keys: [k], priority: 'now' })
+    }
   },
   { immediate: true },
 )

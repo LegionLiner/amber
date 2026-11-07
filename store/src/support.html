@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Amber — картинки для поддержки</title>
+<style>
+  /* Картинки 970×550 для ссылки на поддержку (Tribute): без текста, главное — в центре (превью обрезают края).
+     Рендер: node store/tools/support.mjs → store/support/*.png */
+  body { margin: 0; background: #222; display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+  .card { position: relative; width: 970px; height: 550px; overflow: hidden; background: #0e0d0c; }
+  .grain { position: absolute; inset: 0; opacity: .07; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+  svg.full { position: absolute; inset: 0; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+<!-- A. «Тёплый знак»: знак Amber в янтарном свечении, от него расходятся мягкие звуковые волны -->
+<div class="card" id="a-glow">
+  <svg class="full" viewBox="0 0 970 550">
+    <defs>
+      <radialGradient id="a-bg" cx="50%" cy="52%" r="62%"><stop offset="0" stop-color="#5a3412"/><stop offset=".45" stop-color="#24170c"/><stop offset="1" stop-color="#0e0d0c"/></radialGradient>
+      <radialGradient id="a-core" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffb23e" stop-opacity=".55"/><stop offset="1" stop-color="#ffb23e" stop-opacity="0"/></radialGradient>
+      <linearGradient id="a-amb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".5" stop-color="#ffb23e"/><stop offset="1" stop-color="#e8681e"/></linearGradient>
+      <filter id="a-blur"><feGaussianBlur stdDeviation="18"/></filter>
+    </defs>
+    <rect width="970" height="550" fill="url(#a-bg)"/>
+    <!-- звуковые волны: кольца от центра, тише к краям -->
+    <g fill="none" stroke="#ffb23e">
+      <circle cx="485" cy="282" r="150" stroke-opacity=".22" stroke-width="2"/>
+      <circle cx="485" cy="282" r="205" stroke-opacity=".15" stroke-width="2"/>
+      <circle cx="485" cy="282" r="265" stroke-opacity=".10" stroke-width="2"/>
+      <circle cx="485" cy="282" r="330" stroke-opacity=".06" stroke-width="2"/>
+      <circle cx="485" cy="282" r="400" stroke-opacity=".035" stroke-width="2"/>
+    </g>
+    <circle cx="485" cy="282" r="170" fill="url(#a-core)" filter="url(#a-blur)"/>
+    <!-- знак «A-волна» (store/src/logos.html, #e-monogram), сетка 512 → около 230 px -->
+    <g transform="translate(485 282) scale(.6) translate(-256 -258)">
+      <path d="M128 412 L256 104 L384 412" fill="none" stroke="url(#a-amb)" stroke-width="58" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="166,318 200,318 220,284 244,346 268,272 290,336 310,318 346,318" fill="none" stroke="#fff3df" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </svg>
+  <div class="grain"></div>
+</div>
+
+<!-- B. «Сердце из волны»: эквалайзер из янтарных столбиков складывается в сердце — «спасибо» без слов -->
+<div class="card" id="b-heart">
+  <svg class="full" viewBox="0 0 970 550">
+    <defs>
+      <linearGradient id="b-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1c120a"/><stop offset=".5" stop-color="#120e0b"/><stop offset="1" stop-color="#1d0f12"/></linearGradient>
+      <radialGradient id="b-g1" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ff9f3a" stop-opacity=".45"/><stop offset="1" stop-color="#ff9f3a" stop-opacity="0"/></radialGradient>
+      <radialGradient id="b-g2" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#e8506a" stop-opacity=".28"/><stop offset="1" stop-color="#e8506a" stop-opacity="0"/></radialGradient>
+      <linearGradient id="b-amb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".55" stop-color="#ffb23e"/><stop offset="1" stop-color="#e8681e"/></linearGradient>
+      <!-- сердце: столбики видны только внутри него -->
+      <clipPath id="b-heart-clip"><path d="M485 452 C 380 380 300 318 300 236 C 300 180 342 140 396 140 C 432 140 466 160 485 194 C 504 160 538 140 574 140 C 628 140 670 180 670 236 C 670 318 590 380 485 452 Z"/></clipPath>
+    </defs>
+    <rect width="970" height="550" fill="url(#b-bg)"/>
+    <circle cx="400" cy="260" r="330" fill="url(#b-g1)"/>
+    <circle cx="640" cy="320" r="300" fill="url(#b-g2)"/>
+    <!-- тусклые столбики по всей ширине — как спектр за кадром -->
+    <g id="b-bg-bars" fill="#ffb23e" fill-opacity=".07"></g>
+    <!-- сердце из столбиков -->
+    <g clip-path="url(#b-heart-clip)" fill="url(#b-amb)" id="b-bars"></g>
+    <path d="M485 452 C 380 380 300 318 300 236 C 300 180 342 140 396 140 C 432 140 466 160 485 194 C 504 160 538 140 574 140 C 628 140 670 180 670 236 C 670 318 590 380 485 452 Z" fill="none" stroke="#ffb23e" stroke-opacity=".35" stroke-width="3"/>
+  </svg>
+  <div class="grain"></div>
+</div>
+
+<script>
+  // Столбики эквалайзера: внутри сердца — плотные, по фону — тусклые
+  const NS = 'http://www.w3.org/2000/svg'
+  const bar = (g, x, w, h, cy) => {
+    const r = document.createElementNS(NS, 'rect')
+    r.setAttribute('x', x); r.setAttribute('y', cy - h / 2); r.setAttribute('width', w); r.setAttribute('height', h); r.setAttribute('rx', w / 2)
+    g.appendChild(r)
+  }
+  const heart = document.getElementById('b-bars')
+  // Столбики во всю высоту: форму сердца целиком задаёт обрезка, без пустот по краям
+  for (let x = 296; x < 676; x += 22) bar(heart, x, 15, 340, 296)
+  const back = document.getElementById('b-bg-bars')
+  for (let i = 0, x = 6; x < 970; i++, x += 22) {
+    if (x > 280 && x < 690) continue
+    const h = 30 + 140 * Math.abs(Math.sin(i * 0.9) * Math.cos(i * 0.37))
+    bar(back, x, 12, h, 300)
+  }
+</script>
+</body>
+</html>

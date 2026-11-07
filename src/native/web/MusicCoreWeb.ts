@@ -61,6 +61,7 @@ import { loadCovers, saveCover, webCoverUrl } from './web-covers'
 import { countedSqlExpr, DEFAULT_COUNTING, isCounted, localParts } from '@/domain/counting'
 import { rekeyFixupSql } from '@/data/rekey'
 import { $t } from '@/i18n'
+import { WAVE_VERSION } from '@/domain/waveform'
 
 interface LiveEvent {
   id: number
@@ -876,8 +877,8 @@ export class MusicCoreWeb extends WebPlugin implements MusicCorePlugin, MusicCor
             if (!r) throw new Error($t('нет файла'))
             db.execute(
               `INSERT OR REPLACE INTO analysis (key, lufs, true_peak_db, intro_silence_ms, outro_silence_ms, waveform,
-                 energy, bpm, analyzed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [key, r.lufs, r.peakDb, r.introMs, r.outroMs, r.waveform, r.energy, r.bpm, Date.now()],
+                 energy, bpm, analyzed_at, wave_v) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [key, r.lufs, r.peakDb, r.introMs, r.outroMs, r.waveform, r.energy, r.bpm, Date.now(), WAVE_VERSION],
             )
             const old = this.loud.get(key)
             this.loud.set(key, {

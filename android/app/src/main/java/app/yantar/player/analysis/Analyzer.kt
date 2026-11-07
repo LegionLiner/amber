@@ -20,7 +20,6 @@ import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
-import kotlin.math.sqrt
 import kotlin.math.tan
 
 /**
@@ -109,9 +108,10 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
         val r = analyze(Uri.parse(row[0] as String)) ?: return
         val wave = Base64.encodeToString(r.waveform, Base64.NO_WRAP)
         Database.execute(
-            """INSERT OR REPLACE INTO analysis (key, lufs, true_peak_db, intro_silence_ms, outro_silence_ms, waveform, energy, bpm, analyzed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            listOf(key, r.lufs, r.peakDb, r.introMs, r.outroMs, wave, r.energy, r.bpm, System.currentTimeMillis()),
+            """INSERT OR REPLACE INTO analysis (key, lufs, true_peak_db, intro_silence_ms, outro_silence_ms, waveform, energy, bpm, analyzed_at, wave_v)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            // wave_v — версия формулы волны (WAVE_VERSION в src/domain/waveform.ts)
+            listOf(key, r.lufs, r.peakDb, r.introMs, r.outroMs, wave, r.energy, r.bpm, System.currentTimeMillis(), 2),
         )
         Loudness.update(key, r.lufs, r.introMs, r.outroMs)
     }
@@ -191,7 +191,9 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
             var firstLoud = -1L
             var lastLoud = -1L
             var frame = 0L
-            val env = ArrayList<Float>() // огибающая по 10 мс для волны и темпа
+            val env = ArrayList<Float>() // огибающая (пики) по 10 мс — для темпа
+            val envSq = ArrayList<Double>() // средний квадрат по 10 мс — для волны (waveFromMeanSquares)
+            var envSqAcc = 0.0
             var envMax = 0.0
             var envN = 0
             var envLen = sampleRate / 100
@@ -239,6 +241,7 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
                     for (i in 0 until frames) {
                         var frameMax = 0.0
                         var frameSq = 0.0
+                        var raw = 0.0
                         for (c in 0 until channels) {
                             val idx = i * channels + c
                             val x = if (fb != null) fb.get(idx).toDouble() else sb!!.get(idx) / 32768.0
@@ -250,6 +253,7 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
                                 frameSq += y * y
                             }
                             sumSq += x * x
+                            raw += x * x
                             sqN++
                         }
                         acc += frameSq
@@ -265,9 +269,12 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
                             lastLoud = frame
                         }
                         if (frameMax > envMax) envMax = frameMax
+                        envSqAcc += raw / max(1, channels)
                         envN++
                         if (envN >= envLen) {
                             env.add(envMax.toFloat())
+                            envSq.add(envSqAcc / envN)
+                            envSqAcc = 0.0
                             envMax = 0.0
                             envN = 0
                         }
@@ -295,18 +302,7 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
             val intro = if (firstLoud > 0) (firstLoud * msPerFrame).toLong() else 0L
             val outro = if (lastLoud in 0 until frame) ((frame - 1 - lastLoud) * msPerFrame).toLong() else 0L
 
-            // Волна: 1000 значений, корень сглаживает динамику, чтобы тихие места были видны
-            val wave = ByteArray(1000)
-            if (env.isNotEmpty()) {
-                val top = env.maxOrNull()?.takeIf { it > 0 } ?: 1f
-                for (i in 0 until 1000) {
-                    val from = (i.toLong() * env.size / 1000).toInt()
-                    val to = max(from + 1, ((i + 1).toLong() * env.size / 1000).toInt())
-                    var m = 0f
-                    for (j in from until min(to, env.size)) if (env[j] > m) m = env[j]
-                    wave[i] = (sqrt((m / top).toDouble()) * 255).toInt().coerceIn(0, 255).toByte()
-                }
-            }
+            val wave = waveFromMeanSquares(envSq)
 
             val rmsDb = if (sqN > 0) 10 * log10(sumSq / sqN + 1e-12) else -90.0
             val energy = ((rmsDb + 30.0) / 25.0).coerceIn(0.0, 1.0)
@@ -323,6 +319,39 @@ class Analyzer(private val ctx: Context, private val onProgress: (done: Int, tot
             codec?.release()
             ex.release()
         }
+    }
+
+    /**
+     * Волна для плеера: 1000 столбиков 0..255 по средней громкости (RMS) в дБ, растянутой по самому треку —
+     * от его тихой четверти до самого громкого места (не меньше 12 дБ). По пикам у громко сведённых треков
+     * выходила ровная полоса. Та же формула — src/domain/waveform.ts (WAVE_VERSION)
+     */
+    private fun waveFromMeanSquares(meanSq: List<Double>): ByteArray {
+        val out = ByteArray(1000)
+        val n = meanSq.size
+        if (n == 0) return out
+        val db = DoubleArray(1000)
+        for (i in 0 until 1000) {
+            val from = (i.toLong() * n / 1000).toInt()
+            val to = max(from + 1, ((i + 1).toLong() * n / 1000).toInt())
+            var s = 0.0
+            var c = 0
+            for (j in from until min(to, n)) {
+                s += meanSq[j]
+                c++
+            }
+            db[i] = 10 * log10((if (c > 0) s / c else 0.0) + 1e-12)
+        }
+        val sorted = db.sortedArray()
+        fun pct(q: Double) = sorted[min(999, (q * 1000).toInt())]
+        val hi = pct(0.995)
+        val lo = min(pct(0.25), hi - 12)
+        for (i in 0 until 1000) {
+            val t = (db[i] - lo) / (hi - lo)
+            val v = if (t >= 0) 0.12 + 0.88 * min(1.0, t) else max(0.03, 0.12 + 0.09 * (db[i] - lo) / 20)
+            out[i] = Math.round(v * 255).toInt().coerceIn(0, 255).toByte()
+        }
+        return out
     }
 
     /**

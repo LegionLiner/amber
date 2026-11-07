@@ -370,6 +370,14 @@ export const MIGRATIONS: Migration[] = [
       ...syncTriggers(8),
     ],
   },
+  {
+    version: 9,
+    statements: [
+      // Версия формулы волны (domain/waveform.ts). Старые волны (по пикам) у громко сведённых треков выходили
+      // ровной полосой: такие пересчитываются — сразу у играющего трека, остальные в фоне. Громкость не трогается
+      `ALTER TABLE analysis ADD COLUMN wave_v INTEGER`,
+    ],
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version

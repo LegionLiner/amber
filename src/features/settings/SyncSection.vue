@@ -50,7 +50,8 @@ function ago(ts: number | null): string {
 const statusText = computed(() => {
   switch (sync.status) {
     case 'syncing':
-      return $t('Синхронизирую…')
+      // Короткий проход не меняет текст: «Синхронизирую…» — только если он затянулся (sync.busy)
+      return sync.busy ? $t('Синхронизирую…') : $t('Всё синхронизировано · {0}', sync.live ? $t('на связи, изменения приходят сразу') : ago(sync.lastAt))
     case 'offline':
       return $t('Нет связи с сервером. Изменения отправятся, когда появится сеть')
     case 'error':
@@ -113,7 +114,7 @@ async function removeAccount() {
         <button
           type="button"
           class="icon-btn"
-          :class="{ spin: sync.status === 'syncing' }"
+          :class="{ spin: sync.busy }"
           :aria-label="$t('Синхронизировать сейчас')"
           :title="$t('Синхронизировать сейчас')"
           @click="sync.syncNow()"

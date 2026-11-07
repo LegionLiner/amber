@@ -91,6 +91,21 @@ export async function pendingCount(db: SyncDb): Promise<number> {
   return Number(rows[0]?.n ?? 0)
 }
 
+/**
+ * Настройки сохраняются целиком на любую мелочь (вкладка, раскрытая группа) — и каждый раз в журнал ложится
+ * запись 'pref'. Если общие настройки при этом те же, что уже ушли, отправлять нечего: убираем её без прохода
+ * синхронизации (иначе проходы шли один за другим, а статус в настройках мигал «Синхронизирую…»).
+ * true — в журнале было только такое и его больше нет
+ */
+export async function dropIdlePrefs(db: SyncDb, prefs: Record<string, unknown> | null): Promise<boolean> {
+  const rows = await db.all<{ kind: string; at: number }>(`SELECT kind, at FROM sync_outbox`)
+  if (!rows.length || rows.some((r) => r.kind !== 'pref')) return false
+  if (!prefs || stable(prefs) !== (await state(db, 'prefHash'))) return false
+  const at = Math.max(...rows.map((r) => r.at))
+  await db.batch([{ sql: `DELETE FROM sync_outbox WHERE kind = 'pref' AND at <= ?`, params: [at] }])
+  return true
+}
+
 /** Стабильная строка для сравнения настроек: порядок полей не важен */
 function stable(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`
